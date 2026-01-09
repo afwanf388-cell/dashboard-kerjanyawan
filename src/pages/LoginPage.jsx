@@ -113,7 +113,9 @@ const LoginPage = () => {
             {/* Left Side: Branding */}
             <div style={{
                 flex: isMobile ? 'none' : '1.2',
-                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                background: `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.2)), url('/login-bg.jpg')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
@@ -122,13 +124,12 @@ const LoginPage = () => {
                 overflow: 'hidden',
                 minHeight: isMobile ? 'auto' : '100vh'
             }}>
-                {/* Dot Pattern Overlay */}
+                {/* Overlay for depth */}
                 <div style={{
                     position: 'absolute',
                     inset: 0,
-                    backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)',
-                    backgroundSize: '24px 24px',
-                    opacity: 0.6
+                    background: 'radial-gradient(circle at 30% 50%, rgba(0, 113, 197, 0.2), transparent)',
+                    pointerEvents: 'none'
                 }} />
 
                 <motion.div
@@ -138,14 +139,15 @@ const LoginPage = () => {
                 >
                     <div style={{
                         width: '56px', height: '56px',
-                        background: 'rgba(255,255,255,0.2)',
+                        background: 'rgba(0, 113, 197, 0.3)',
                         borderRadius: '16px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         marginBottom: '40px',
                         backdropFilter: 'blur(10px)',
-                        border: '1px solid rgba(255,255,255,0.3)'
+                        border: '1px solid rgba(0, 180, 255, 0.3)',
+                        boxShadow: '0 0 20px rgba(0, 113, 197, 0.4)'
                     }}>
-                        <Sparkles size={32} color="white" />
+                        <Sparkles size={32} color="#00b4ff" />
                     </div>
 
                     <h1 style={{ fontSize: 'clamp(32px, 5vw, 56px)', fontWeight: '900', lineHeight: '1.1', marginBottom: '24px', letterSpacing: '-1px' }}>
@@ -183,15 +185,15 @@ const LoginPage = () => {
                         fontSize: '12px',
                         fontWeight: '900',
                         letterSpacing: '2px',
-                        background: 'linear-gradient(to right, #fbbf24, #f59e0b, #fbbf24)',
+                        background: 'linear-gradient(to right, #fbbf24, #fff, #fbbf24)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        textShadow: '0 0 10px rgba(251, 191, 36, 0.4)'
+                        textShadow: '0 0 15px rgba(251, 191, 36, 0.6)'
                     }}>
-                        <Star size={14} color="#fbbf24" fill="#fbbf24" style={{ filter: 'drop-shadow(0 0 5px rgba(251, 191, 36, 0.8))' }} /> CREDIT BY AFWAN
+                        <Star size={14} color="#fbbf24" fill="#fbbf24" style={{ filter: 'drop-shadow(0 0 8px rgba(251, 191, 36, 1))' }} /> CREDIT BY AFWAN
                     </div>
                     <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '5px', fontWeight: '600', letterSpacing: '1px' }}>BUILD WITH PRECISION & ELEGANCE</div>
                 </div>
@@ -235,7 +237,7 @@ const LoginPage = () => {
                                 EMAIL ADDRESS / USERNAME
                             </label>
                             <div style={{ position: 'relative' }}>
-                                <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                                <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#00b4ff' }} />
                                 <input
                                     type="text"
                                     value={username}
@@ -244,7 +246,7 @@ const LoginPage = () => {
                                     required
                                     style={{
                                         width: '100%', height: '54px', paddingLeft: '48px',
-                                        background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255,255,255,0.05)',
+                                        background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(0, 180, 255, 0.1)',
                                         borderRadius: '12px', color: 'white', fontWeight: '500', outline: 'none'
                                     }}
                                 />
@@ -279,7 +281,7 @@ const LoginPage = () => {
                                 SECURE PASSWORD
                             </label>
                             <div style={{ position: 'relative' }}>
-                                <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#475569' }} />
+                                <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#00b4ff' }} />
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     value={password}
@@ -288,11 +290,11 @@ const LoginPage = () => {
                                     required
                                     style={{
                                         width: '100%', height: '54px', paddingLeft: '48px', paddingRight: '48px',
-                                        background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255,255,255,0.05)',
+                                        background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(0, 180, 255, 0.1)',
                                         borderRadius: '12px', color: 'white', fontWeight: '500', outline: 'none'
                                     }}
                                 />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#475569', cursor: 'pointer' }}>
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#00b4ff', cursor: 'pointer' }}>
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
@@ -325,12 +327,12 @@ const LoginPage = () => {
                             disabled={isLoading}
                             style={{
                                 height: '58px', borderRadius: '14px',
-                                background: 'linear-gradient(90deg, #7c3aed, #6366f1)',
+                                background: 'linear-gradient(90deg, #0071c5, #00b4ff)',
                                 color: 'white', fontWeight: '900', fontSize: '16px',
                                 textTransform: 'uppercase', letterSpacing: '1px',
                                 border: 'none', cursor: isLoading ? 'wait' : 'pointer',
                                 marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
-                                boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.4)'
+                                boxShadow: '0 10px 20px -5px rgba(0, 113, 197, 0.4)'
                             }}
                         >
                             {isLoading ? 'PROCESSING...' : (
