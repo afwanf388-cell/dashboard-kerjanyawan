@@ -317,7 +317,8 @@ const KesalahanStaf = () => {
                 gap: '16px',
                 background: 'rgba(255,255,255,0.03)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                height: '100%' // Biar tinggi kartu sama dalam satu baris
             }}
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -332,7 +333,7 @@ const KesalahanStaf = () => {
                         {(mistake.staffName || '??').split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2)}
                     </div>
                     <div>
-                        <div style={{ fontWeight: '800', color: 'white', fontSize: '15px' }}>{mistake.staffName}</div>
+                        <div style={{ fontWeight: '800', color: 'white', fontSize: '15px', textTransform: 'uppercase' }}>{mistake.staffName}</div>
                         <div style={{ fontSize: '11px', color: severityColor, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>{mistake.severity} Risk</div>
                     </div>
                 </div>
@@ -675,8 +676,10 @@ const KesalahanStaf = () => {
         );
     });
 
-    // Show all mistakes (removed limit as per user request to see everything)
-    const displayedMistakes = filteredMistakes;
+    // Urutkan berdasarkan Nama Staf A-Z
+    const displayedMistakes = [...filteredMistakes].sort((a, b) =>
+        (a.staffName || '').localeCompare(b.staffName || '', 'en', { sensitivity: 'base' })
+    );
 
     const getSeverityColor = (sev) => {
         switch (sev) {
@@ -1248,6 +1251,7 @@ const KesalahanStaf = () => {
                                 <div style={{
                                     display: 'grid',
                                     gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))',
+                                    gridAutoRows: '1fr', // Paksa tinggi baris sama
                                     gap: '16px'
                                 }}>
                                     {dateMistakes.map((mistake, index) => {
