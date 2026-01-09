@@ -686,3 +686,16 @@ html {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Response Utility Classes */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .show-mobile {
+    display: none !important;
+  }
+}

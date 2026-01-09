@@ -44,6 +44,14 @@ const KesalahanStaf = () => {
     const [renderLimit, setRenderLimit] = useState(50);
     const [isInitialLoad, setIsInitialLoad] = useState(true); // Prevent animation flicker on load
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
+
+    // Monitor screen size for responsive buttons
+    useEffect(() => {
+        const handleResize = () => setIsMobileView(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // Initial Load from Cloud (if available) - Improved Logic
     useEffect(() => {
@@ -88,6 +96,24 @@ const KesalahanStaf = () => {
         };
 
         fetchData();
+
+        // REAL-TIME SUBSCRIPTION: Auto-update when data changes in cloud
+        const channel = supabase
+            .channel('staff_mistakes_realtime')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'staff_mistakes',
+                filter: `user_id=eq.${user.username || user.email}`
+            }, (payload) => {
+                console.log('Realtime update received:', payload);
+                fetchData(); // Refresh data on any change
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user]);
 
     // Local Backup & Real-time Sync Trigger
@@ -662,67 +688,83 @@ const KesalahanStaf = () => {
                 </div>
                 <div className="header-actions-staf" style={{
                     display: 'flex',
-                    gap: '12px',
+                    gap: '10px',
                     flexWrap: 'wrap',
                     position: 'relative',
-                    zIndex: 200,
+                    zIndex: 999, // Sangat tinggi agar tidak terhalang
                     pointerEvents: 'auto'
                 }}>
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => { resetForm(); setShowModal(true); }}
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            resetForm();
+                            setShowModal(true);
+                        }}
                         style={{
-                            padding: '12px 16px',
+                            padding: '12px 20px',
                             borderRadius: '12px',
                             background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                             color: 'white',
                             border: 'none',
                             display: 'flex',
-                            alignItems: 'center', gap: '8px',
-                            fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontWeight: '800',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
                         }}
                     >
-                        <Plus size={16} /> <span className="hide-mobile">Laporan Baru</span><span className="show-mobile">Lapor</span>
-                    </motion.button>
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setShowImportModal(true)}
+                        <Plus size={18} />
+                        <span>{isMobileView ? 'Lapor' : 'Laporan Baru'}</span>
+                    </button>
+
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            setShowImportModal(true);
+                        }}
                         style={{
-                            padding: '12px 16px',
+                            padding: '12px 20px',
                             borderRadius: '12px',
                             background: 'rgba(59, 130, 246, 0.1)',
                             color: '#3b82f6',
-                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
                             display: 'flex',
-                            alignItems: 'center', gap: '8px',
-                            fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontWeight: '800',
+                            fontSize: '13px',
+                            cursor: 'pointer',
                         }}
                     >
-                        <Import size={16} /> <span className="hide-mobile">Import Docs</span><span className="show-mobile">Import</span>
-                    </motion.button>
+                        <Import size={18} />
+                        <span>{isMobileView ? 'Import' : 'Import Docs'}</span>
+                    </button>
 
-                    {/* Clear All Button - Always visible for reset */}
-                    <motion.button
-                        id="btn-hapus-semua"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowClearConfirm(true)}
+                    <button
+                        onClick={(e) => {
+                            e.preventDefault();
+                            setShowClearConfirm(true);
+                        }}
                         style={{
-                            padding: '12px 16px',
+                            padding: '12px 20px',
                             borderRadius: '12px',
-                            background: 'rgba(239, 68, 68, 0.2)',
+                            background: 'rgba(239, 68, 68, 0.15)',
                             color: '#ef4444',
-                            border: '1px solid rgba(239, 68, 68, 0.4)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
                             display: 'flex',
-                            alignItems: 'center', gap: '8px',
-                            fontWeight: '800', fontSize: '13px', cursor: 'pointer',
-                            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.2)'
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontWeight: '800',
+                            fontSize: '13px',
+                            cursor: 'pointer',
                         }}
                     >
-                        <Trash2 size={16} /> <span className="hide-mobile">Hapus Semua</span>
-                    </motion.button>
+                        <Trash2 size={18} />
+                        <span>{isMobileView ? 'Hapus' : 'Hapus Semua'}</span>
+                    </button>
                 </div>
             </header>
 
