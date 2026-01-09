@@ -660,38 +660,51 @@ const KesalahanStaf = () => {
             <header style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                flexWrap: 'wrap',
-                gap: '20px'
+                alignItems: 'center', // Sejajarkan tengah secara vertikal
+                flexWrap: 'nowrap', // PAKSA satu baris, jangan turun
+                gap: '12px',
+                marginBottom: '10px'
             }}>
-                <div>
+                <div style={{ flexShrink: 1, minWidth: 0 }}>
                     <motion.h2
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        style={{
+                            fontSize: 'clamp(16px, 4vw, 28px)', // Font mengecil sesuai layar
+                            fontWeight: '900',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis' // Potong teks judul jika kepanjangan di HP
+                        }}
                     >
                         <div className="hide-mobile" style={{
-                            padding: '10px',
-                            borderRadius: '14px',
+                            padding: '8px',
+                            borderRadius: '12px',
                             background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
                             display: 'flex',
-                            boxShadow: '0 8px 20px rgba(239, 68, 68, 0.3)',
+                            boxShadow: '0 6px 15px rgba(239, 68, 68, 0.3)',
                             flexShrink: 0
                         }}>
-                            <UserX size={24} color="white" />
+                            <UserX size={20} color="white" />
                         </div>
-                        <span style={{ wordBreak: 'break-word', letterSpacing: '-0.5px' }}>Laporan Kesalahan Staf</span>
+                        <span>Kesalahan Staf</span>
                     </motion.h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 'clamp(12px, 3vw, 14px)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}>
-                        <ShieldAlert size={16} color="#ef4444" className="hide-mobile" /> Pantau record performa tim • Total {performanceStats.totalPeriod} laporan di periode ini
+                    <p className="hide-mobile" style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px', fontWeight: '500' }}>
+                        Total {performanceStats.totalPeriod} laporan periode ini
                     </p>
                 </div>
+
                 <div className="header-actions-staf" style={{
                     display: 'flex',
-                    gap: '10px',
-                    flexWrap: 'wrap',
+                    gap: '6px',
+                    flexWrap: 'nowrap',
+                    alignItems: 'center',
+                    flexShrink: 0, // Jangan biarkan tombol mengecil
                     position: 'relative',
-                    zIndex: 999, // Sangat tinggi agar tidak terhalang
+                    zIndex: 9999,
                     pointerEvents: 'auto'
                 }}>
                     <button
@@ -702,21 +715,24 @@ const KesalahanStaf = () => {
                             setShowModal(true);
                         }}
                         style={{
-                            padding: '12px 20px',
+                            padding: '10px 16px', // Sedikit lebih ramping
                             borderRadius: '12px',
                             background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                             color: 'white',
                             border: 'none',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            fontWeight: '800',
-                            fontSize: '13px',
+                            gap: '6px',
+                            fontWeight: '900',
+                            fontSize: '12px',
                             cursor: 'pointer',
-                            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)',
+                            boxShadow: '0 6px 15px rgba(239, 68, 68, 0.4)',
+                            zIndex: 10,
+                            whiteSpace: 'nowrap',
+                            WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Plus size={18} />
+                        <Plus size={16} strokeWidth={3} />
                         <span>{isMobileView ? 'Lapor' : 'Laporan Baru'}</span>
                     </button>
 
@@ -726,20 +742,22 @@ const KesalahanStaf = () => {
                             setShowImportModal(true);
                         }}
                         style={{
-                            padding: '12px 20px',
+                            padding: '10px 16px',
                             borderRadius: '12px',
-                            background: 'rgba(59, 130, 246, 0.1)',
+                            background: 'rgba(59, 130, 246, 0.15)',
                             color: '#3b82f6',
                             border: '1px solid rgba(59, 130, 246, 0.3)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            fontWeight: '800',
-                            fontSize: '13px',
+                            gap: '6px',
+                            fontWeight: '900',
+                            fontSize: '12px',
                             cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Import size={18} />
+                        <Import size={16} />
                         <span>{isMobileView ? 'Import' : 'Import Docs'}</span>
                     </button>
 
@@ -749,20 +767,22 @@ const KesalahanStaf = () => {
                             setShowClearConfirm(true);
                         }}
                         style={{
-                            padding: '12px 20px',
+                            padding: '10px 16px',
                             borderRadius: '12px',
                             background: 'rgba(239, 68, 68, 0.15)',
                             color: '#ef4444',
                             border: '1px solid rgba(239, 68, 68, 0.3)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
-                            fontWeight: '800',
-                            fontSize: '13px',
+                            gap: '6px',
+                            fontWeight: '900',
+                            fontSize: '12px',
                             cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                         <span>{isMobileView ? 'Hapus' : 'Hapus Semua'}</span>
                     </button>
                 </div>
@@ -1252,8 +1272,27 @@ const KesalahanStaf = () => {
             {/* Premium Modal */}
             <AnimatePresence>
                 {showModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="glass-effect" style={{ width: '100%', maxWidth: '520px', padding: 0, overflow: 'hidden' }}>
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(2, 6, 23, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 99999, // Super tinggi agar tidak gelap/blank
+                        padding: '20px'
+                    }}
+                        onClick={() => setShowModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 50 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 50 }}
+                            className="glass-effect"
+                            style={{ width: '100%', maxWidth: '520px', padding: 0, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             <div style={{ padding: '32px 32px 24px', borderBottom: '1px solid var(--glass-border)', background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.1), transparent)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
