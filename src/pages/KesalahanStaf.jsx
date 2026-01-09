@@ -686,11 +686,17 @@ const KesalahanStaf = () => {
             }
         }
 
-        // Clear local storage
+        // Clear local storage (User Specific)
+        if (user?.username) {
+            localStorage.removeItem(`app_mistakes_${user.username}`);
+            localStorage.removeItem(`staff_sheet_url_${user.username}`);
+            localStorage.removeItem(`staff_auto_sync_${user.username}`);
+            localStorage.removeItem(`staff_last_sync_${user.username}`);
+        }
+
+        // Legacy cleanup (Optional)
         localStorage.removeItem('app_mistakes');
         localStorage.removeItem('staff_sheet_url');
-        localStorage.removeItem('staff_auto_sync');
-        localStorage.removeItem('staff_last_sync');
 
         // Reset states
         setMistakes([]);

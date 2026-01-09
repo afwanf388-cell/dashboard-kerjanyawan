@@ -37,6 +37,7 @@ const Layout = () => {
 
     return (
         <div
+            key={user?.username || 'guest'}
             style={{
                 display: 'flex',
                 minHeight: '100vh',

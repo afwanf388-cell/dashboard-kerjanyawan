@@ -124,7 +124,7 @@ const Dashboard = () => {
                 const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix}`) || '[]');
                 const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
                 const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]');
-                const localSchedules = JSON.parse(localStorage.getItem('app_schedules') || '[]'); // Schedules might be global
+                const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix}`) || '[]');
                 let localFinance = JSON.parse(localStorage.getItem(`app_finance_v3${suffix}`) || '[]');
 
                 // Helper to filter valid mistakes (matching KesalahanStaf.jsx)
@@ -167,7 +167,7 @@ const Dashboard = () => {
                     // If cloud has finance data and local is empty (or has fewer months), prioritize cloud
                     if (resFinance.data && resFinance.data.length > localFinance.length) {
                         localFinance = resFinance.data;
-                        localStorage.setItem('app_finance_v3', JSON.stringify(localFinance));
+                        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(localFinance));
                     }
                 }
 

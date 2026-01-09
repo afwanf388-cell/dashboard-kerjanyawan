@@ -92,8 +92,9 @@ const GlobalChat = () => {
     const [supabase, setSupabase] = useState(null);
     // OPTIMIZATION: Initialize with cache immediately for zero-latency UI
     const [allMessages, setAllMessages] = useState(() => {
+        if (!user?.username) return [];
         try {
-            const cached = localStorage.getItem(CACHED_MSGS_KEY);
+            const cached = localStorage.getItem(`${CACHED_MSGS_KEY}_${user.username}`);
             return cached ? JSON.parse(cached) : [];
         } catch (e) { return []; }
     });
@@ -291,7 +292,9 @@ const GlobalChat = () => {
             if (msgs) {
                 setAllMessages(msgs);
                 if (isGlobal) {
-                    localStorage.setItem(CACHED_MSGS_KEY, JSON.stringify(msgs.slice(-30)));
+                    if (user?.username) {
+                        localStorage.setItem(`${CACHED_MSGS_KEY}_${user.username}`, JSON.stringify(msgs.slice(-30)));
+                    }
                 }
             }
 
@@ -424,7 +427,9 @@ const GlobalChat = () => {
     const handleUnsendForMe = (msgId) => {
         const updatedHidden = [...hiddenMessageIds, msgId];
         setHiddenMessageIds(updatedHidden);
-        localStorage.setItem(HIDDEN_MSGS_KEY, JSON.stringify(updatedHidden));
+        if (user?.username) {
+            localStorage.setItem(`${HIDDEN_MSGS_KEY}_${user.username}`, JSON.stringify(updatedHidden));
+        }
         setOpenMenuId(null);
     };
 
@@ -464,7 +469,9 @@ const GlobalChat = () => {
                 return;
             }
 
-            localStorage.setItem(PROFILE_KEY, profileStr);
+            if (user?.username) {
+                localStorage.setItem(`${PROFILE_KEY}_${user.username}`, profileStr);
+            }
             setShowSettingsModal(false);
             setToast({ title: 'Berhasil', msg: 'Profile & Background tersimpan!' });
             setTimeout(() => setToast(null), 2000);

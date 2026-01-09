@@ -112,10 +112,16 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
         }
     ];
 
-    // Initial Load from Cloud or Local - Improved Logic
+    // Initial Load from Cloud or Local per User
     useEffect(() => {
         const loadData = async () => {
-            if (supabase && user?.username) {
+            if (!user?.username) {
+                setArticles([]);
+                setSyncStatus('Unauthorized');
+                return;
+            }
+
+            if (supabase) {
                 setSyncStatus('Syncing...');
                 const { data, error } = await supabase.from('bola_articles')
                     .select('*')
@@ -129,28 +135,25 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
                 }
 
                 if (data && data.length > 0) {
-                    // Cloud has data, use as source of truth
-                    // Map underscore to camelCase if necessary (already appears to match or be close)
                     const normalizedData = data.map(item => ({
                         ...item,
+                        id: Number(item.id),
                         updateDate: item.update_date || item.updateDate
                     }));
                     setArticles(normalizedData);
                     setSyncStatus('Cloud Connected');
-                } else if (articles.length > 0) {
-                    // Cloud is empty but local has data -> Sync Local to Cloud
-                    setSyncStatus('Backing up to Cloud...');
-                    const syncPromises = articles.map(item => syncToCloud(item));
-                    await Promise.all(syncPromises);
-                    setSyncStatus('Cloud Connected');
                 } else {
-                    // Default fallback
-                    setArticles(DEFAULT_ARTICLES);
+                    // Cek lokal dulu sebelum pakai default
+                    const saved = localStorage.getItem(`bola_articles_${user.username}`);
+                    if (saved) {
+                        setArticles(JSON.parse(saved));
+                    } else {
+                        setArticles(DEFAULT_ARTICLES);
+                    }
                     setSyncStatus('Cloud Ready');
                 }
             } else {
-                // Not logged in or no Supabase
-                const saved = localStorage.getItem('bola_articles');
+                const saved = localStorage.getItem(`bola_articles_${user.username}`);
                 if (saved && JSON.parse(saved).length > 0) {
                     setArticles(JSON.parse(saved));
                 } else {
@@ -161,12 +164,12 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
         loadData();
     }, [user?.username]);
 
-    // Local Backup
+    // Local Backup per User
     useEffect(() => {
-        if (articles.length > 0) {
-            localStorage.setItem('bola_articles', JSON.stringify(articles));
+        if (user?.username && articles.length > 0) {
+            localStorage.setItem(`bola_articles_${user.username}`, JSON.stringify(articles));
         }
-    }, [articles]);
+    }, [articles, user?.username]);
 
     const syncToCloud = async (item, action = 'upsert') => {
         if (!supabase || !user) return;
@@ -194,7 +197,9 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
     };
 
     const saveToLocal = (data) => {
-        localStorage.setItem('bola_articles', JSON.stringify(data));
+        if (user?.username) {
+            localStorage.setItem(`bola_articles_${user.username}`, JSON.stringify(data));
+        }
         setArticles(data);
     };
 

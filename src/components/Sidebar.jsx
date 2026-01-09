@@ -35,7 +35,8 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
     const handleLogout = () => {
         if (onClose) onClose();
         logout();
-        navigate('/login');
+        // Force full page reload to clear all states/caches definitively
+        window.location.href = '/login';
     };
 
     const handleProfileUpdate = (e) => {
