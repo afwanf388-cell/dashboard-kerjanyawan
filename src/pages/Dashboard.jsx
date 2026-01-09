@@ -114,12 +114,18 @@ const Dashboard = () => {
     useEffect(() => {
         const loadStats = async () => {
             try {
-                // 1. Get Local Data first
-                const localNotes = JSON.parse(localStorage.getItem('app_catatan_kerja') || '[]');
-                const localLogins = JSON.parse(localStorage.getItem('app_login_data') || '[]');
-                const localMistakes = JSON.parse(localStorage.getItem('app_mistakes') || '[]');
-                const localSchedules = JSON.parse(localStorage.getItem('app_schedules') || '[]');
-                let localFinance = JSON.parse(localStorage.getItem('app_finance_v3') || '[]');
+                // 1. Get Local Data first based on USER (Force isolation)
+                if (!user?.username) {
+                    setStats(prev => ({ ...prev, notes: 0, mistakes: 0, logins: 0, balance: 0, income: 0, expense: 0 }));
+                    return;
+                }
+
+                const suffix = `_${user.username}`;
+                const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix}`) || '[]');
+                const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
+                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]');
+                const localSchedules = JSON.parse(localStorage.getItem('app_schedules') || '[]'); // Schedules might be global
+                let localFinance = JSON.parse(localStorage.getItem(`app_finance_v3${suffix}`) || '[]');
 
                 // Helper to filter valid mistakes (matching KesalahanStaf.jsx)
                 const countValidMistakes = (data) => {

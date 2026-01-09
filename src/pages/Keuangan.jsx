@@ -7,17 +7,31 @@ import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2,
 const Keuangan = () => {
     const { user } = useAuth();
 
-    // Hybrid State Initialization
-    const [monthlyData, setMonthlyData] = useState(() => {
-        try {
-            const saved = localStorage.getItem('app_finance_v3');
-            const parsed = saved ? JSON.parse(saved) : [];
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            console.error("Failed to parse finance data:", e);
-            return [];
+    // Key localStorage yang unik per user
+    const [monthlyData, setMonthlyData] = useState([]);
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+    // Initial Load based on USER
+    useEffect(() => {
+        if (user?.username) {
+            // Bersihkan data lama jika ada saat switching akun
+            setMonthlyData([]);
+            setIsInitialLoaded(false);
+
+            try {
+                const saved = localStorage.getItem(`app_finance_v3_${user.username}`);
+                const parsed = saved ? JSON.parse(saved) : [];
+                setMonthlyData(Array.isArray(parsed) ? parsed : []);
+                setIsInitialLoaded(true);
+            } catch (e) {
+                console.error("Failed to parse finance data:", e);
+                setMonthlyData([]);
+            }
+        } else {
+            setMonthlyData([]);
+            setIsInitialLoaded(false);
         }
-    });
+    }, [user?.username]);
 
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -104,8 +118,9 @@ const Keuangan = () => {
 
     // Local Backup
     useEffect(() => {
-        localStorage.setItem('app_finance_v3', JSON.stringify(monthlyData));
-    }, [monthlyData]);
+        if (!user?.username || !isInitialLoaded) return;
+        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(monthlyData));
+    }, [monthlyData, user?.username, isInitialLoaded]);
 
     const syncToCloud = async (item, action = 'upsert') => {
         if (!supabase || !user?.username) return;
@@ -139,7 +154,9 @@ const Keuangan = () => {
     };
 
     const saveToLocal = (data) => {
-        localStorage.setItem('app_finance_v3', JSON.stringify(data));
+        if (user?.username) {
+            localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(data));
+        }
         setMonthlyData(data);
     };
 
@@ -367,8 +384,9 @@ const Keuangan = () => {
     };
 
     const handleResetAllFallback = () => {
-        if (window.confirm("AWAS! Ini akan menghapus semua data keuangan cadangan di browser ini. Lanjutkan?")) {
-            localStorage.removeItem('app_finance_v3');
+        if (!user?.username) return;
+        if (window.confirm("AWAS! Ini akan menghapus semua data keuangan cadangan milik kamu di browser ini. Lanjutkan?")) {
+            localStorage.removeItem(`app_finance_v3_${user.username}`);
             window.location.reload();
         }
     };

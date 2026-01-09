@@ -63,27 +63,33 @@ const DEFAULT_SCHEDULES = [
 const JadwalResult = () => {
     const { user } = useAuth();
 
-    // Hybrid State Initialization with MASTER DATA fallback
-    const [schedules, setSchedules] = useState(() => {
-        const saved = localStorage.getItem('app_schedules');
-        let initialData = DEFAULT_SCHEDULES;
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (parsed.length > 0) {
-                    // Update existing master items with latest links from DEFAULT_SCHEDULES
-                    initialData = parsed.map(item => {
-                        const masterItem = DEFAULT_SCHEDULES.find(d => d.id === item.id);
-                        if (masterItem) {
-                            return { ...item, link: masterItem.link || item.link };
-                        }
-                        return item;
-                    });
-                }
-            } catch (e) { console.error("Error parsing schedules", e); }
+    // Hybrid State Initialization with MASTER DATA fallback per User
+    const [schedules, setSchedules] = useState([]);
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+    useEffect(() => {
+        if (user?.username) {
+            const saved = localStorage.getItem(`app_schedules_${user.username}`);
+            let initialData = DEFAULT_SCHEDULES;
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.length > 0) {
+                        initialData = parsed.map(item => {
+                            const masterItem = DEFAULT_SCHEDULES.find(d => d.id === item.id);
+                            if (masterItem) return { ...item, link: masterItem.link || item.link };
+                            return item;
+                        });
+                    }
+                } catch (e) { console.error("Error parsing schedules", e); }
+            }
+            setSchedules(initialData);
+            setIsInitialLoaded(true);
+        } else {
+            setSchedules([]);
+            setIsInitialLoaded(false);
         }
-        return initialData;
-    });
+    }, [user?.username]);
 
     const [showModal, setShowModal] = useState(false);
     const [search, setSearch] = useState('');
@@ -175,7 +181,10 @@ const JadwalResult = () => {
         }
     }, [user?.username]);
 
-    useEffect(() => { localStorage.setItem('app_schedules', JSON.stringify(schedules)); }, [schedules]);
+    useEffect(() => {
+        if (!user?.username || !isInitialLoaded) return;
+        localStorage.setItem(`app_schedules_${user.username}`, JSON.stringify(schedules));
+    }, [schedules, user?.username, isInitialLoaded]);
 
     const syncToCloud = async (item, action = 'upsert') => {
         if (!supabase || !user) return;

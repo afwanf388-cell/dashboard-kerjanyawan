@@ -11,14 +11,35 @@ import { supabase } from '../lib/supabase';
 const DataLogin = () => {
     const { user } = useAuth();
 
-    // Hybrid State Initialization - localStorage sebagai backup
-    const [logins, setLogins] = useState(() => {
-        const saved = localStorage.getItem('app_login_data');
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { return []; }
+    // Key localStorage yang unik per user agar data tidak tertukar
+    const STORAGE_KEY = user?.username ? `app_login_data_${user.username}` : null;
+
+    const [logins, setLogins] = useState([]);
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+    // Initial Load based on USER
+    useEffect(() => {
+        if (user?.username) {
+            // Bersihkan state dulu sebelum load data user baru
+            setLogins([]);
+            setIsInitialLoaded(false);
+
+            const saved = localStorage.getItem(`app_login_data_${user.username}`);
+            if (saved) {
+                try {
+                    setLogins(JSON.parse(saved));
+                } catch (e) {
+                    setLogins([]);
+                }
+            } else {
+                setLogins([]);
+            }
+            setIsInitialLoaded(true);
+        } else {
+            setLogins([]);
+            setIsInitialLoaded(false);
         }
-        return [];
-    });
+    }, [user?.username]);
 
     const [showModal, setShowModal] = useState(false);
     const [search, setSearch] = useState('');
@@ -71,9 +92,9 @@ const DataLogin = () => {
 
     // Local Backup & Cloud Sync
     useEffect(() => {
-        // Always save to local as backup
-        localStorage.setItem('app_login_data', JSON.stringify(logins));
-    }, [logins]);
+        if (!user?.username || !isInitialLoaded) return;
+        localStorage.setItem(`app_login_data_${user.username}`, JSON.stringify(logins));
+    }, [logins, user?.username, isInitialLoaded]);
 
     const syncToCloud = async (loginItem, action = 'upsert') => {
         if (!supabase || !user) return;
@@ -87,7 +108,7 @@ const DataLogin = () => {
         } else {
             const { error } = await supabase.from('login_data').upsert({
                 id: loginItem.id,
-                user_id: user.username || 'guest',
+                user_id: user.username, // Hilangkan fallback 'guest' agar tidak bocor
                 title: loginItem.title,
                 username: loginItem.username,
                 email: loginItem.email,

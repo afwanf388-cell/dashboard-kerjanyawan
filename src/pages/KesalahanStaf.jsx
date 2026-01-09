@@ -12,14 +12,29 @@ import { supabase } from '../lib/supabase';
 const KesalahanStaf = () => {
     const { user } = useAuth();
 
-    // Hybrid State Initialization
-    const [mistakes, setMistakes] = useState(() => {
-        const saved = localStorage.getItem('app_mistakes');
-        if (saved) {
-            try { return JSON.parse(saved); } catch (e) { return []; }
+    // Key localStorage yang unik per user
+    const [mistakes, setMistakes] = useState([]);
+    const [isInternalInitialLoaded, setIsInternalInitialLoaded] = useState(false);
+
+    // Initial Load based on USER
+    useEffect(() => {
+        if (user?.username) {
+            const saved = localStorage.getItem(`app_mistakes_${user.username}`);
+            if (saved) {
+                try {
+                    setMistakes(JSON.parse(saved));
+                } catch (e) {
+                    setMistakes([]);
+                }
+            } else {
+                setMistakes([]);
+            }
+            setIsInternalInitialLoaded(true);
+        } else {
+            setMistakes([]);
+            setIsInternalInitialLoaded(false);
         }
-        return [];
-    });
+    }, [user?.username]);
 
     const [showModal, setShowModal] = useState(false);
     const [filters, setFilters] = useState({ staffName: '', date: '' });
@@ -33,14 +48,27 @@ const KesalahanStaf = () => {
         livechatCode: ''
     });
 
-    // Smart Import State
+    // Smart Import State - Per User
     const [showImportModal, setShowImportModal] = useState(false);
     const [importMethod, setImportMethod] = useState('text'); // 'text' | 'url'
     const [importText, setImportText] = useState('');
-    const [sheetUrl, setSheetUrl] = useState(() => localStorage.getItem('staff_sheet_url') || '');
-    const [isAutoSync, setIsAutoSync] = useState(() => localStorage.getItem('staff_auto_sync') === 'true');
-    const [isLoadingSheet, setIsLoadingSheet] = useState(false);
-    const [lastSyncTime, setLastSyncTime] = useState(localStorage.getItem('staff_last_sync') || '-');
+
+    // Lazy initialize states that depend on USER
+    const [sheetUrl, setSheetUrl] = useState('');
+    const [isAutoSync, setIsAutoSync] = useState(false);
+    const [lastSyncTime, setLastSyncTime] = useState('-');
+
+    useEffect(() => {
+        if (user?.username) {
+            setSheetUrl(localStorage.getItem(`staff_sheet_url_${user.username}`) || '');
+            setIsAutoSync(localStorage.getItem(`staff_auto_sync_${user.username}`) === 'true');
+            setLastSyncTime(localStorage.getItem(`staff_last_sync_${user.username}`) || '-');
+        } else {
+            setSheetUrl('');
+            setIsAutoSync(false);
+            setLastSyncTime('-');
+        }
+    }, [user?.username]);
     const [renderLimit, setRenderLimit] = useState(50);
     const [isInitialLoad, setIsInitialLoad] = useState(true); // Prevent animation flicker on load
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -80,7 +108,7 @@ const KesalahanStaf = () => {
                 const isDifferent = JSON.stringify(normalizedData) !== JSON.stringify(mistakes);
                 if (isDifferent) {
                     setMistakes(normalizedData);
-                    localStorage.setItem('app_mistakes', JSON.stringify(normalizedData));
+                    localStorage.setItem(`app_mistakes_${user.username}`, JSON.stringify(normalizedData));
                 }
                 setSyncStatus('Cloud Connected');
             } else {
@@ -118,8 +146,9 @@ const KesalahanStaf = () => {
 
     // Local Backup & Real-time Sync Trigger
     useEffect(() => {
-        localStorage.setItem('app_mistakes', JSON.stringify(mistakes));
-    }, [mistakes]);
+        if (!user?.username || !isInternalInitialLoaded) return;
+        localStorage.setItem(`app_mistakes_${user.username}`, JSON.stringify(mistakes));
+    }, [mistakes, user?.username, isInternalInitialLoaded]);
 
     const syncToCloud = async (item, action = 'upsert') => {
         if (!supabase || !user) return;
@@ -530,7 +559,11 @@ const KesalahanStaf = () => {
                 }
 
                 setShowImportModal(false);
-                setLastSyncTime(new Date().toLocaleTimeString());
+                const now = new Date().toLocaleTimeString();
+                setLastSyncTime(now);
+                if (user?.username) {
+                    localStorage.setItem(`staff_last_sync_${user.username}`, now);
+                }
                 if (!isBackground) {
                     setTimeout(() => {
                         alert(`✅ Sukses! ${newMistakes.length} data laporan berhasil ditarik.`);
@@ -564,7 +597,8 @@ const KesalahanStaf = () => {
     };
 
     const handleImportFromUrl = async (isBackground = false) => {
-        const urlToUse = isBackground ? localStorage.getItem('staff_sheet_url') : sheetUrl;
+        if (!user?.username) return;
+        const urlToUse = isBackground ? localStorage.getItem(`staff_sheet_url_${user.username}`) : sheetUrl;
 
         if (!urlToUse) {
             if (!isBackground) alert('Masukkan Link Google Sheet terlebih dahulu!');
@@ -589,9 +623,9 @@ const KesalahanStaf = () => {
             }
         }
 
-        if (!isBackground) {
-            localStorage.setItem('staff_sheet_url', urlToUse);
-            localStorage.setItem('staff_auto_sync', isAutoSync);
+        if (!isBackground && user?.username) {
+            localStorage.setItem(`staff_sheet_url_${user.username}`, urlToUse);
+            localStorage.setItem(`staff_auto_sync_${user.username}`, isAutoSync);
         }
 
         setIsLoadingSheet(true);

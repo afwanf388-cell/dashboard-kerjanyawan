@@ -23,11 +23,33 @@ const NOTE_COLORS = [
 
 const CatatanKerja = () => {
     const { user } = useAuth();
-    // Hybrid State Initialization
-    const [notes, setNotes] = useState(() => {
-        const saved = localStorage.getItem('app_catatan_kerja');
-        return saved ? JSON.parse(saved) : [];
-    });
+    // Key localStorage yang unik per user
+    const [notes, setNotes] = useState([]);
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+    // Initial Load based on USER
+    useEffect(() => {
+        if (user?.username) {
+            // Reset state untuk menghindari data bocor dari user sebelumnya
+            setNotes([]);
+            setIsInitialLoaded(false);
+
+            const saved = localStorage.getItem(`app_catatan_kerja_${user.username}`);
+            if (saved) {
+                try {
+                    setNotes(JSON.parse(saved));
+                } catch (e) {
+                    setNotes([]);
+                }
+            } else {
+                setNotes([]);
+            }
+            setIsInitialLoaded(true);
+        } else {
+            setNotes([]);
+            setIsInitialLoaded(false);
+        }
+    }, [user?.username]);
 
     const [activeNote, setActiveNote] = useState(null);
     const [search, setSearch] = useState('');
@@ -92,9 +114,9 @@ const CatatanKerja = () => {
 
     // Local Backup & Cloud Sync
     useEffect(() => {
-        // Always save to local as backup
-        localStorage.setItem('app_catatan_kerja', JSON.stringify(notes));
-    }, [notes]);
+        if (!user?.username || !isInitialLoaded) return;
+        localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
+    }, [notes, user?.username, isInitialLoaded]);
 
     const syncToCloud = async (note) => {
         if (!supabase || !user) return;
@@ -102,7 +124,7 @@ const CatatanKerja = () => {
         setSaveStatus('Menyimpan ke Awan...');
         const { error } = await supabase.from('notes').upsert({
             id: note.id,
-            user_id: user.username || 'guest',
+            user_id: user.username, // Wajib menggunakan username, tidak ada guest
             title: note.title,
             content: note.content,
             date: note.date,

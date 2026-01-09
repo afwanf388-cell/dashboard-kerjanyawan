@@ -162,11 +162,13 @@ const GlobalChat = () => {
         setSupabase(client);
         loadData(client);
 
-        // Load Local Storage Data Safely
+        // Load Local Storage Data Safely based on USER
         let saved = {};
-        try {
-            saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}');
-        } catch (e) { console.error("Profile load failed", e); }
+        if (user?.username) {
+            try {
+                saved = JSON.parse(localStorage.getItem(`${PROFILE_KEY}_${user.username}`) || '{}');
+            } catch (e) { console.error("Profile load failed", e); }
+        }
 
         const globalBg = user?.bgImage || user?.bg_image || null;
         setProfile(prev => ({
@@ -177,9 +179,11 @@ const GlobalChat = () => {
         }));
 
         let hidden = [];
-        try {
-            hidden = JSON.parse(localStorage.getItem(HIDDEN_MSGS_KEY) || '[]');
-        } catch (e) { console.error("Hidden msgs load failed", e); }
+        if (user?.username) {
+            try {
+                hidden = JSON.parse(localStorage.getItem(`${HIDDEN_MSGS_KEY}_${user.username}`) || '[]');
+            } catch (e) { console.error("Hidden msgs load failed", e); }
+        }
         setHiddenMessageIds(hidden);
 
 
