@@ -665,36 +665,32 @@ const KesalahanStaf = () => {
                 gap: '12px',
                 marginBottom: '10px'
             }}>
-                <div style={{ flexShrink: 1, minWidth: 0 }}>
+                <div style={{ flex: 1, minWidth: 0, marginRight: '8px', overflow: 'hidden' }}>
                     <motion.h2
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         style={{
-                            fontSize: 'clamp(16px, 4vw, 28px)', // Font mengecil sesuai layar
+                            fontSize: 'clamp(14px, 4.5vw, 22px)',
                             fontWeight: '900',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '10px',
+                            gap: '8px',
                             whiteSpace: 'nowrap',
                             overflow: 'hidden',
-                            textOverflow: 'ellipsis' // Potong teks judul jika kepanjangan di HP
+                            textOverflow: 'ellipsis'
                         }}
                     >
-                        <div className="hide-mobile" style={{
-                            padding: '8px',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                        <div style={{
+                            padding: '6px',
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                             display: 'flex',
-                            boxShadow: '0 6px 15px rgba(239, 68, 68, 0.3)',
                             flexShrink: 0
                         }}>
-                            <UserX size={20} color="white" />
+                            <UserX size={16} color="white" />
                         </div>
-                        <span>Kesalahan Staf</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Kesalahan Staf</span>
                     </motion.h2>
-                    <p className="hide-mobile" style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '2px', fontWeight: '500' }}>
-                        Total {performanceStats.totalPeriod} laporan periode ini
-                    </p>
                 </div>
 
                 <div className="header-actions-staf" style={{
@@ -1589,31 +1585,31 @@ const KesalahanStaf = () => {
                             <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', marginBottom: '32px' }}>
                                 Tindakan ini akan menghapus seluruh laporan kesalahan dari database cloud dan lokal secara <b>permanen</b>. Tidak bisa dibatalkan!
                             </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => setShowClearConfirm(false)}
+                                    style={{
+                                        padding: '14px', borderRadius: '12px',
+                                        background: 'rgba(255,255,255,0.05)', color: 'white',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        fontWeight: '700', fontSize: '14px', cursor: 'pointer'
+                                    }}
+                                >
+                                    BATAL
+                                </motion.button>
                                 <motion.button
                                     whileHover={{ scale: 1.02, background: '#ef4444' }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={handleClearAll}
                                     style={{
-                                        width: '100%', padding: '14px', borderRadius: '12px',
+                                        padding: '14px', borderRadius: '12px',
                                         background: '#dc2626', color: 'white', border: 'none',
                                         fontWeight: '800', fontSize: '14px', cursor: 'pointer'
                                     }}
                                 >
-                                    YA, HAPUS SEMUANYA
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.02, background: 'rgba(255,255,255,0.1)' }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => setShowClearConfirm(false)}
-                                    style={{
-                                        width: '100%', padding: '14px', borderRadius: '12px',
-                                        background: 'transparent', color: 'var(--text-muted)',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        fontWeight: '700', fontSize: '14px', cursor: 'pointer'
-                                    }}
-                                >
-                                    BATALKAN
+                                    YA, HAPUS
                                 </motion.button>
                             </div>
                         </motion.div>
