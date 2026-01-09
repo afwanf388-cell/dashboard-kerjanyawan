@@ -302,47 +302,80 @@ const KesalahanStaf = () => {
 
 
     // --- OPTIMIZED ROW COMPONENT ---
+    // --- OPTIMIZED CARD COMPONENT (Updated to Grid Card) ---
     const MistakeRow = React.memo(({ mistake, index, onDelete, severityColor, isInitialLoad }) => (
         <motion.div
-            initial={isInitialLoad ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: isInitialLoad ? 0 : Math.min(index * 0.01, 0.5) }}
-            className="glass-effect mistake-row"
+            initial={isInitialLoad ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="glass-effect"
             style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(200px, 1fr) 120px 2fr 50px',
-                alignItems: 'center',
+                padding: '20px',
+                borderRadius: '20px',
+                borderLeft: `6px solid ${severityColor}`,
+                display: 'flex',
+                flexDirection: 'column',
                 gap: '16px',
-                padding: '12px 24px',
-                borderRadius: '12px',
-                borderLeft: `4px solid ${severityColor}`
+                background: 'rgba(255,255,255,0.03)',
+                position: 'relative',
+                overflow: 'hidden'
             }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                    width: '32px', height: '32px', borderRadius: '8px',
-                    background: `linear-gradient(135deg, ${severityColor}, #000)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '12px', fontWeight: '800', color: 'white'
-                }}>
-                    {(mistake.staffName || '??').split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                        width: '40px', height: '40px', borderRadius: '12px',
+                        background: `linear-gradient(135deg, ${severityColor}, rgba(0,0,0,0.5))`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '14px', fontWeight: '900', color: 'white',
+                        boxShadow: `0 4px 12px ${severityColor}44`
+                    }}>
+                        {(mistake.staffName || '??').split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: '800', color: 'white', fontSize: '15px' }}>{mistake.staffName}</div>
+                        <div style={{ fontSize: '11px', color: severityColor, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>{mistake.severity} Risk</div>
+                    </div>
                 </div>
-                <div style={{ fontWeight: '700', color: 'white', fontSize: '14px' }}>{mistake.staffName}</div>
-            </div>
-            <div>
-                {mistake.evidenceLink ? (
-                    <a href={mistake.evidenceLink.startsWith('http') ? mistake.evidenceLink : `https://${mistake.evidenceLink}`} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: '700', padding: '6px 12px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.1)' }}>
-                        <LinkIcon size={14} /> Bukti
-                    </a>
-                ) : <span style={{ color: 'var(--text-muted)', fontSize: '12px italic' }}>No Link</span>}
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500', lineHeight: '1.6', wordBreak: 'break-word', whiteSpace: 'pre-wrap', paddingRight: '20px' }}>
-                {mistake.description}
-            </div>
-            <div style={{ justifySelf: 'end' }}>
-                <button onClick={() => onDelete(mistake.id)} style={{ background: 'none', border: 'none', color: '#ef4444', padding: '4px', cursor: 'pointer', opacity: 0.6 }}>
+                <button
+                    onClick={() => onDelete(mistake.id)}
+                    style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '8px', borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                    onMouseOut={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                >
                     <Trash2 size={16} />
                 </button>
+            </div>
+
+            <div style={{
+                fontSize: '14px',
+                color: 'rgba(255,255,255,0.85)',
+                fontWeight: '500',
+                lineHeight: '1.6',
+                wordBreak: 'break-word',
+                whiteSpace: 'pre-wrap',
+                flex: 1,
+                minHeight: '60px'
+            }}>
+                {mistake.description}
+            </div>
+
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: '16px',
+                borderTop: '1px solid rgba(255,255,255,0.05)'
+            }}>
+                {mistake.evidenceLink ? (
+                    <a href={mistake.evidenceLink.startsWith('http') ? mistake.evidenceLink : `https://${mistake.evidenceLink}`} target="_blank" rel="noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#3b82f6', textDecoration: 'none', fontWeight: '800', padding: '8px 14px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.1)' }}>
+                        <LinkIcon size={14} /> Lihat Bukti
+                    </a>
+                ) : <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '11px', fontWeight: '600' }}>Tanpa Bukti</span>}
+
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>
+                    ID: #{String(mistake.id).slice(-4)}
+                </div>
             </div>
         </motion.div>
     ));
@@ -665,19 +698,17 @@ const KesalahanStaf = () => {
                 gap: '12px',
                 marginBottom: '10px'
             }}>
-                <div style={{ flex: 1, minWidth: 0, marginRight: '8px', overflow: 'hidden' }}>
+                <div style={{ flex: '0 1 auto', minWidth: 0, marginRight: '8px', overflow: 'hidden' }}>
                     <motion.h2
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         style={{
-                            fontSize: 'clamp(14px, 4.5vw, 22px)',
+                            fontSize: 'clamp(14px, 4vw, 22px)',
                             fontWeight: '900',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '6px',
                             whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
                         }}
                     >
                         <div style={{
@@ -689,7 +720,13 @@ const KesalahanStaf = () => {
                         }}>
                             <UserX size={16} color="white" />
                         </div>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Kesalahan Staf</span>
+                        <span style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: isMobileView ? '70px' : 'auto'
+                        }}>
+                            {isMobileView ? 'Staf' : 'Kesalahan Staf'}
+                        </span>
                     </motion.h2>
                 </div>
 
@@ -711,24 +748,22 @@ const KesalahanStaf = () => {
                             setShowModal(true);
                         }}
                         style={{
-                            padding: '10px 16px', // Sedikit lebih ramping
-                            borderRadius: '12px',
+                            padding: isMobileView ? '8px 10px' : '10px 16px',
+                            borderRadius: '10px',
                             background: 'linear-gradient(135deg, #ef4444, #dc2626)',
                             color: 'white',
                             border: 'none',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '4px',
                             fontWeight: '900',
-                            fontSize: '12px',
+                            fontSize: '11px',
                             cursor: 'pointer',
-                            boxShadow: '0 6px 15px rgba(239, 68, 68, 0.4)',
-                            zIndex: 10,
                             whiteSpace: 'nowrap',
                             WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Plus size={16} strokeWidth={3} />
+                        <Plus size={14} strokeWidth={3} />
                         <span>{isMobileView ? 'Lapor' : 'Laporan Baru'}</span>
                     </button>
 
@@ -738,22 +773,22 @@ const KesalahanStaf = () => {
                             setShowImportModal(true);
                         }}
                         style={{
-                            padding: '10px 16px',
-                            borderRadius: '12px',
+                            padding: isMobileView ? '8px 10px' : '10px 16px',
+                            borderRadius: '10px',
                             background: 'rgba(59, 130, 246, 0.15)',
                             color: '#3b82f6',
                             border: '1px solid rgba(59, 130, 246, 0.3)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '4px',
                             fontWeight: '900',
-                            fontSize: '12px',
+                            fontSize: '11px',
                             cursor: 'pointer',
                             whiteSpace: 'nowrap',
                             WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Import size={16} />
+                        <Import size={14} />
                         <span>{isMobileView ? 'Import' : 'Import Docs'}</span>
                     </button>
 
@@ -763,22 +798,22 @@ const KesalahanStaf = () => {
                             setShowClearConfirm(true);
                         }}
                         style={{
-                            padding: '10px 16px',
-                            borderRadius: '12px',
+                            padding: isMobileView ? '8px 10px' : '10px 16px',
+                            borderRadius: '10px',
                             background: 'rgba(239, 68, 68, 0.15)',
                             color: '#ef4444',
                             border: '1px solid rgba(239, 68, 68, 0.3)',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '4px',
                             fontWeight: '900',
-                            fontSize: '12px',
+                            fontSize: '11px',
                             cursor: 'pointer',
                             whiteSpace: 'nowrap',
                             WebkitTapHighlightColor: 'transparent'
                         }}
                     >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} title="Hapus Semua" />
                         <span>{isMobileView ? 'Hapus' : 'Hapus Semua'}</span>
                     </button>
                 </div>
@@ -1210,7 +1245,11 @@ const KesalahanStaf = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))',
+                                    gap: '16px'
+                                }}>
                                     {dateMistakes.map((mistake, index) => {
                                         renderedCount++;
                                         return <MistakeRow
@@ -1271,22 +1310,32 @@ const KesalahanStaf = () => {
                     <div style={{
                         position: 'fixed',
                         inset: 0,
-                        background: 'rgba(2, 6, 23, 0.95)',
+                        background: 'rgba(2, 6, 23, 0.85)',
                         backdropFilter: 'blur(20px)',
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start', // Muncul dari atas
                         justifyContent: 'center',
-                        zIndex: 99999, // Super tinggi agar tidak gelap/blank
-                        padding: '20px'
+                        zIndex: 999999, // Super tinggi agar tidak gelap/blank/terhalang
+                        padding: '40px 20px', // Beri ruang di atas
+                        overflowY: 'auto', // Bisa di-scroll jika panjang
+                        WebkitOverflowScrolling: 'touch'
                     }}
                         onClick={() => setShowModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0, y: 50 }}
+                            initial={{ scale: 0.95, opacity: 0, y: -20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.9, opacity: 0, y: 50 }}
+                            exit={{ scale: 0.95, opacity: 0, y: -20 }}
                             className="glass-effect"
-                            style={{ width: '100%', maxWidth: '520px', padding: 0, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}
+                            style={{
+                                width: '100%',
+                                maxWidth: '520px',
+                                padding: 0,
+                                overflow: 'hidden',
+                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                marginBottom: '40px' // Ruang bawah
+                            }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div style={{ padding: '32px 32px 24px', borderBottom: '1px solid var(--glass-border)', background: 'linear-gradient(180deg, rgba(239, 68, 68, 0.1), transparent)' }}>
@@ -1338,8 +1387,36 @@ const KesalahanStaf = () => {
             {/* Import Modal */}
             <AnimatePresence>
                 {showImportModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                        <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="glass-effect" style={{ width: '100%', maxWidth: '600px', padding: 0, overflow: 'hidden' }}>
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(2, 6, 23, 0.85)',
+                        backdropFilter: 'blur(20px)',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        zIndex: 999999,
+                        padding: '40px 20px',
+                        overflowY: 'auto',
+                        WebkitOverflowScrolling: 'touch'
+                    }}
+                        onClick={() => setShowImportModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: -20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: -20 }}
+                            className="glass-effect"
+                            style={{
+                                width: '100%',
+                                maxWidth: '600px',
+                                padding: 0,
+                                overflow: 'hidden',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                marginBottom: '40px'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             <div style={{ padding: '24px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <Database size={24} color="#3b82f6" /> Import Data Otomatis
@@ -1539,26 +1616,24 @@ const KesalahanStaf = () => {
             <AnimatePresence>
                 {showClearConfirm && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setShowClearConfirm(false)}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         style={{
-                            position: 'fixed',
-                            inset: 0,
-                            background: 'rgba(2, 6, 23, 0.9)',
-                            backdropFilter: 'blur(10px)',
+                            position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.85)',
+                            backdropFilter: 'blur(20px)',
                             display: 'flex',
-                            alignItems: 'center',
+                            alignItems: 'flex-start',
                             justifyContent: 'center',
-                            zIndex: 9999,
-                            padding: '20px'
+                            zIndex: 999999,
+                            padding: '100px 20px',
+                            overflowY: 'auto',
+                            WebkitOverflowScrolling: 'touch'
                         }}
+                        onClick={() => setShowClearConfirm(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            initial={{ scale: 0.95, opacity: 0, y: -20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            exit={{ scale: 0.95, opacity: 0, y: -20 }}
                             onClick={(e) => e.stopPropagation()}
                             className="glass-effect"
                             style={{
@@ -1566,9 +1641,10 @@ const KesalahanStaf = () => {
                                 maxWidth: '400px',
                                 padding: '32px',
                                 textAlign: 'center',
-                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(239, 68, 68, 0.05))',
-                                borderRadius: '24px'
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                borderRadius: '24px',
+                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
                             }}
                         >
                             <div style={{
