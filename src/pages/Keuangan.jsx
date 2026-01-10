@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
 import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2, ChevronRight, BarChart3, PiggyBank, Coins, Sparkles, X, AlertCircle } from 'lucide-react';
 
 const Keuangan = () => {
@@ -11,7 +10,6 @@ const Keuangan = () => {
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [lastError, setLastError] = useState(null);
     const [goldPrice, setGoldPrice] = useState(2549000);
     const [isPriceLoading, setIsPriceLoading] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
@@ -45,45 +43,18 @@ const Keuangan = () => {
     }, []);
 
 
-    const fetchFinanceData = useCallback(async () => {
-        if (!supabase || !user?.username) return;
-
-        try {
-            const { data, error } = await supabase
-                .from('finance_data')
-                .select('*')
-                .eq('user_id', user.username)
-                .order('month', { ascending: true });
-
-            if (error) throw error;
-
-            if (data) {
-                const processed = data.map(item => ({ ...item, id: Number(item.id) }));
-                setMonthlyData(processed);
-                localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(processed));
-            }
-        } catch (err) {
-            console.error("Fetch Error:", err);
-            const savedLocal = localStorage.getItem(`app_finance_v3_${user.username}`);
-            if (savedLocal) setMonthlyData(JSON.parse(savedLocal));
-        } finally {
-            setIsInitialLoaded(true);
+    const fetchFinanceData = useCallback(() => {
+        if (!user?.username) return;
+        const localKey = `app_finance_v3_${user.username}`;
+        const savedLocal = localStorage.getItem(localKey);
+        if (savedLocal) {
+            setMonthlyData(JSON.parse(savedLocal));
         }
+        setIsInitialLoaded(true);
     }, [user?.username]);
 
     useEffect(() => {
         if (user?.username) fetchFinanceData();
-
-        const channel = supabase?.channel(`finance_data_${user?.username}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'finance_data',
-                filter: `user_id=eq.${user?.username}`
-            }, () => fetchFinanceData())
-            .subscribe();
-
-        return () => { if (channel) supabase.removeChannel(channel); };
     }, [user?.username, fetchFinanceData]);
 
     const calculatedData = useMemo(() => {
@@ -110,7 +81,7 @@ const Keuangan = () => {
         };
     }, [calculatedData, monthlyData, goldPrice]);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
 
         const numericData = {
@@ -122,65 +93,36 @@ const Keuangan = () => {
             pinjaman: Number(formData.pinjaman) || 0
         };
 
-        let itemToSync;
         let updated;
-
         if (editingId) {
-            itemToSync = { ...monthlyData.find(m => m.id === editingId), ...numericData, last_updated: new Date().toISOString() };
-            updated = monthlyData.map(m => m.id === editingId ? itemToSync : m);
+            updated = monthlyData.map(m => m.id === editingId ? { ...m, ...numericData, last_updated: new Date().toISOString() } : m);
         } else {
             const nextMonth = monthlyData.length > 0 ? Math.max(...monthlyData.map(m => m.month)) + 1 : 1;
-            itemToSync = {
+            const newItem = {
                 ...numericData,
                 id: Date.now(),
                 user_id: user.username,
                 month: nextMonth,
                 last_updated: new Date().toISOString()
             };
-            updated = [...monthlyData, itemToSync];
+            updated = [...monthlyData, newItem];
         }
 
-        // Optimistic Update
         setMonthlyData(updated);
         localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(updated));
         setShowModal(false);
         setEditingId(null);
         setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 });
-
-        // Background Sync to Cloud
-        try {
-            await supabase.from('finance_data').upsert(itemToSync);
-            setLastError(null);
-        } catch (err) {
-            console.error("Cloud Save Error:", err);
-            setLastError("Gagal menyimpan ke awan, data tersimpan lokal.");
-        }
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = (id) => {
         if (!window.confirm('Hapus data bulan ini?')) return;
 
         const updated = monthlyData.filter(m => m.id !== id);
         const reordered = updated.map((m, i) => ({ ...m, month: i + 1 }));
 
-        // Optimistic Update
         setMonthlyData(reordered);
         localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
-
-        try {
-            const { error } = await supabase.from('finance_data').delete().eq('id', id);
-            if (error) throw error;
-
-            // Re-sync monthly order if necessary
-            if (reordered.length > 0) {
-                await supabase.from('finance_data').upsert(reordered.map(m => ({
-                    ...m,
-                    user_id: user.username
-                })));
-            }
-        } catch (e) {
-            console.error("Delete Error:", e);
-        }
     };
 
     const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
@@ -192,12 +134,6 @@ const Keuangan = () => {
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
                 <div>
                     <h2 style={{ fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: '900', color: 'white' }}>Dashboard Keuangan</h2>
-                    {lastError && (
-                        <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
-                            <AlertCircle size={10} style={{ display: 'inline', marginRight: '4px' }} />
-                            {lastError}
-                        </p>
-                    )}
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <button onClick={() => { setEditingId(null); setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 }); setShowModal(true); }} style={{ padding: '12px 24px', borderRadius: '14px', background: 'var(--primary)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)', cursor: 'pointer' }}>
@@ -207,11 +143,7 @@ const Keuangan = () => {
             </header>
 
             {/* Content would go here... for brevity focusing on the fix */}
-            {lastError && (
-                <div style={{ padding: '12px 20px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', fontWeight: '600' }}>
-                    <AlertCircle size={18} /> Error: {lastError}. Coba tekan tombol Refresh atau cek koneksi.
-                </div>
-            )}
+
 
             {/* Rest of the UI (Chart, Stats, Table) remains the same but with the fixed data logic */}
             {/* [REINSERTING ORIGINAL UI COMPONENTS WITH FIXED PROPS] */}
