@@ -168,6 +168,7 @@ const CatatanKerja = () => {
             date: note.date,
             status: note.status || 'Draft',
             importance: note.importance || 'Normal',
+            color: note.color, // Add color persistence
             last_updated: new Date().toISOString() // Use standard ISO for DB
         });
 
