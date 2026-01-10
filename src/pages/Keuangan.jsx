@@ -169,7 +169,9 @@ const Keuangan = () => {
             }
         } catch (err) {
             console.error("Fetch Error:", err);
-            setSyncStatus('🔴 Offline / Error Fetch');
+            // Show specific error to help debugging
+            const errMsg = err.message || JSON.stringify(err);
+            setSyncStatus(errMsg.includes('relation') ? '🔴 Tabel DB Hilang (Cek FIX_SYNC.sql)' : `🔴 Error: ${errMsg.slice(0, 20)}...`);
         } finally {
             setLoading(false);
         }
