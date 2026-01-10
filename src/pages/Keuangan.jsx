@@ -84,36 +84,77 @@ const Keuangan = () => {
     }, []);
 
     // Initial Load from Cloud (if available) - Improved Logic
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
-        if (supabase && user?.username) {
-            setSyncStatus('Syncing...');
-            supabase.from('finance_data')
-                .select('*')
-                .eq('user_id', user.username)
-                .order('month', { ascending: true })
-                .then(({ data, error }) => {
-                    if (error) {
-                        console.error("Cloud fetch error:", error);
-                        setSyncStatus('Offline Mode');
-                        return;
-                    }
+        if (!supabase || !user?.username) return;
 
-                    if (data && data.length > 0) {
-                        // Cloud has data, use it as source of truth
-                        setMonthlyData(data);
-                        setSyncStatus('Cloud Connected');
-                    } else if (monthlyData.length > 0) {
-                        // Cloud is empty but local has data -> Force Sync Local to Cloud
-                        setSyncStatus('Syncing to Cloud...');
-                        const syncPromises = monthlyData.map(item => syncToCloud(item));
-                        Promise.all(syncPromises).then(() => {
-                            setSyncStatus('Cloud Connected');
-                        });
-                    } else {
-                        setSyncStatus('Awan Kosong');
-                    }
-                });
-        }
+        const syncProcess = async () => {
+            setSyncStatus('Syncing...');
+
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('finance_data')
+                    .select('*')
+                    .eq('user_id', user.username)
+                    .order('month', { ascending: true });
+
+                if (fetchError) throw fetchError;
+
+                // 2. Load Local Data (fresh from storage to avoid closure issues)
+                const savedLocal = localStorage.getItem(`app_finance_v3_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    // Cloud has data - prioritize it
+                    setMonthlyData(cloudData);
+                    setSyncStatus('Cloud Connected');
+                } else if (localData.length > 0) {
+                    // Cloud empty but local has data - Back up to cloud
+                    setSyncStatus('Backing up...');
+                    setMonthlyData(localData);
+                    const syncPromises = localData.map(item => syncToCloud(item));
+                    await Promise.all(syncPromises);
+                    setSyncStatus('Cloud Connected');
+                } else {
+                    setSyncStatus('Awan Kosong');
+                }
+
+                setIsInitialLoaded(true);
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSyncStatus('Offline Mode');
+                const savedLocal = localStorage.getItem(`app_finance_v3_${user.username}`);
+                if (savedLocal) setMonthlyData(JSON.parse(savedLocal));
+                setIsInitialLoaded(true);
+            }
+        };
+
+        syncProcess();
+
+        const channel = supabase
+            .channel(`finance_data_${user.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'finance_data',
+                filter: `user_id=eq.${user.username}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setMonthlyData(prev => {
+                        const exists = prev.find(item => item.id === payload.new.id);
+                        if (exists) return prev.map(item => item.id === payload.new.id ? payload.new : item);
+                        return [...prev, payload.new].sort((a, b) => a.month - b.month);
+                    });
+                } else if (payload.eventType === 'DELETE') {
+                    setMonthlyData(prev => prev.filter(item => item.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.username]);
 
     // Local Backup

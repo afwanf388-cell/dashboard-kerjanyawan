@@ -9,55 +9,55 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
 const DEFAULT_SCHEDULES = [
-    { "id": "master-1", "marketName": "HOKIDRAW", "closeTime": "RESULT 24X", "openTime": "1 JAM SEKALI", "days": "Senin s/d Minggu", "link": "https://hokidraw.com/" },
-    { "id": "master-2", "marketName": "TOTO MACAU PAGI", "closeTime": "00:00 WIB", "openTime": "00:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-3", "marketName": "KENTUCKY MIDDAY", "closeTime": "01:05 WIB", "openTime": "01:20 WIB", "days": "Senin s/d Minggu", "link": "https://www.kylottery.com/apps/" },
-    { "id": "master-4", "marketName": "FLORIDA MIDDAY", "closeTime": "01:20 WIB", "openTime": "01:30 WIB", "days": "Senin s/d Minggu", "link": "https://floridalottery.com/" },
-    { "id": "master-5", "marketName": "HUAHIN 0100", "closeTime": "00:45 WIB", "openTime": "01:00 WIB", "days": "Senin s/d Minggu", "link": "https://huahinlottery.com/" },
-    { "id": "master-6", "marketName": "BANGKOK 0130", "closeTime": "01:15 WIB", "openTime": "01:30 WIB", "days": "Senin s/d Minggu", "link": "https://bangkokpoolstoday.com/" },
-    { "id": "master-7", "marketName": "NEWYORK MIDDAY", "closeTime": "02:15 WIB", "openTime": "02:25 WIB", "days": "Senin s/d Minggu", "link": "https://nylottery.ny.gov/" },
-    { "id": "master-8", "marketName": "CAROLINA DAY", "closeTime": "02:45 WIB", "openTime": "03:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.wral.com/entertainment/lottery/" },
-    { "id": "master-9", "marketName": "BRUNEI 02", "closeTime": "02:30 WIB", "openTime": "02:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
-    { "id": "master-10", "marketName": "OREGON 03", "closeTime": "03:50 WIB", "openTime": "04:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
-    { "id": "master-11", "marketName": "OREGON 06", "closeTime": "06:50 WIB", "openTime": "07:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
-    { "id": "master-12", "marketName": "CALIFORNIA", "closeTime": "09:25 WIB", "openTime": "09:30 WIB", "days": "Senin s/d Minggu", "link": "https://www.calottery.com/draw-games/daily-4" },
-    { "id": "master-13", "marketName": "FLORIDA EVENING", "closeTime": "09:35 WIB", "openTime": "09:45 WIB", "days": "Senin s/d Minggu", "link": "https://floridalottery.com/games/draw-games/pick-4" },
-    { "id": "master-14", "marketName": "OREGON 09", "closeTime": "09:50 WIB", "openTime": "10:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
-    { "id": "master-15", "marketName": "BANGKOK 0930", "closeTime": "09:15 WIB", "openTime": "09:30 WIB", "days": "Senin s/d Minggu", "link": "https://bangkokpoolstoday.com/" },
-    { "id": "master-16", "marketName": "NEWYORK EVENING", "closeTime": "10:25 WIB", "openTime": "10:35 WIB", "days": "Senin s/d Minggu", "link": "https://nylottery.ny.gov/" },
-    { "id": "master-17", "marketName": "TOTOCAMBODIA", "closeTime": "10:45 WIB", "openTime": "11:00 WIB", "days": "Senin s/d Minggu", "link": "https://totocambodialive.com/" },
-    { "id": "master-18", "marketName": "KENTUCKY EVENING", "closeTime": "10:45 WIB", "openTime": "11:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.kylottery.com/apps/" },
-    { "id": "master-19", "marketName": "CAROLINA EVENING", "closeTime": "11:17 WIB", "openTime": "11:22 WIB", "days": "Senin s/d Minggu", "link": "https://www.wral.com/entertainment/lottery/" },
-    { "id": "master-20", "marketName": "CHELSEA 11", "closeTime": "11:00 WIB", "openTime": "11:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
-    { "id": "master-21", "marketName": "OREGON 12", "closeTime": "12:50 WIB", "openTime": "13:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
-    { "id": "master-22", "marketName": "POIPET12", "closeTime": "12:15 WIB", "openTime": "12:30 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
-    { "id": "master-23", "marketName": "BULLSEYE", "closeTime": "12:00 WIB", "openTime": "12:15 WIB", "days": "Senin s/d Minggu", "link": "https://mylotto.co.nz/results/bullseye" },
-    { "id": "master-24", "marketName": "TOTOMACAU SIANG", "closeTime": "13:00 WIB", "openTime": "13:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-25", "marketName": "SYDNEY", "closeTime": "13:49 WIB", "openTime": "14:05 WIB", "days": "Senin s/d Minggu", "link": "https://sydneyfunlotto.net/" },
-    { "id": "master-26", "marketName": "BRUNEI 14", "closeTime": "14:30 WIB", "openTime": "14:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
-    { "id": "master-27", "marketName": "CHELSEA 15", "closeTime": "15:00 WIB", "openTime": "15:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
-    { "id": "master-28", "marketName": "TOTOMALI 1530", "closeTime": "15:15 WIB", "openTime": "15:30 WIB", "days": "Senin s/d Minggu", "link": "https://totomali.com/" },
-    { "id": "master-29", "marketName": "POIPET15", "closeTime": "15:15 WIB", "openTime": "15:30 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
-    { "id": "master-30", "marketName": "TOTOMACAU SORE", "closeTime": "16:00 WIB", "openTime": "16:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-31", "marketName": "HUAHIN 1630", "closeTime": "16:15 WIB", "openTime": "16:30 WIB", "days": "Senin s/d Minggu", "link": "https://huahinlottery.com/" },
-    { "id": "master-32", "marketName": "KING KONG4D I", "closeTime": "17:00 WIB", "openTime": "17:15 WIB", "days": "Senin s/d Minggu", "link": "https://kingkongpools.id/" },
-    { "id": "master-33", "marketName": "SINGAPORE", "closeTime": "17:30 WIB", "openTime": "17:45 WIB", "days": "SELASA \u0026 JUM'AT ( LIBUR )", "link": "https://www.singaporepools.com.sg/" },
-    { "id": "master-34", "marketName": "MAGNUM4D", "closeTime": "18:10 WIB", "openTime": "18:40 WIB", "days": "RABU, SABTU \u0026 MINGGU", "link": "https://www.magnum4d.my/en" },
-    { "id": "master-35", "marketName": "TOTOMACAU MALAM I", "closeTime": "19:00 WIB", "openTime": "19:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-36", "marketName": "CHELSEA 19", "closeTime": "19:00 WIB", "openTime": "19:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
-    { "id": "master-37", "marketName": "POIPET19", "closeTime": "19:30 WIB", "openTime": "19:45 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
-    { "id": "master-38", "marketName": "PCSO", "closeTime": "19:50 WIB", "openTime": "20:10 WIB", "days": "Minggu Libur", "link": "https://www.pcso.gov.ph/" },
-    { "id": "master-39", "marketName": "TOTOMALI 2030", "closeTime": "20:15 WIB", "openTime": "20:30 WIB", "days": "Selasa s/d Minggu", "link": "https://totomali.com/" },
-    { "id": "master-40", "marketName": "HUAHIN 2100", "closeTime": "20:45 WIB", "openTime": "21:00 WIB", "days": "Selasa s/d Minggu", "link": "https://huahinlottery.com/" },
-    { "id": "master-41", "marketName": "CHELSEA 21", "closeTime": "21:00 WIB", "openTime": "21:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
-    { "id": "master-42", "marketName": "NEVADA", "closeTime": "21:15 WIB", "openTime": "21:30 WIB", "days": "Senin s/d Minggu", "link": "https://www.nevadalottery.us/" },
-    { "id": "master-43", "marketName": "BRUNEI 21", "closeTime": "21:30 WIB", "openTime": "21:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
-    { "id": "master-44", "marketName": "TOTOMACAU MALAM II", "closeTime": "22:00 WIB", "openTime": "22:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-45", "marketName": "POIPET22", "closeTime": "22:30 WIB", "openTime": "22:45 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
-    { "id": "master-46", "marketName": "HONGKONG", "closeTime": "22:59 WIB", "openTime": "23:15 WIB", "days": "Senin s/d Minggu", "link": "https://hongkongfunlotto.net/" },
-    { "id": "master-47", "marketName": "TOTOMACAU MALAM III", "closeTime": "23:00 WIB", "openTime": "23:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
-    { "id": "master-48", "marketName": "TOTOMALI 2330", "closeTime": "23:15 WIB", "openTime": "23:30 WIB", "days": "Senin s/d Minggu", "link": "https://totomali.com/" },
-    { "id": "master-49", "marketName": "KING KONG4D II", "closeTime": "23:30 WIB", "openTime": "23:45 WIB", "days": "Senin s/d Minggu", "link": "https://kingkongpools.id/" }
+    { "id": 1001, "marketName": "HOKIDRAW", "closeTime": "RESULT 24X", "openTime": "1 JAM SEKALI", "days": "Senin s/d Minggu", "link": "https://hokidraw.com/" },
+    { "id": 1002, "marketName": "TOTO MACAU PAGI", "closeTime": "00:00 WIB", "openTime": "00:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1003, "marketName": "KENTUCKY MIDDAY", "closeTime": "01:05 WIB", "openTime": "01:20 WIB", "days": "Senin s/d Minggu", "link": "https://www.kylottery.com/apps/" },
+    { "id": 1004, "marketName": "FLORIDA MIDDAY", "closeTime": "01:20 WIB", "openTime": "01:30 WIB", "days": "Senin s/d Minggu", "link": "https://floridalottery.com/" },
+    { "id": 1005, "marketName": "HUAHIN 0100", "closeTime": "00:45 WIB", "openTime": "01:00 WIB", "days": "Senin s/d Minggu", "link": "https://huahinlottery.com/" },
+    { "id": 1006, "marketName": "BANGKOK 0130", "closeTime": "01:15 WIB", "openTime": "01:30 WIB", "days": "Senin s/d Minggu", "link": "https://bangkokpoolstoday.com/" },
+    { "id": 1007, "marketName": "NEWYORK MIDDAY", "closeTime": "02:15 WIB", "openTime": "02:25 WIB", "days": "Senin s/d Minggu", "link": "https://nylottery.ny.gov/" },
+    { "id": 1008, "marketName": "CAROLINA DAY", "closeTime": "02:45 WIB", "openTime": "03:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.wral.com/entertainment/lottery/" },
+    { "id": 1009, "marketName": "BRUNEI 02", "closeTime": "02:30 WIB", "openTime": "02:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
+    { "id": 1010, "marketName": "OREGON 03", "closeTime": "03:50 WIB", "openTime": "04:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
+    { "id": 1011, "marketName": "OREGON 06", "closeTime": "06:50 WIB", "openTime": "07:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
+    { "id": 1012, "marketName": "CALIFORNIA", "closeTime": "09:25 WIB", "openTime": "09:30 WIB", "days": "Senin s/d Minggu", "link": "https://www.calottery.com/draw-games/daily-4" },
+    { "id": 1013, "marketName": "FLORIDA EVENING", "closeTime": "09:35 WIB", "openTime": "09:45 WIB", "days": "Senin s/d Minggu", "link": "https://floridalottery.com/games/draw-games/pick-4" },
+    { "id": 1014, "marketName": "OREGON 09", "closeTime": "09:50 WIB", "openTime": "10:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
+    { "id": 1015, "marketName": "BANGKOK 0930", "closeTime": "09:15 WIB", "openTime": "09:30 WIB", "days": "Senin s/d Minggu", "link": "https://bangkokpoolstoday.com/" },
+    { "id": 1016, "marketName": "NEWYORK EVENING", "closeTime": "10:25 WIB", "openTime": "10:35 WIB", "days": "Senin s/d Minggu", "link": "https://nylottery.ny.gov/" },
+    { "id": 1017, "marketName": "TOTOCAMBODIA", "closeTime": "10:45 WIB", "openTime": "11:00 WIB", "days": "Senin s/d Minggu", "link": "https://totocambodialive.com/" },
+    { "id": 1018, "marketName": "KENTUCKY EVENING", "closeTime": "10:45 WIB", "openTime": "11:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.kylottery.com/apps/" },
+    { "id": 1019, "marketName": "CAROLINA EVENING", "closeTime": "11:17 WIB", "openTime": "11:22 WIB", "days": "Senin s/d Minggu", "link": "https://www.wral.com/entertainment/lottery/" },
+    { "id": 1020, "marketName": "CHELSEA 11", "closeTime": "11:00 WIB", "openTime": "11:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
+    { "id": 1021, "marketName": "OREGON 12", "closeTime": "12:50 WIB", "openTime": "13:00 WIB", "days": "Senin s/d Minggu", "link": "https://www.oregonlottery.org/pick-4/winning-numbers/" },
+    { "id": 1022, "marketName": "POIPET12", "closeTime": "12:15 WIB", "openTime": "12:30 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
+    { "id": 1023, "marketName": "BULLSEYE", "closeTime": "12:00 WIB", "openTime": "12:15 WIB", "days": "Senin s/d Minggu", "link": "https://mylotto.co.nz/results/bullseye" },
+    { "id": 1024, "marketName": "TOTOMACAU SIANG", "closeTime": "13:00 WIB", "openTime": "13:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1025, "marketName": "SYDNEY", "closeTime": "13:49 WIB", "openTime": "14:05 WIB", "days": "Senin s/d Minggu", "link": "https://sydneyfunlotto.net/" },
+    { "id": 1026, "marketName": "BRUNEI 14", "closeTime": "14:30 WIB", "openTime": "14:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
+    { "id": 1027, "marketName": "CHELSEA 15", "closeTime": "15:00 WIB", "openTime": "15:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
+    { "id": 1028, "marketName": "TOTOMALI 1530", "closeTime": "15:15 WIB", "openTime": "15:30 WIB", "days": "Senin s/d Minggu", "link": "https://totomali.com/" },
+    { "id": 1029, "marketName": "POIPET15", "closeTime": "15:15 WIB", "openTime": "15:30 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
+    { "id": 1030, "marketName": "TOTOMACAU SORE", "closeTime": "16:00 WIB", "openTime": "16:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1031, "marketName": "HUAHIN 1630", "closeTime": "16:15 WIB", "openTime": "16:30 WIB", "days": "Senin s/d Minggu", "link": "https://huahinlottery.com/" },
+    { "id": 1032, "marketName": "KING KONG4D I", "closeTime": "17:00 WIB", "openTime": "17:15 WIB", "days": "Senin s/d Minggu", "link": "https://kingkongpools.id/" },
+    { "id": 1033, "marketName": "SINGAPORE", "closeTime": "17:30 WIB", "openTime": "17:45 WIB", "days": "SELASA \u0026 JUM'AT ( LIBUR )", "link": "https://www.singaporepools.com.sg/" },
+    { "id": 1034, "marketName": "MAGNUM4D", "closeTime": "18:10 WIB", "openTime": "18:40 WIB", "days": "RABU, SABTU \u0026 MINGGU", "link": "https://www.magnum4d.my/en" },
+    { "id": 1035, "marketName": "TOTOMACAU MALAM I", "closeTime": "19:00 WIB", "openTime": "19:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1036, "marketName": "CHELSEA 19", "closeTime": "19:00 WIB", "openTime": "19:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
+    { "id": 1037, "marketName": "POIPET19", "closeTime": "19:30 WIB", "openTime": "19:45 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
+    { "id": 1038, "marketName": "PCSO", "closeTime": "19:50 WIB", "openTime": "20:10 WIB", "days": "Minggu Libur", "link": "https://www.pcso.gov.ph/" },
+    { "id": 1039, "marketName": "TOTOMALI 2030", "closeTime": "20:15 WIB", "openTime": "20:30 WIB", "days": "Selasa s/d Minggu", "link": "https://totomali.com/" },
+    { "id": 1040, "marketName": "HUAHIN 2100", "closeTime": "20:45 WIB", "openTime": "21:00 WIB", "days": "Selasa s/d Minggu", "link": "https://huahinlottery.com/" },
+    { "id": 1041, "marketName": "CHELSEA 21", "closeTime": "21:00 WIB", "openTime": "21:15 WIB", "days": "Senin s/d Minggu", "link": "https://chelseapools.co.uk/" },
+    { "id": 1042, "marketName": "NEVADA", "closeTime": "21:15 WIB", "openTime": "21:30 WIB", "days": "Senin s/d Minggu", "link": "https://www.nevadalottery.us/" },
+    { "id": 1043, "marketName": "BRUNEI 21", "closeTime": "21:30 WIB", "openTime": "21:45 WIB", "days": "Senin s/d Minggu", "link": "https://bruneipools.com/" },
+    { "id": 1044, "marketName": "TOTOMACAU MALAM II", "closeTime": "22:00 WIB", "openTime": "22:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1045, "marketName": "POIPET22", "closeTime": "22:30 WIB", "openTime": "22:45 WIB", "days": "Senin s/d Minggu", "link": "https://poipetlottery.com/" },
+    { "id": 1046, "marketName": "HONGKONG", "closeTime": "22:59 WIB", "openTime": "23:15 WIB", "days": "Senin s/d Minggu", "link": "https://hongkongfunlotto.net/" },
+    { "id": 1047, "marketName": "TOTOMACAU MALAM III", "closeTime": "23:00 WIB", "openTime": "23:15 WIB", "days": "Senin s/d Minggu", "link": "https://totomacaunew.us/" },
+    { "id": 1048, "marketName": "TOTOMALI 2330", "closeTime": "23:15 WIB", "openTime": "23:30 WIB", "days": "Senin s/d Minggu", "link": "https://totomali.com/" },
+    { "id": 1049, "marketName": "KING KONG4D II", "closeTime": "23:30 WIB", "openTime": "23:45 WIB", "days": "Senin s/d Minggu", "link": "https://kingkongpools.id/" }
 ];
 
 const JadwalResult = () => {
@@ -164,21 +164,93 @@ const JadwalResult = () => {
         }
     };
 
-    // Cloud Sync Logic & Initial Live Fetch
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
+        if (!supabase || !user?.username) return;
+
         fetchLiveSchedules(); // Trigger Auto-Sync on Mount
 
-        if (supabase && user?.username) {
-            supabase.from('schedules').select('*').eq('user_id', user.username)
-                .then(({ data, error }) => {
-                    if (!error && data && data.length > 0) {
-                        setSchedules(data.map(item => ({
-                            id: item.id, marketName: item.market_name, days: item.days,
-                            closeTime: item.close_time, openTime: item.open_time, link: item.link
-                        })));
-                    }
-                });
-        }
+        const syncProcess = async () => {
+            setSyncStatus('Syncing...');
+
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('schedules')
+                    .select('*')
+                    .eq('user_id', user.username);
+
+                if (fetchError) throw fetchError;
+
+                // 2. Load Local Data (fresh from storage to avoid closure capture issues)
+                const savedLocal = localStorage.getItem(`app_schedules_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    // Cloud has data - prioritize it as source of truth
+                    setSchedules(cloudData.map(item => ({
+                        id: Number(item.id), // Ensure numeric
+                        marketName: item.market_name,
+                        days: item.days,
+                        closeTime: item.close_time,
+                        openTime: item.open_time,
+                        link: item.link
+                    })));
+                } else if (localData.length > 0) {
+                    // Cloud empty but local has data - back up to cloud
+                    setSchedules(localData);
+                    const syncPromises = localData.map(s => syncToCloud(s));
+                    await Promise.all(syncPromises);
+                } else {
+                    // Both empty - Use Defaults
+                    setSchedules(DEFAULT_SCHEDULES);
+                }
+
+                setIsInitialLoaded(true);
+                setSyncStatus('Standby');
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSyncStatus('Live Sync Offline');
+                const savedLocal = localStorage.getItem(`app_schedules_${user.username}`);
+                if (savedLocal) setSchedules(JSON.parse(savedLocal));
+                else setSchedules(DEFAULT_SCHEDULES);
+                setIsInitialLoaded(true);
+            }
+        };
+
+        syncProcess();
+
+        const channel = supabase
+            .channel(`schedules_${user.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'schedules',
+                filter: `user_id=eq.${user.username}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setSchedules(prev => {
+                        const normalizedItem = {
+                            id: Number(payload.new.id),
+                            marketName: payload.new.market_name,
+                            days: payload.new.days,
+                            closeTime: payload.new.close_time,
+                            openTime: payload.new.open_time,
+                            link: payload.new.link
+                        };
+                        const exists = prev.find(s => Number(s.id) === normalizedItem.id);
+                        if (exists) return prev.map(s => Number(s.id) === normalizedItem.id ? normalizedItem : s);
+                        return [normalizedItem, ...prev];
+                    });
+                } else if (payload.eventType === 'DELETE') {
+                    setSchedules(prev => prev.filter(s => Number(s.id) !== Number(payload.old.id)));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.username]);
 
     useEffect(() => {

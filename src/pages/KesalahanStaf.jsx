@@ -81,68 +81,85 @@ const KesalahanStaf = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Initial Load from Cloud (if available) - Improved Logic
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
         if (!user) return;
 
-        const fetchData = async () => {
+        const syncProcess = async () => {
             setSyncStatus('Syncing...');
-            const { data, error } = await supabase.from('staff_mistakes')
-                .select('*')
-                .eq('user_id', user.username || user.email)
-                .order('id', { ascending: false });
 
-            if (error) {
-                console.error("Cloud fetch error:", error);
-                setSyncStatus('Offline Mode');
-            } else if (data && data.length > 0) {
-                const normalizedData = data.map(m => ({
-                    ...m,
-                    staffName: m.staff_name || '',
-                    evidenceLink: m.evidence_link || '',
-                    livechatCode: m.livechat_code || '',
-                    date: m.date || new Date().toISOString().split('T')[0]
-                }));
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('staff_mistakes')
+                    .select('*')
+                    .eq('user_id', user.username || user.email)
+                    .order('id', { ascending: false });
 
-                // Only update if data is actually different to prevent flickering
-                const isDifferent = JSON.stringify(normalizedData) !== JSON.stringify(mistakes);
-                if (isDifferent) {
+                if (fetchError) throw fetchError;
+
+                // 2. Load Local Data (fresh from storage)
+                const savedLocal = localStorage.getItem(`app_mistakes_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    // Cloud has data - prioritize it
+                    const normalizedData = cloudData.map(m => ({
+                        ...m,
+                        staffName: m.staff_name || '',
+                        evidenceLink: m.evidence_link || '',
+                        livechatCode: m.livechat_code || '',
+                        date: m.date || new Date().toISOString().split('T')[0]
+                    }));
                     setMistakes(normalizedData);
-                    localStorage.setItem(`app_mistakes_${user.username}`, JSON.stringify(normalizedData));
+                    setSyncStatus('Cloud Connected');
+                } else if (localData.length > 0) {
+                    // Cloud empty but local has data - back up to cloud
+                    setSyncStatus('Backing up...');
+                    setMistakes(localData);
+                    // Push local items to cloud sequentially or in batch
+                    for (const m of localData) {
+                        await syncToCloud(m);
+                    }
+                    setSyncStatus('Cloud Connected');
+                } else {
+                    setSyncStatus('Cloud Ready');
                 }
-                setSyncStatus('Cloud Connected');
-            } else {
-                setSyncStatus('Cloud Ready');
-            }
 
-            setIsInitialLoad(false);
+                setIsInitialLoad(false);
 
-            // Trigger Auto Sync from Sheet AFTER cloud fetch is stable
-            if (isAutoSync && sheetUrl) {
-                setTimeout(() => handleImportFromUrl(true), 1000);
+                // Trigger Auto Sync from Sheet if enabled
+                if (isAutoSync && sheetUrl) {
+                    setTimeout(() => handleImportFromUrl(true), 1000);
+                }
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSyncStatus('Offline Mode');
+                const savedLocal = localStorage.getItem(`app_mistakes_${user.username}`);
+                if (savedLocal) setMistakes(JSON.parse(savedLocal));
+                setIsInitialLoad(false);
             }
         };
 
-        fetchData();
+        syncProcess();
 
-        // REAL-TIME SUBSCRIPTION: Auto-update when data changes in cloud
         const channel = supabase
-            .channel('staff_mistakes_realtime')
+            .channel(`staff_mistakes_${user.username}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'staff_mistakes',
                 filter: `user_id=eq.${user.username || user.email}`
             }, (payload) => {
-                console.log('Realtime update received:', payload);
-                fetchData(); // Refresh data on any change
+                // Refresh data on any change
+                syncProcess();
             })
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user?.username]);
 
     // Local Backup & Real-time Sync Trigger
     useEffect(() => {

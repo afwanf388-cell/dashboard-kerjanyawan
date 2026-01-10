@@ -57,37 +57,77 @@ const DataLogin = () => {
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [syncStatus, setSyncStatus] = useState('Offline');
 
-    // Initial Load from Cloud (if available) - Improved Logic
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
-        if (supabase && user?.username) {
-            setSyncStatus('Syncing...');
-            supabase.from('login_data')
-                .select('*')
-                .eq('user_id', user.username)
-                .order('id', { ascending: false })
-                .then(({ data, error }) => {
-                    if (error) {
-                        console.error("Cloud fetch error:", error);
-                        setSyncStatus('Offline Mode');
-                        return;
-                    }
+        if (!supabase || !user?.username) return;
 
-                    if (data && data.length > 0) {
-                        // Cloud has data, source of truth
-                        setLogins(data);
-                        setSyncStatus('Cloud Connected');
-                    } else if (logins.length > 0) {
-                        // Cloud is empty, local has data -> Force Sync to Cloud
-                        setSyncStatus('Backing up to Cloud...');
-                        const syncPromises = logins.map(item => syncToCloud(item));
-                        Promise.all(syncPromises).then(() => {
-                            setSyncStatus('Cloud Connected');
-                        });
-                    } else {
-                        setSyncStatus('Cloud Ready');
-                    }
-                });
-        }
+        const syncProcess = async () => {
+            setSyncStatus('Syncing...');
+
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('login_data')
+                    .select('*')
+                    .eq('user_id', user.username)
+                    .order('id', { ascending: false });
+
+                if (fetchError) throw fetchError;
+
+                // 2. Load Local Data (fresh from storage to avoid closure issues)
+                const savedLocal = localStorage.getItem(`app_login_data_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    // Cloud has data - prioritize it
+                    setLogins(cloudData);
+                    setSyncStatus('Cloud Connected');
+                } else if (localData.length > 0) {
+                    // Cloud empty but local has data - Back up to cloud
+                    setSyncStatus('Backing up...');
+                    setLogins(localData);
+                    const syncPromises = localData.map(item => syncToCloud(item));
+                    await Promise.all(syncPromises);
+                    setSyncStatus('Cloud Connected');
+                } else {
+                    setSyncStatus('Cloud Ready');
+                }
+
+                setIsInitialLoaded(true);
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSyncStatus('Offline Mode');
+                const savedLocal = localStorage.getItem(`app_login_data_${user.username}`);
+                if (savedLocal) setLogins(JSON.parse(savedLocal));
+                setIsInitialLoaded(true);
+            }
+        };
+
+        syncProcess();
+
+        const channel = supabase
+            .channel(`login_data_${user.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'login_data',
+                filter: `user_id=eq.${user.username}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setLogins(prev => {
+                        const exists = prev.find(l => l.id === payload.new.id);
+                        if (exists) return prev.map(l => l.id === payload.new.id ? payload.new : l);
+                        return [payload.new, ...prev];
+                    });
+                } else if (payload.eventType === 'DELETE') {
+                    setLogins(prev => prev.filter(l => l.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.username]);
 
     // Local Backup & Cloud Sync

@@ -112,56 +112,86 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
         }
     ];
 
-    // Initial Load from Cloud or Local per User
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
-        const loadData = async () => {
-            if (!user?.username) {
-                setArticles([]);
-                setSyncStatus('Unauthorized');
-                return;
-            }
+        if (!supabase || !user?.username) return;
 
-            if (supabase) {
-                setSyncStatus('Syncing...');
-                const { data, error } = await supabase.from('bola_articles')
+        const syncProcess = async () => {
+            setSyncStatus('Syncing...');
+
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('bola_articles')
                     .select('*')
                     .eq('user_id', user.username)
                     .order('id', { ascending: true });
 
-                if (error) {
-                    console.error("Cloud fetch error:", error);
-                    setSyncStatus('Offline Mode');
-                    return;
-                }
+                if (fetchError) throw fetchError;
 
-                if (data && data.length > 0) {
-                    const normalizedData = data.map(item => ({
+                // 2. Load Local Data (fresh from storage to avoid closure capture issues)
+                const savedLocal = localStorage.getItem(`bola_articles_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    setArticles(cloudData.map(item => ({
                         ...item,
                         id: Number(item.id),
                         updateDate: item.update_date || item.updateDate
-                    }));
-                    setArticles(normalizedData);
+                    })));
+                    setSyncStatus('Cloud Connected');
+                } else if (localData.length > 0) {
+                    setSyncStatus('Backing up...');
+                    setArticles(localData);
+                    const syncPromises = localData.map(item => syncToCloud(item));
+                    await Promise.all(syncPromises);
                     setSyncStatus('Cloud Connected');
                 } else {
-                    // Cek lokal dulu sebelum pakai default
-                    const saved = localStorage.getItem(`bola_articles_${user.username}`);
-                    if (saved) {
-                        setArticles(JSON.parse(saved));
-                    } else {
-                        setArticles(DEFAULT_ARTICLES);
-                    }
+                    setArticles(DEFAULT_ARTICLES);
                     setSyncStatus('Cloud Ready');
                 }
-            } else {
-                const saved = localStorage.getItem(`bola_articles_${user.username}`);
-                if (saved && JSON.parse(saved).length > 0) {
-                    setArticles(JSON.parse(saved));
-                } else {
-                    setArticles(DEFAULT_ARTICLES);
-                }
+
+                setIsInitialLoaded(true);
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSyncStatus('Offline Mode');
+                const savedLocal = localStorage.getItem(`bola_articles_${user.username}`);
+                if (savedLocal) setArticles(JSON.parse(savedLocal));
+                else setArticles(DEFAULT_ARTICLES);
+                setIsInitialLoaded(true);
             }
         };
-        loadData();
+
+        syncProcess();
+
+        const channel = supabase
+            .channel(`bola_articles_${user.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'bola_articles',
+                filter: `user_id=eq.${user.username}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setArticles(prev => {
+                        const normalizedItem = {
+                            ...payload.new,
+                            id: Number(payload.new.id),
+                            updateDate: payload.new.update_date || payload.new.updateDate
+                        };
+                        const exists = prev.find(item => Number(item.id) === normalizedItem.id);
+                        if (exists) return prev.map(item => Number(item.id) === normalizedItem.id ? normalizedItem : item);
+                        return [...prev, normalizedItem].sort((a, b) => a.id - b.id);
+                    });
+                } else if (payload.eventType === 'DELETE') {
+                    setArticles(prev => prev.filter(item => Number(item.id) !== Number(payload.old.id)));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.username]);
 
     // Local Backup per User

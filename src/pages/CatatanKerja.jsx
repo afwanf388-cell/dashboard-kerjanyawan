@@ -73,43 +73,80 @@ const CatatanKerja = () => {
         }
     }, [isModalOpen, activeNote?.id]);
 
-    // Initial Load from Cloud (if available) - Improved Logic
+    // Unified Initial Load & Sync Logic
     useEffect(() => {
-        if (supabase && user?.username) {
-            setSaveStatus('Sinkronisasi Awan...');
-            supabase.from('notes')
-                .select('*')
-                .eq('user_id', user.username)
-                .order('id', { ascending: true })
-                .then(({ data, error }) => {
-                    if (error) {
-                        console.error("Cloud fetch error:", error);
-                        setSaveStatus('Mode Offline');
-                        return;
-                    }
+        if (!supabase || !user?.username) return;
 
-                    if (data && data.length > 0) {
-                        // Cloud has data, use as source of truth but preserve local-only fields like 'color'
-                        setNotes(prevNotes => {
-                            const localColorMap = new Map(prevNotes.map(n => [n.id, n.color]));
-                            return data.map(cloudNote => ({
-                                ...cloudNote,
-                                color: localColorMap.get(cloudNote.id) || cloudNote.color || NOTE_COLORS[0]
-                            }));
-                        });
-                        setSaveStatus('Awan Terhubung');
-                    } else if (notes.length > 0) {
-                        // Cloud is empty but local has data -> Sync Local to Cloud
-                        setSaveStatus('Mencadangkan ke Awan...');
-                        const syncPromises = notes.map(note => syncToCloud(note));
-                        Promise.all(syncPromises).then(() => {
-                            setSaveStatus('Awan Terhubung');
-                        });
-                    } else {
-                        setSaveStatus('Awan Kosong');
-                    }
-                });
-        }
+        const syncProcess = async () => {
+            setSaveStatus('Sinkronisasi...');
+
+            try {
+                // 1. Fetch Cloud Data
+                const { data: cloudData, error: fetchError } = await supabase
+                    .from('notes')
+                    .select('*')
+                    .eq('user_id', user.username)
+                    .order('id', { ascending: true });
+
+                if (fetchError) throw fetchError;
+
+                // 2. Get local data immediately (fresh from storage to avoid closure issues)
+                const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
+                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+                if (cloudData && cloudData.length > 0) {
+                    // Cloud has data - prioritize it as source of truth
+                    setNotes(cloudData.map(n => ({
+                        ...n,
+                        color: n.color || NOTE_COLORS[0]
+                    })));
+                    setSaveStatus('Awan Terhubung');
+                } else if (localData.length > 0) {
+                    // Cloud is empty but local has data - Back up to cloud
+                    setSaveStatus('Mencadangkan...');
+                    setNotes(localData);
+                    const syncPromises = localData.map(n => syncToCloud(n));
+                    await Promise.all(syncPromises);
+                    setSaveStatus('Awan Terhubung');
+                } else {
+                    setSaveStatus('Awan Kosong');
+                }
+
+                setIsInitialLoaded(true);
+            } catch (err) {
+                console.error("Sync Error:", err);
+                setSaveStatus('Mode Offline');
+                const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
+                if (savedLocal) setNotes(JSON.parse(savedLocal));
+                setIsInitialLoaded(true);
+            }
+        };
+
+        syncProcess();
+
+        const channel = supabase
+            .channel(`notes_${user.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'notes',
+                filter: `user_id=eq.${user.username}`
+            }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    setNotes(prev => {
+                        const exists = prev.find(n => n.id === payload.new.id);
+                        if (exists) return prev.map(n => n.id === payload.new.id ? payload.new : n);
+                        return [...prev, payload.new];
+                    });
+                } else if (payload.eventType === 'DELETE') {
+                    setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [user?.username]);
 
     // Local Backup & Cloud Sync
