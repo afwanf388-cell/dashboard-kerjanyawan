@@ -38,6 +38,7 @@ const Keuangan = () => {
         description: '',
         date: new Date().toISOString().split('T')[0]
     });
+    const [editingIds, setEditingIds] = useState([]); // Track IDs when editing
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -94,7 +95,7 @@ const Keuangan = () => {
                     .from('financial_records')
                     .select('*')
                     .eq('user_id', user.username)
-                    .order('date', { ascending: true }); // Ascending for accumulation logic
+                    .order('date', { ascending: true });
 
                 if (error) throw error;
                 if (data) {
@@ -156,6 +157,25 @@ const Keuangan = () => {
         setShowPriceModal(false);
     };
 
+    // Prepare Edit Form
+    const handleEdit = (row) => {
+        // Aggregate existing values
+        const data = {
+            gaji: row.gaji || '',
+            bonus: row.bonus || '',
+            thr: row.thr || '',
+            emas: row.emasGram || '',
+            pinjaman: row.pinjaman || '',
+            description: row.items[0]?.description || '',
+            // Use the exact date of items (assuming they share a date since grouped by month, or pick first)
+            date: row.items[0]?.date || new Date().toISOString().split('T')[0]
+        };
+
+        setFormData(data);
+        setEditingIds(row.items.map(i => i.id)); // Store IDs to replace
+        setShowModal(true);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -184,30 +204,50 @@ const Keuangan = () => {
         });
 
         if (newRecords.length === 0) {
-            alert("Mohon isi minimal satu kategori!");
-            return;
+            if (editingIds.length > 0 && window.confirm("Semua nilai kosong. Hapus data bulan ini?")) {
+                // Determine proceed to delete below, which will happen because newRecords is empty
+            } else {
+                alert("Mohon isi minimal satu kategori!");
+                return;
+            }
         }
 
-        const updated = [...transactions, ...newRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+        // Logic: Filter out old IDs first (if editing), then add new records
+        const currentTrx = editingIds.length > 0
+            ? transactions.filter(t => !editingIds.includes(t.id))
+            : transactions;
+
+        const updated = [...currentTrx, ...newRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
 
+        // Reset
         setShowModal(false);
         setFormData({
             gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
             description: '', date: new Date().toISOString().split('T')[0]
         });
 
-        // Auto scroll to bottom
-        setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
+        // If it was just an add, scroll. If edit, stay put usually better but lets scroll to be safe
+        if (editingIds.length === 0) setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
 
+        // Sync Cloud
         try {
-            const recordsToInsert = newRecords.map(({ id, ...rest }) => rest);
-            const { error } = await supabase.from('financial_records').insert(recordsToInsert);
-            if (error) throw error;
+            // 1. Delete old IDs if any
+            if (editingIds.length > 0) {
+                await supabase.from('financial_records').delete().in('id', editingIds);
+            }
+            // 2. Insert new
+            if (newRecords.length > 0) {
+                const recordsToInsert = newRecords.map(({ id, ...rest }) => rest);
+                const { error } = await supabase.from('financial_records').insert(recordsToInsert);
+                if (error) throw error;
+            }
             setSyncStatus('🟢 Sinkronisasi Awan OK');
         } catch (err) {
             setSyncStatus('🔴 Gagal Upload (Disimpan Lokal)');
+        } finally {
+            setEditingIds([]); // Clear editing state
         }
     };
 
@@ -219,6 +259,15 @@ const Keuangan = () => {
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
         try { await supabase.from('financial_records').delete().in('id', idsToDelete); } catch (err) { }
+    };
+
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setEditingIds([]); // Reset editing state on close
+        setFormData({
+            gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
+            description: '', date: new Date().toISOString().split('T')[0]
+        });
     };
 
     const stats = useMemo(() => {
@@ -240,10 +289,7 @@ const Keuangan = () => {
 
     // ACCUMULATION DATA LOGIC
     const accumulationData = useMemo(() => {
-        // 1. Group by Month (Map ensures order if we insert chronologically)
         const groups = new Map();
-
-        // Sort chrono first
         const sortedTrx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
 
         sortedTrx.forEach(t => {
@@ -268,12 +314,11 @@ const Keuangan = () => {
             else if (t.type === 'thr') g.thr += amt;
             else if (t.type === 'emas') {
                 g.emasGram += amt;
-                g.emasVal += (amt * goldPrice); // Calc dynamic value
+                g.emasVal += (amt * goldPrice);
             }
             else if (t.type === 'pinjaman') g.pinjaman += amt;
         });
 
-        // 2. Calculate Accumulation
         let runningBalance = 0;
         const result = [];
 
@@ -282,10 +327,8 @@ const Keuangan = () => {
             runningBalance += g.netMonth;
             g.accumulated = runningBalance;
 
-            // Filter search
             if (searchTerm) {
                 const searchLower = searchTerm.toLowerCase();
-                // Check month name or any item description
                 const monthName = g.dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toLowerCase();
                 const hasMatch = monthName.includes(searchLower) || g.items.some(i => i.description?.toLowerCase().includes(searchLower));
                 if (hasMatch) result.push(g);
@@ -294,7 +337,7 @@ const Keuangan = () => {
             }
         });
 
-        return result; // Chronological order
+        return result;
     }, [transactions, goldPrice, searchTerm]);
 
     const handleInputChange = (e, field) => {
@@ -369,6 +412,16 @@ const Keuangan = () => {
                 .val-neu { color: #94a3b8; opacity: 0.3; }
                 .acc-total-cell { font-weight: 800; color: white; background: rgba(255,255,255,0.03); }
                 
+                .action-btn {
+                    padding: 8px; border-radius: 12px; border: none; cursor: pointer;
+                    display: inline-flex; align-items: center; justify-content: center;
+                    transition: all 0.2s; margin-left: 4px;
+                }
+                .action-btn.edit { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+                .action-btn.edit:hover { background: #3b82f6; color: white; transform: translateY(-2px); }
+                .action-btn.del { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+                .action-btn.del:hover { background: #ef4444; color: white; transform: translateY(-2px); }
+
                 .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: inline-block; margin-bottom: 4px;}
                 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
                 .modal-content { width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); }
@@ -481,13 +534,22 @@ const Keuangan = () => {
                                         {formatRupiah(row.accumulated)}
                                     </td>
                                     <td>
-                                        <button
-                                            onClick={() => handleDelete(row.items)}
-                                            className="text-slate-500 hover:text-red-500 transition"
-                                            title="Hapus semua data bulan ini"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                            <button
+                                                onClick={() => handleEdit(row)}
+                                                className="action-btn edit"
+                                                title="Edit data bulan ini"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(row.items)}
+                                                className="action-btn del"
+                                                title="Hapus semua data bulan ini"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -543,8 +605,10 @@ const Keuangan = () => {
                     <div className="modal-overlay">
                         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="modal-content">
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '20px' }}>Rekap Pemasukan & Pinjaman</h3>
-                                <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X /></button>
+                                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '20px' }}>
+                                    {editingIds.length > 0 ? 'Edit Rekapan Bulan Ini' : 'Rekap Pemasukan & Pinjaman'}
+                                </h3>
+                                <button onClick={handleCloseModal} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X /></button>
                             </div>
                             <form onSubmit={handleSubmit}>
                                 <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '16px', borderRadius: '16px', marginBottom: '24px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
@@ -585,7 +649,7 @@ const Keuangan = () => {
                                 </div>
 
                                 <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '16px', marginTop: '24px' }}>
-                                    <Save size={20} /> SIMPAN REKAPAN
+                                    <Save size={20} /> {editingIds.length > 0 ? 'UPDATE DATA' : 'SIMPAN REKAPAN'}
                                 </button>
                             </form>
                         </motion.div>
