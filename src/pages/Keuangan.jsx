@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2, ChevronRight, BarChart3, PiggyBank, Cloud, CloudOff, Coins, Sparkles, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2, ChevronRight, BarChart3, PiggyBank, Coins, Sparkles, X, AlertCircle } from 'lucide-react';
 
 const Keuangan = () => {
     const { user } = useAuth();
@@ -11,7 +11,6 @@ const Keuangan = () => {
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
-    const [syncStatus, setSyncStatus] = useState('Offline');
     const [lastError, setLastError] = useState(null);
     const [goldPrice, setGoldPrice] = useState(2549000);
     const [isPriceLoading, setIsPriceLoading] = useState(false);
@@ -45,114 +44,47 @@ const Keuangan = () => {
         fetchGoldPrice();
     }, []);
 
-    // Robust Item Sanitizer to prevent 400 errors
-    const sanitizeItem = (item) => ({
-        id: Number(item.id) || Date.now(),
-        user_id: user?.username || 'user',
-        month: Number(item.month) || 1,
-        gaji: Number(item.gaji) || 0,
-        bonus: Number(item.bonus) || 0,
-        thr: Number(item.thr) || 0,
-        emas: Number(item.emas) || 0,
-        pinjaman: Number(item.pinjaman) || 0,
-        pengeluaran: Number(item.pengeluaran) || 0,
-        last_updated: new Date().toISOString()
-    });
 
-    const syncToCloud = async (dataToSync) => {
-        if (!supabase || !user?.username) return false;
-
-        try {
-            const sanitized = Array.isArray(dataToSync)
-                ? dataToSync.map(sanitizeItem)
-                : [sanitizeItem(dataToSync)];
-
-            const { error } = await supabase
-                .from('finance_data')
-                .upsert(sanitized);
-
-            if (error) {
-                console.error("Cloud Sync Error:", error);
-                setLastError(error.message);
-                return false;
-            }
-            setLastError(null);
-            return true;
-        } catch (err) {
-            console.error("Critical Sync Error:", err);
-            setLastError("Koneksi Terputus");
-            return false;
-        }
-    };
-
-    const syncProcess = useCallback(async (forceCloud = false) => {
+    const fetchFinanceData = useCallback(async () => {
         if (!supabase || !user?.username) return;
-        setSyncStatus('Sinkronisasi...');
 
         try {
-            // 1. Fetch from Cloud
-            const { data: cloudData, error: fetchError } = await supabase
+            const { data, error } = await supabase
                 .from('finance_data')
                 .select('*')
                 .eq('user_id', user.username)
                 .order('month', { ascending: true });
 
-            if (fetchError) throw fetchError;
+            if (error) throw error;
 
-            // 2. Load Local
-            const localKey = `app_finance_v3_${user.username}`;
-            const savedLocal = localStorage.getItem(localKey);
-            const localData = savedLocal ? JSON.parse(savedLocal) : [];
-
-            let finalData = [];
-
-            if (cloudData && cloudData.length > 0) {
-                // Cloud wins, but merge any local-only items if they exist (rare)
-                finalData = cloudData.map(item => ({ ...item, id: Number(item.id) }));
-
-                // Keep local version of things that haven't hit cloud yet
-                const cloudIds = new Set(finalData.map(d => d.id));
-                const localOnly = localData.filter(d => !cloudIds.has(Number(d.id)));
-
-                if (localOnly.length > 0) {
-                    setSyncStatus('Mencadangkan...');
-                    const ok = await syncToCloud(localOnly);
-                    if (ok) finalData = [...finalData, ...localOnly].sort((a, b) => a.month - b.month);
-                }
-                setSyncStatus('Awan Terhubung');
-            } else if (localData.length > 0) {
-                // Cloud empty, push everything local to cloud
-                setSyncStatus('Mencadangkan...');
-                const ok = await syncToCloud(localData);
-                finalData = localData;
-                setSyncStatus(ok ? 'Awan Terhubung' : 'Gagal Simpan');
-            } else {
-                setSyncStatus('Awan Kosong');
+            if (data) {
+                const processed = data.map(item => ({ ...item, id: Number(item.id) }));
+                setMonthlyData(processed);
+                localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(processed));
             }
-
-            setMonthlyData(finalData);
-            localStorage.setItem(localKey, JSON.stringify(finalData));
-            setIsInitialLoaded(true);
         } catch (err) {
-            console.error("Process Error:", err);
-            setSyncStatus('Offline Mode');
+            console.error("Fetch Error:", err);
             const savedLocal = localStorage.getItem(`app_finance_v3_${user.username}`);
             if (savedLocal) setMonthlyData(JSON.parse(savedLocal));
+        } finally {
             setIsInitialLoaded(true);
         }
     }, [user?.username]);
 
     useEffect(() => {
-        if (user?.username) syncProcess();
+        if (user?.username) fetchFinanceData();
 
-        // RT Channel
         const channel = supabase?.channel(`finance_data_${user?.username}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'finance_data', filter: `user_id=eq.${user?.username}` },
-                () => syncProcess())
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'finance_data',
+                filter: `user_id=eq.${user?.username}`
+            }, () => fetchFinanceData())
             .subscribe();
 
         return () => { if (channel) supabase.removeChannel(channel); };
-    }, [user?.username, syncProcess]);
+    }, [user?.username, fetchFinanceData]);
 
     const calculatedData = useMemo(() => {
         let runningTotal = 0;
@@ -180,50 +112,74 @@ const Keuangan = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setSyncStatus('Menyimpan...');
-        let updated;
+
+        const numericData = {
+            gaji: Number(formData.gaji) || 0,
+            bonus: Number(formData.bonus) || 0,
+            thr: Number(formData.thr) || 0,
+            pengeluaran: Number(formData.pengeluaran) || 0,
+            emas: Number(formData.emas) || 0,
+            pinjaman: Number(formData.pinjaman) || 0
+        };
+
         let itemToSync;
+        let updated;
 
         if (editingId) {
-            itemToSync = { ...monthlyData.find(m => m.id === editingId), ...formData };
+            itemToSync = { ...monthlyData.find(m => m.id === editingId), ...numericData, last_updated: new Date().toISOString() };
             updated = monthlyData.map(m => m.id === editingId ? itemToSync : m);
         } else {
             const nextMonth = monthlyData.length > 0 ? Math.max(...monthlyData.map(m => m.month)) + 1 : 1;
-            itemToSync = { ...formData, id: Date.now(), month: nextMonth };
+            itemToSync = {
+                ...numericData,
+                id: Date.now(),
+                user_id: user.username,
+                month: nextMonth,
+                last_updated: new Date().toISOString()
+            };
             updated = [...monthlyData, itemToSync];
         }
 
-        const ok = await syncToCloud(itemToSync);
-        if (ok) {
-            setMonthlyData(updated);
-            localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(updated));
-            setShowModal(false);
-            setEditingId(null);
-            setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 });
-            setSyncStatus('Awan Terhubung');
-        } else {
-            setSyncStatus('Gagal Simpan');
+        // Optimistic Update
+        setMonthlyData(updated);
+        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(updated));
+        setShowModal(false);
+        setEditingId(null);
+        setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 });
+
+        // Background Sync to Cloud
+        try {
+            await supabase.from('finance_data').upsert(itemToSync);
+            setLastError(null);
+        } catch (err) {
+            console.error("Cloud Save Error:", err);
+            setLastError("Gagal menyimpan ke awan, data tersimpan lokal.");
         }
     };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Hapus data bulan ini?')) return;
-        setSyncStatus('Menghapus...');
+
+        const updated = monthlyData.filter(m => m.id !== id);
+        const reordered = updated.map((m, i) => ({ ...m, month: i + 1 }));
+
+        // Optimistic Update
+        setMonthlyData(reordered);
+        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
 
         try {
             const { error } = await supabase.from('finance_data').delete().eq('id', id);
             if (error) throw error;
 
-            const updated = monthlyData.filter(m => m.id !== id);
-            const reordered = updated.map((m, i) => ({ ...m, month: i + 1 }));
-
-            // Sync reordered months
-            await syncToCloud(reordered);
-            setMonthlyData(reordered);
-            localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
-            setSyncStatus('Awan Terhubung');
+            // Re-sync monthly order if necessary
+            if (reordered.length > 0) {
+                await supabase.from('finance_data').upsert(reordered.map(m => ({
+                    ...m,
+                    user_id: user.username
+                })));
+            }
         } catch (e) {
-            setSyncStatus('Gagal Hapus');
+            console.error("Delete Error:", e);
         }
     };
 
@@ -236,21 +192,14 @@ const Keuangan = () => {
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
                 <div>
                     <h2 style={{ fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: '900', color: 'white' }}>Dashboard Keuangan</h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
-                        <div style={{
-                            width: '10px', height: '10px', borderRadius: '50%',
-                            background: syncStatus === 'Awan Terhubung' ? '#10b981' : (syncStatus === 'Gagal Simpan' ? '#ef4444' : '#f59e0b'),
-                            boxShadow: syncStatus === 'Awan Terhubung' ? '0 0 10px #10b981' : 'none'
-                        }} />
-                        <span style={{ fontSize: '11px', fontWeight: '900', color: 'var(--text-muted)' }}>
-                            {syncStatus.toUpperCase()} {lastError && <span style={{ color: '#ef4444' }}>({lastError})</span>}
-                        </span>
-                    </div>
+                    {lastError && (
+                        <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+                            <AlertCircle size={10} style={{ display: 'inline', marginRight: '4px' }} />
+                            {lastError}
+                        </p>
+                    )}
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => syncProcess(true)} className="glass-effect" style={{ padding: '12px', borderRadius: '12px', color: 'white', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
-                        <RefreshCw size={20} className={syncStatus === 'Sinkronisasi...' ? 'spin-animation' : ''} />
-                    </button>
                     <button onClick={() => { setEditingId(null); setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 }); setShowModal(true); }} style={{ padding: '12px 24px', borderRadius: '14px', background: 'var(--primary)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)', cursor: 'pointer' }}>
                         <Plus size={20} /> {isMobile ? '' : 'Input Data'}
                     </button>
