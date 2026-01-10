@@ -187,15 +187,16 @@ const JadwalResult = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    // Cloud has data - prioritize it as source of truth
-                    setSchedules(cloudData.map(item => ({
-                        id: Number(item.id), // Ensure numeric
+                    const finalData = cloudData.map(item => ({
+                        id: Number(item.id),
                         marketName: item.market_name,
                         days: item.days,
                         closeTime: item.close_time,
                         openTime: item.open_time,
                         link: item.link
-                    })));
+                    }));
+                    setSchedules(finalData);
+                    localStorage.setItem(`app_schedules_${user.username}`, JSON.stringify(finalData));
                 } else if (localData.length > 0) {
                     // Cloud empty but local has data - back up to cloud
                     setSchedules(localData);

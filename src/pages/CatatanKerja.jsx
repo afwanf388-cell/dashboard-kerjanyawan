@@ -95,11 +95,12 @@ const CatatanKerja = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    // Cloud has data - prioritize it as source of truth
-                    setNotes(cloudData.map(n => ({
+                    const finalData = cloudData.map(n => ({
                         ...n,
                         color: n.color || NOTE_COLORS[0]
-                    })));
+                    }));
+                    setNotes(finalData);
+                    localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(finalData));
                     setSaveStatus('Awan Terhubung');
                 } else if (localData.length > 0) {
                     // Cloud is empty but local has data - Back up to cloud

@@ -135,11 +135,13 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    setArticles(cloudData.map(item => ({
+                    const finalData = cloudData.map(item => ({
                         ...item,
                         id: Number(item.id),
                         updateDate: item.update_date || item.updateDate
-                    })));
+                    }));
+                    setArticles(finalData);
+                    localStorage.setItem(`bola_articles_${user.username}`, JSON.stringify(finalData));
                     setSyncStatus('Cloud Connected');
                 } else if (localData.length > 0) {
                     setSyncStatus('Backing up...');

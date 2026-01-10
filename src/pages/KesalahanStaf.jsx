@@ -103,7 +103,6 @@ const KesalahanStaf = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    // Cloud has data - prioritize it
                     const normalizedData = cloudData.map(m => ({
                         ...m,
                         staffName: m.staff_name || '',
@@ -112,6 +111,7 @@ const KesalahanStaf = () => {
                         date: m.date || new Date().toISOString().split('T')[0]
                     }));
                     setMistakes(normalizedData);
+                    localStorage.setItem(`app_mistakes_${user.username}`, JSON.stringify(normalizedData));
                     setSyncStatus('Cloud Connected');
                 } else if (localData.length > 0) {
                     // Cloud empty but local has data - back up to cloud

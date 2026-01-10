@@ -79,8 +79,8 @@ const DataLogin = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    // Cloud has data - prioritize it
                     setLogins(cloudData);
+                    localStorage.setItem(`app_login_data_${user.username}`, JSON.stringify(cloudData));
                     setSyncStatus('Cloud Connected');
                 } else if (localData.length > 0) {
                     // Cloud empty but local has data - Back up to cloud
