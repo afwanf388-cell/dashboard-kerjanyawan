@@ -89,6 +89,7 @@ const Keuangan = () => {
         if (!supabase || !user?.username) return;
 
         const syncProcess = async () => {
+            if (!user?.username) return;
             setSyncStatus('Syncing...');
 
             try {
@@ -101,25 +102,42 @@ const Keuangan = () => {
 
                 if (fetchError) throw fetchError;
 
-                // 2. Load Local Data (fresh from storage to avoid closure issues)
+                // 2. Load Local Data
                 const savedLocal = localStorage.getItem(`app_finance_v3_${user.username}`);
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
+                // 3. Robust Merge Logic: Use Cloud as truth, but don't lose local-only data
+                let finalData = [];
                 if (cloudData && cloudData.length > 0) {
-                    // Cloud has data - prioritize it
-                    setMonthlyData(cloudData);
+                    finalData = cloudData.map(item => ({
+                        ...item,
+                        id: Number(item.id) // Ensure ID is a number
+                    }));
+
+                    // Check if local has anything newer/different (rare but possible during offline)
+                    const cloudIds = new Set(finalData.map(d => d.id));
+                    const localOnly = localData.filter(d => !cloudIds.has(Number(d.id)));
+
+                    if (localOnly.length > 0) {
+                        setSyncStatus('Backing up local...');
+                        for (const item of localOnly) {
+                            await syncToCloud(item);
+                        }
+                        finalData = [...finalData, ...localOnly].sort((a, b) => a.month - b.month);
+                    }
                     setSyncStatus('Cloud Connected');
                 } else if (localData.length > 0) {
                     // Cloud empty but local has data - Back up to cloud
                     setSyncStatus('Backing up...');
-                    setMonthlyData(localData);
+                    finalData = localData;
                     const syncPromises = localData.map(item => syncToCloud(item));
                     await Promise.all(syncPromises);
                     setSyncStatus('Cloud Connected');
                 } else {
-                    setSyncStatus('Awan Kosong');
+                    setSyncStatus('Cloud Ready');
                 }
 
+                setMonthlyData(finalData);
                 setIsInitialLoaded(true);
             } catch (err) {
                 console.error("Sync Error:", err);
@@ -140,15 +158,9 @@ const Keuangan = () => {
                 table: 'finance_data',
                 filter: `user_id=eq.${user.username}`
             }, (payload) => {
-                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                    setMonthlyData(prev => {
-                        const exists = prev.find(item => item.id === payload.new.id);
-                        if (exists) return prev.map(item => item.id === payload.new.id ? payload.new : item);
-                        return [...prev, payload.new].sort((a, b) => a.month - b.month);
-                    });
-                } else if (payload.eventType === 'DELETE') {
-                    setMonthlyData(prev => prev.filter(item => item.id !== payload.old.id));
-                }
+                // Just re-run syncProcess to ensure data is perfectly consistent
+                // This handles INSERT, UPDATE, and DELETE at once.
+                syncProcess();
             })
             .subscribe();
 

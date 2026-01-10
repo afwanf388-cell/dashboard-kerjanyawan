@@ -164,9 +164,12 @@ const Dashboard = () => {
                         logins: Math.max(localLogins.length, resLogins.count || 0)
                     };
 
-                    // If cloud has finance data and local is empty (or has fewer months), prioritize cloud
-                    if (resFinance.data && resFinance.data.length > localFinance.length) {
-                        localFinance = resFinance.data;
+                    // Always update local storage with the latest cloud data if cloud has any data
+                    if (resFinance.data && resFinance.data.length > 0) {
+                        localFinance = resFinance.data.map(item => ({
+                            ...item,
+                            id: Number(item.id)
+                        }));
                         localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(localFinance));
                     }
                 }
