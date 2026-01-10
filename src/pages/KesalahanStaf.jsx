@@ -1201,7 +1201,7 @@ const KesalahanStaf = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="glass-effect"
+                className="glass-effect filter-bar-container"
                 style={{
                     padding: '24px',
                     display: 'flex',
@@ -1595,15 +1595,48 @@ const KesalahanStaf = () => {
             </AnimatePresence>
             {/* Styles for mobile responsiveness */}
             <style>{`
+                /* TABLET & MOBILE FIXES */
                 @media (max-width: 1024px) {
                     .stats-grid {
                         grid-template-columns: 1fr !important;
                     }
-                    .mistake-row {
-                        grid-template-columns: 1fr 100px 50px !important;
-                        gap: 12px !important;
+                }
+
+                @media (max-width: 768px) {
+                    /* -- 1. STATS GRID -- */
+                    .stats-grid {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        gap: 20px !important;
+                    }
+
+                    /* -- 2. FILTER BAR (STACKING) -- */
+                    .filter-bar-container {
+                        flex-direction: column !important;
+                        gap: 16px !important;
                         padding: 16px !important;
-                        align-items: start !important;
+                        height: auto !important;
+                    }
+                    .filter-bar-container > div {
+                        width: 100% !important;
+                        min-width: 100% !important;
+                        max-width: 100% !important;
+                    }
+                    /* Fix date input width specifically */
+                    input[type="date"] {
+                        min-width: 0 !important; /* Allow shrinking */
+                        width: 100% !important;
+                    }
+
+                    /* -- 3. MISTAKE ROW (CARD STYLE) -- */
+                    .mistake-row {
+                        grid-template-columns: 1fr 50px !important;
+                    }
+                    /* Evidence link on its own line */
+                    .mistake-row > div:nth-child(2) {
+                        grid-column: 1;
+                        grid-row: 2;
+                        margin-top: 8px;
                     }
                     /* Move description to second row in mobile grid */
                     .mistake-row > div:nth-child(3) {
@@ -1614,23 +1647,11 @@ const KesalahanStaf = () => {
                     /* Move actions to top right */
                     .mistake-row > div:nth-child(4) {
                         grid-row: 1;
-                        grid-column: 3;
+                        grid-column: 2;
                         justify-self: end;
                     }
-                }
-
-                @media (max-width: 768px) {
-                    .mistake-row {
-                        grid-template-columns: 1fr 50px !important;
-                    }
-                    /* Evidence link on its own line */
-                    .mistake-row > div:nth-child(2) {
-                        grid-column: 1;
-                        grid-row: 2;
-                        margin-top: 8px;
-                    }
                     
-                    /* Table Card View for Smaller Screens */
+                    /* -- 4. REKAPITULASI STAF (TABLE to CARDS) -- */
                     table, thead, tbody, th, td, tr {
                         display: block;
                     }
@@ -1645,28 +1666,50 @@ const KesalahanStaf = () => {
                         border-radius: 16px;
                         padding: 12px;
                         background: rgba(255,255,255,0.02) !important;
+                        position: relative;
                     }
                     td {
                         border: none !important;
                         position: relative;
-                        padding-left: 50% !important;
-                        text-align: right !important;
+                        padding-left: 0 !important;
+                        padding-top: 24px !important;
+                        text-align: left !important;
                         min-height: 40px;
-                        display: flex !important;
-                        align-items: center;
-                        justify-content: flex-end;
+                        display: block !important;
+                        margin-bottom: 8px;
+                        border-bottom: 1px solid rgba(255,255,255,0.05) !important;
                     }
+                    td:last-child {
+                        border-bottom: none !important;
+                    }
+                    
+                    /* Pseudo-element for LABEL */
                     td:before {
                         content: attr(data-label);
                         position: absolute;
-                        left: 12px;
-                        width: 45%;
-                        padding-right: 10px;
-                        white-space: nowrap;
-                        text-align: left;
+                        top: 0;
+                        left: 0;
                         font-weight: 800;
                         color: #64748b;
-                        font-size: 11px;
+                        font-size: 10px;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-bottom: 4px;
+                    }
+                    /* Specific overrides for cells to look good */
+                    td[data-label="NAMA STAF"], td[data-label="NAMA"] {
+                        padding-top: 0 !important;
+                        margin-bottom: 20px;
+                        border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+                        padding-bottom: 12px;
+                    }
+                    td[data-label="NAMA STAF"]:before, td[data-label="NAMA"]:before {
+                        display: none; 
+                    }
+                    td[data-value] {
+                        padding-left: 0 !important;
+                        text-align: left !important;
+                    }
                 }
             `}</style>
             {/* CUSTOM CLEAR ALL CONFIRMATION MODAL (Reliable alternative to window.confirm) */}
