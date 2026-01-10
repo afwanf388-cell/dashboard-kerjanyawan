@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2, ChevronRight, BarChart3, PiggyBank, Coins, Sparkles, X, AlertCircle } from 'lucide-react';
 
 const Keuangan = () => {
@@ -43,18 +44,57 @@ const Keuangan = () => {
     }, []);
 
 
-    const fetchFinanceData = useCallback(() => {
+    const fetchFinanceData = useCallback(async () => {
         if (!user?.username) return;
+
+        // 1. Load Local Immediately (Fast)
         const localKey = `app_finance_v3_${user.username}`;
         const savedLocal = localStorage.getItem(localKey);
         if (savedLocal) {
             setMonthlyData(JSON.parse(savedLocal));
+            setIsInitialLoaded(true);
         }
-        setIsInitialLoaded(true);
+
+        // 2. Fetch Cloud in Background (Silent)
+        if (!supabase) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('finance_data')
+                .select('*')
+                .eq('user_id', user.username)
+                .order('month', { ascending: true });
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                // Determine if we should update local
+                const cloudData = data.map(item => ({ ...item, id: Number(item.id) }));
+
+                // Simple strategy: Cloud wins if it exists. 
+                // This restores data if local is empty (the user's issue).
+                setMonthlyData(cloudData);
+                localStorage.setItem(localKey, JSON.stringify(cloudData));
+            }
+        } catch (err) {
+            console.error("Background Fetch Error:", err);
+            // On error, we just keep using local data, no scary alerts.
+        }
     }, [user?.username]);
 
     useEffect(() => {
         if (user?.username) fetchFinanceData();
+
+        const channel = supabase?.channel(`finance_data_${user?.username}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'finance_data',
+                filter: `user_id=eq.${user?.username}`
+            }, () => fetchFinanceData())
+            .subscribe();
+
+        return () => { if (channel) supabase.removeChannel(channel); };
     }, [user?.username, fetchFinanceData]);
 
     const calculatedData = useMemo(() => {
@@ -81,7 +121,7 @@ const Keuangan = () => {
         };
     }, [calculatedData, monthlyData, goldPrice]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
 
         const numericData = {
@@ -93,36 +133,64 @@ const Keuangan = () => {
             pinjaman: Number(formData.pinjaman) || 0
         };
 
+        let itemToSync;
         let updated;
+
         if (editingId) {
-            updated = monthlyData.map(m => m.id === editingId ? { ...m, ...numericData, last_updated: new Date().toISOString() } : m);
+            itemToSync = { ...monthlyData.find(m => m.id === editingId), ...numericData, last_updated: new Date().toISOString() };
+            updated = monthlyData.map(m => m.id === editingId ? itemToSync : m);
         } else {
             const nextMonth = monthlyData.length > 0 ? Math.max(...monthlyData.map(m => m.month)) + 1 : 1;
-            const newItem = {
+            itemToSync = {
                 ...numericData,
                 id: Date.now(),
                 user_id: user.username,
                 month: nextMonth,
                 last_updated: new Date().toISOString()
             };
-            updated = [...monthlyData, newItem];
+            updated = [...monthlyData, itemToSync];
         }
 
+        // 1. Optimistic Update (Instant)
         setMonthlyData(updated);
         localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(updated));
         setShowModal(false);
         setEditingId(null);
         setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 });
+
+        // 2. Background Sync (Silent)
+        try {
+            await supabase.from('finance_data').upsert(itemToSync);
+        } catch (err) {
+            console.error("Silent Sync Error:", err);
+            // Suppress visible errors to avoid user anxiety, retry logic could go here
+        }
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (!window.confirm('Hapus data bulan ini?')) return;
 
         const updated = monthlyData.filter(m => m.id !== id);
         const reordered = updated.map((m, i) => ({ ...m, month: i + 1 }));
 
+        // 1. Optimistic Update (Instant)
         setMonthlyData(reordered);
         localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
+
+        // 2. Background Sync (Silent)
+        try {
+            const { error } = await supabase.from('finance_data').delete().eq('id', id);
+            if (error) throw error;
+
+            if (reordered.length > 0) {
+                await supabase.from('finance_data').upsert(reordered.map(m => ({
+                    ...m,
+                    user_id: user.username
+                })));
+            }
+        } catch (e) {
+            console.error("Silent Delete Error:", e);
+        }
     };
 
     const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
