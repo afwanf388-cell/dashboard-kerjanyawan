@@ -125,7 +125,8 @@ const Dashboard = () => {
                 const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
                 const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]');
                 const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix}`) || '[]');
-                let localFinance = JSON.parse(localStorage.getItem(`app_finance_v3${suffix}`) || '[]');
+                // Updated: Use new Finance V4 (Transaction Based) local key
+                let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix}`) || '[]');
 
                 // Helper to filter valid mistakes (matching KesalahanStaf.jsx)
                 const countValidMistakes = (data) => {
@@ -139,8 +140,7 @@ const Dashboard = () => {
                     }).length;
                 };
 
-                // 2. Fetch from Cloud if we have a user (to fix 0-stat bug on new login)
-                // We need actual data now to filter "notes", not just raw count
+                // 2. Fetch from Cloud if we have a user
                 let cloudCounts = {
                     notes: localNotes.length,
                     mistakes: countValidMistakes(localMistakes),
@@ -151,10 +151,11 @@ const Dashboard = () => {
                 if (supabase && user?.username) {
                     const [resNotes, resMistakes, resSchedules, resLogins, resFinance] = await Promise.all([
                         supabase.from('notes').select('*', { count: 'exact', head: true }).eq('user_id', user.username),
-                        supabase.from('staff_mistakes').select('*').eq('user_id', user.username), // Fetch data for filtering
+                        supabase.from('staff_mistakes').select('*').eq('user_id', user.username),
                         supabase.from('schedules').select('*', { count: 'exact', head: true }).eq('user_id', user.username),
                         supabase.from('login_data').select('*', { count: 'exact', head: true }).eq('user_id', user.username),
-                        supabase.from('finance_data').select('*').eq('user_id', user.username).order('month', { ascending: true })
+                        // Updated: Fetch from new table
+                        supabase.from('financial_records').select('*').eq('user_id', user.username)
                     ]);
 
                     cloudCounts = {
@@ -164,44 +165,42 @@ const Dashboard = () => {
                         logins: Math.max(localLogins.length, resLogins.count || 0)
                     };
 
-                    // Always update local storage with the latest cloud data if cloud has any data
+                    // Update local storage with the latest cloud data
                     if (resFinance.data && resFinance.data.length > 0) {
-                        localFinance = resFinance.data.map(item => ({
-                            ...item,
-                            id: Number(item.id)
-                        }));
-                        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(localFinance));
+                        localFinance = resFinance.data;
+                        localStorage.setItem(`finance_trx${suffix}`, JSON.stringify(localFinance));
                     }
                 }
 
-                // Financial calculations (Matching Keuangan.jsx logic)
-                let totalCash = 0;
+                // 3. New Calculation Logic (Transaction Based)
                 let totalGaji = 0;
                 let totalBonus = 0;
                 let totalThr = 0;
                 let totalPengeluaran = 0;
-                let totalEmasGram = 0;
                 let totalPinjaman = 0;
+                let totalEmasGram = 0;
 
-                localFinance.forEach(item => {
-                    const gaji = Number(item.gaji || 0);
-                    const bonus = Number(item.bonus || 0);
-                    const thr = Number(item.thr || 0);
-                    const pengeluaran = Number(item.pengeluaran || 0);
-                    const pinjaman = Number(item.pinjaman || 0);
-                    const emas = Number(item.emas || 0);
-
-                    totalGaji += gaji;
-                    totalBonus += bonus;
-                    totalThr += thr;
-                    totalPengeluaran += pengeluaran;
-                    totalPinjaman += pinjaman;
-                    totalEmasGram += emas;
-                    totalCash += (gaji + bonus + thr - pengeluaran - pinjaman);
+                localFinance.forEach(trx => {
+                    const amount = Number(trx.amount || 0);
+                    switch (trx.type) {
+                        case 'gaji': totalGaji += amount; break;
+                        case 'bonus': totalBonus += amount; break;
+                        case 'thr': totalThr += amount; break;
+                        case 'pengeluaran': totalPengeluaran += amount; break;
+                        case 'pinjaman': totalPinjaman += amount; break;
+                        case 'emas': totalEmasGram += amount; break; // Amount is grams for emas
+                        default: break;
+                    }
                 });
 
-                const goldPrice = 2549000;
-                const balance = totalCash + (totalEmasGram * goldPrice);
+                // Get Real-time Gold Price from cache or default
+                const savedGoldPrice = Number(localStorage.getItem('aceh_gold_price')) || 1360000;
+
+                const totalCash = totalGaji + totalBonus + totalThr - totalPengeluaran - totalPinjaman;
+                const totalAssetValue = totalCash + (totalEmasGram * savedGoldPrice); // Total Net Worth
+
+                // Stats for Dashboard
+                const balance = totalAssetValue; // Show Net Worth as primary balance
                 const income = totalGaji + totalBonus + totalThr;
                 const expense = totalPengeluaran + totalPinjaman;
 
