@@ -59,25 +59,42 @@ const Keuangan = () => {
 
     // Sync Functions
     const syncToCloud = async (item, action = 'upsert') => {
-        if (!supabase || !user?.username) return;
+        if (!supabase || !user?.username) {
+            console.warn("Sync skipped: No supabase client or username");
+            return;
+        }
 
-        if (action === 'delete') {
-            await supabase.from('finance_data').delete().eq('id', item.id);
-        } else {
-            const { error } = await supabase.from('finance_data').upsert({
-                id: item.id,
-                user_id: user.username,
-                month: item.month,
-                gaji: Number(item.gaji || 0),
-                bonus: Number(item.bonus || 0),
-                thr: Number(item.thr || 0),
-                emas: Number(item.emas || 0),
-                pinjaman: Number(item.pinjaman || 0),
-                pengeluaran: Number(item.pengeluaran || 0),
-                last_updated: new Date().toISOString()
-            }, { onConflict: 'id' });
+        try {
+            if (action === 'delete') {
+                const { error } = await supabase.from('finance_data').delete().eq('id', item.id);
+                if (error) throw error;
+                console.log("Delete success:", item.id);
+            } else {
+                const payload = {
+                    id: item.id,
+                    user_id: user.username,
+                    month: Number(item.month),
+                    gaji: Number(item.gaji || 0),
+                    bonus: Number(item.bonus || 0),
+                    thr: Number(item.thr || 0),
+                    emas: Number(item.emas || 0),
+                    pinjaman: Number(item.pinjaman || 0),
+                    pengeluaran: Number(item.pengeluaran || 0),
+                    last_updated: new Date().toISOString()
+                };
 
-            if (error) console.error("Sync error:", error);
+                const { error } = await supabase.from('finance_data').upsert(payload, { onConflict: 'id' });
+
+                if (error) {
+                    console.error("Supabase Upsert Error:", error);
+                    setSyncStatus('Gagal Simpan');
+                    throw error;
+                }
+                console.log("Upsert success for month:", item.month, payload);
+            }
+        } catch (err) {
+            console.error("Critical Sync Failure:", err);
+            setSyncStatus('Cloud Error');
         }
     };
 
