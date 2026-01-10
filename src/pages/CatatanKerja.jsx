@@ -446,7 +446,13 @@ const CatatanKerja = () => {
                             }}>
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(59,130,246,0.1)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{
+                                            width: '40px', height: '40px', borderRadius: '12px',
+                                            background: activeNote?.color ? `${activeNote.color}20` : 'rgba(59,130,246,0.1)',
+                                            color: activeNote?.color || 'var(--primary)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            transition: 'all 0.3s ease'
+                                        }}>
                                             <NotebookPen size={20} />
                                         </div>
                                         <h5 style={{ fontSize: '18px', fontWeight: '900', margin: 0, color: 'white', letterSpacing: '-0.5px' }}>Detail Catatan</h5>
@@ -456,7 +462,7 @@ const CatatanKerja = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>TERAKHIR DIUBAH</label>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600' }}>
-                                                <Clock size={14} className="text-primary" /> {activeNote?.lastUpdated || '-'}
+                                                <Clock size={14} style={{ color: activeNote?.color || 'var(--primary)' }} /> {activeNote?.lastUpdated || '-'}
                                             </div>
                                         </div>
 
@@ -530,12 +536,34 @@ const CatatanKerja = () => {
                                             <span style={{ fontSize: '12px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{saveStatus}</span>
                                         </div>
                                     </div>
-                                    <motion.button
-                                        whileHover={{ rotate: 90, background: 'rgba(255,255,255,0.1)' }}
-                                        onClick={closeModal}
-                                        style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '10px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}>
-                                        <X size={20} />
-                                    </motion.button>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => {
+                                                syncToCloud(activeNote);
+                                                setSaveStatus('Tersimpan Manual');
+                                                setTimeout(() => closeModal(), 500);
+                                            }}
+                                            style={{
+                                                padding: '10px 24px', borderRadius: '12px',
+                                                background: activeNote?.color || 'var(--primary)',
+                                                color: 'white', border: 'none', fontWeight: 'bold', fontSize: '13px',
+                                                display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                                boxShadow: `0 4px 15px ${activeNote?.color || '#3b82f6'}40`
+                                            }}
+                                        >
+                                            <Save size={16} /> Simpan
+                                        </motion.button>
+
+                                        <motion.button
+                                            whileHover={{ rotate: 90, background: 'rgba(255,255,255,0.1)' }}
+                                            onClick={closeModal}
+                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '10px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}>
+                                            <X size={20} />
+                                        </motion.button>
+                                    </div>
                                 </div>
 
                                 {/* Flexible Canvas */}
@@ -596,12 +624,24 @@ const CatatanKerja = () => {
                                             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>KARAKTER</span>
                                             <span style={{ fontSize: '14px', fontWeight: '800' }}>{getNoteStats(activeNote?.content).chars}</span>
                                         </div>
-                                        <button
-                                            onClick={() => deleteNote(activeNote?.id)}
-                                            style={{ padding: '10px 20px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '12px', color: '#ef4444', fontWeight: '800', fontSize: '13px' }}
-                                        >
-                                            Hapus
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={() => {
+                                                    syncToCloud(activeNote);
+                                                    setSaveStatus('Tersimpan Manual');
+                                                    setTimeout(() => closeModal(), 500);
+                                                }}
+                                                style={{ padding: '10px 20px', background: activeNote?.color || 'var(--primary)', border: 'none', borderRadius: '12px', color: 'white', fontWeight: '800', fontSize: '13px' }}
+                                            >
+                                                Simpan
+                                            </button>
+                                            <button
+                                                onClick={() => deleteNote(activeNote?.id)}
+                                                style={{ padding: '10px 20px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '12px', color: '#ef4444', fontWeight: '800', fontSize: '13px' }}
+                                            >
+                                                Hapus
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
