@@ -8,6 +8,7 @@ create table if not exists public.notes (
   content text,
   importance text default 'Normal',
   status text default 'Draft',
+  color text, -- New: Store card color theme
   date text, -- Stored as string for simplicity to match local format
   last_updated timestamp with time zone default timezone('utc'::text, now())
 );

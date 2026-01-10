@@ -95,10 +95,14 @@ const CatatanKerja = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    const finalData = cloudData.map(n => ({
-                        ...n,
-                        color: n.color || NOTE_COLORS[0]
-                    }));
+                    const finalData = cloudData.map(n => {
+                        // Fallback: If cloud has no color (schema outdated), use local color
+                        const localMatch = localData.find(l => l.id === n.id);
+                        return {
+                            ...n,
+                            color: n.color || localMatch?.color || NOTE_COLORS[0]
+                        };
+                    });
                     setNotes(finalData);
                     localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(finalData));
                     setSaveStatus('Awan Terhubung');
