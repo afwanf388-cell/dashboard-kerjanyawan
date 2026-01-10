@@ -21,8 +21,9 @@ const Keuangan = () => {
     const [syncStatus, setSyncStatus] = useState('🟢 Sinkronisasi Cloud OK');
 
     // Gold Price State
-    const [goldPrice, setGoldPrice] = useState(1360000); // Fallback price
+    const [goldPrice, setGoldPrice] = useState(1360000);
     const [isPriceLoading, setIsPriceLoading] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -37,15 +38,18 @@ const Keuangan = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     /* =========================
-       FETCH GOLD PRICE
+       EFFECTS
     ========================= */
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     useEffect(() => {
         const fetchGoldPrice = async () => {
             setIsPriceLoading(true);
             try {
-                // Using a public proxy for Logam Mulia or generic gold API
-                // For demo resilience, we use a static fallback if API fails
-                // In production, use meaningful third-party API
                 const response = await fetch('https://logammulia-api.vercel.app/api/antam');
                 if (response.ok) {
                     const result = await response.json();
@@ -69,12 +73,10 @@ const Keuangan = () => {
         if (!user?.username) return;
         setLoading(true);
         try {
-            // Local First
             const localKey = `finance_trx_${user.username}`;
             const cached = localStorage.getItem(localKey);
             if (cached) setTransactions(JSON.parse(cached));
 
-            // Cloud Fetch
             if (supabase) {
                 const { data, error } = await supabase
                     .from('financial_records')
@@ -113,18 +115,14 @@ const Keuangan = () => {
     }, [user?.username, fetchData]);
 
     /* =========================
-       CRUD
+       CRUD & LOGIC
     ========================= */
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Handle Amount vs Grams
-        // If type is 'emas', amount represents GRAMS
-        // If type is others, amount represents RUPIAH
         const cleanAmount = Number(formData.amount.replace(/[^0-9.]/g, ''));
 
         const newItem = {
-            id: Date.now(), // Temp ID
+            id: Date.now(),
             user_id: user.username,
             type: formData.type,
             amount: cleanAmount,
@@ -132,7 +130,6 @@ const Keuangan = () => {
             date: formData.date
         };
 
-        // Optimistic
         const updated = [newItem, ...transactions];
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
@@ -140,16 +137,14 @@ const Keuangan = () => {
         setShowModal(false);
         setFormData({ type: 'gaji', amount: '', description: '', date: new Date().toISOString().split('T')[0] });
 
-        // Cloud
         try {
-            const { error } = await supabase.from('financial_records').insert({
+            await supabase.from('financial_records').insert({
                 user_id: user.username,
                 type: newItem.type,
                 amount: newItem.amount,
                 description: newItem.description,
                 date: newItem.date
             });
-            if (error) throw error;
             setSyncStatus('🟢 Sinkronisasi Cloud OK');
         } catch (err) {
             setSyncStatus('🔴 Gagal Upload (Disimpan Lokal)');
@@ -158,31 +153,18 @@ const Keuangan = () => {
 
     const handleDelete = async (id) => {
         if (!window.confirm("Hapus transaksi ini?")) return;
-
-        // Optimistic
         const updated = transactions.filter(t => t.id !== id);
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
-
-        try {
-            await supabase.from('financial_records').delete().eq('id', id);
-        } catch (err) {
-            console.error("Delete Fail", err);
-        }
+        try { await supabase.from('financial_records').delete().eq('id', id); } catch (err) { }
     };
 
-    /* =========================
-       CALCULATIONS
-    ========================= */
     const stats = useMemo(() => {
         const totalGaji = transactions.filter(t => t.type === 'gaji').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
         const totalBonus = transactions.filter(t => t.type === 'bonus').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
         const totalTHR = transactions.filter(t => t.type === 'thr').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-
-        // Emas Calculation: stored amount is in GRAMS
         const totalEmasGrams = transactions.filter(t => t.type === 'emas').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-        const totalEmasValue = totalEmasGrams * goldPrice; // Automatis harga sekarang
-
+        const totalEmasValue = totalEmasGrams * goldPrice;
         const totalPinjaman = transactions.filter(t => t.type === 'pinjaman').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
         const totalPemasukan = totalGaji + totalBonus + totalTHR + totalEmasValue;
@@ -191,7 +173,6 @@ const Keuangan = () => {
         return { totalGaji, totalBonus, totalTHR, totalEmasGrams, totalEmasValue, totalPinjaman, saldoBersih, totalPemasukan };
     }, [transactions, goldPrice]);
 
-    // Chart Data Preparation (Last 6 Months)
     const monthlyData = useMemo(() => {
         const months = {};
         for (let i = 5; i >= 0; i--) {
@@ -202,13 +183,10 @@ const Keuangan = () => {
         }
         transactions.forEach(t => {
             if (t.type !== 'pinjaman') {
+                const val = t.type === 'emas' ? (Number(t.amount) * goldPrice) : Number(t.amount);
                 const d = new Date(t.date);
                 const key = d.toLocaleString('default', { month: 'short' });
-                if (months[key] !== undefined) {
-                    // Normalize value: if emas, convert to IDR
-                    const val = t.type === 'emas' ? (Number(t.amount) * goldPrice) : Number(t.amount);
-                    months[key] += val;
-                }
+                if (months[key] !== undefined) months[key] += val;
             }
         });
         return Object.entries(months).map(([name, value]) => ({ name, value }));
@@ -216,236 +194,273 @@ const Keuangan = () => {
 
     const filteredTransactions = transactions.filter(t => {
         const matchType = filterType === 'all' ? true : t.type === filterType;
-        const matchSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            t.amount?.toString().includes(searchTerm);
+        const matchSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.amount?.toString().includes(searchTerm);
         return matchType && matchSearch;
     });
 
+    /* =========================
+       RENDER
+    ========================= */
     return (
-        <div className="min-h-screen text-white p-4 md:p-8 space-y-8 font-sans">
-            {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-end flex-wrap gap-4">
+        <div className="keuangan-container">
+            {/* INJECTED CSS */}
+            <style>{`
+                :root {
+                    --primary: #3b82f6; --primary-dark: #1d4ed8;
+                    --bg-dark: #0f172a; --bg-card: rgba(30, 41, 59, 0.7);
+                    --text-main: #f8fafc; --text-muted: #94a3b8;
+                    --glass-border: rgba(255, 255, 255, 0.08);
+                    --success: #10b981; --danger: #ef4444; --warning: #eab308;
+                }
+                .keuangan-container {
+                    padding: ${isMobile ? '20px' : '40px'};
+                    min-height: 100vh; color: var(--text-main); font-family: 'Inter', sans-serif;
+                    background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 60%);
+                }
+                .glass-card {
+                    background: var(--bg-card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                    border: 1px solid var(--glass-border); border-radius: 24px; padding: 24px;
+                    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: transform 0.2s ease;
+                }
+                .glass-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.15); }
+                .hero-card {
+                    background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+                    border: 1px solid rgba(6, 182, 212, 0.3); text-align: center; position: relative; overflow: hidden;
+                    padding: 40px; border-radius: 32px; margin-bottom: 32px;
+                }
+                .hero-bg-icon { position: absolute; top: -20px; right: -20px; opacity: 0.1; transform: rotate(15deg); color: white; }
+                .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+                .grid-visuals { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 32px; }
+                .stat-card { display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
+                .stat-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+                .btn-primary {
+                    background: linear-gradient(90deg, #3b82f6, #06b6d4); border: none; padding: 12px 24px;
+                    border-radius: 16px; color: white; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;
+                    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: all 0.2s;
+                }
+                .btn-primary:active { transform: scale(0.95); }
+                .search-bar {
+                    background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 12px;
+                    padding: 10px 16px; color: white; width: 100%; outline: none;
+                }
+                .search-bar:focus { border-color: var(--primary); }
+                .trx-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                .trx-table th { text-align: left; padding: 16px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+                .trx-table td { padding: 16px; border-top: 1px solid var(--glass-border); font-size: 14px; }
+                .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+                .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+                .modal-content { width: 90%; max-width: 450px; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); }
+                .form-group { margin-bottom: 16px; }
+                .form-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
+                .form-input { 
+                    width: 100%; background: #0f172a; border: 1px solid var(--glass-border); color: white; 
+                    padding: 12px; border-radius: 12px; font-size: 16px; outline: none; transition: border-color 0.2s; 
+                }
+                .form-input:focus { border-color: var(--primary); }
+                .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+                .type-btn { 
+                    background: #0f172a; border: 1px solid var(--glass-border); color: var(--text-muted); padding: 10px; 
+                    border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s;
+                }
+                .type-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+                .bar-container { width: 100%; height: 200px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-top: 20px; }
+                .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; }
+                .bar-track { width: 100%; background: rgba(255,255,255,0.05); border-radius: 8px 8px 0 0; position: relative; height: 100%; display: flex; align-items: flex-end; overflow: hidden; }
+                .bar-fill { width: 100%; background: linear-gradient(to top, var(--primary), #06b6d4); border-radius: 8px 8px 0 0; }
+            `}</style>
+
+            {/* --- HEADER --- */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                    <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
-                        Keuangan Personal
+                    <h1 style={{ fontSize: '32px', fontWeight: '900', background: 'linear-gradient(to right, #60a5fa, #2dd4bf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
+                        Wealth Command
                     </h1>
-                    <p className="text-sm font-medium text-slate-400 mt-2 flex items-center gap-2">
-                        {syncStatus.includes('OK') ? <Zap size={14} className="text-green-400" /> : <Zap size={14} className="text-red-400" />}
-                        {syncStatus}
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', color: varColor(syncStatus.includes('OK')) }}>
+                        <Zap size={14} /> <span style={{ fontSize: '12px', fontWeight: '600' }}>{syncStatus}</span>
+                    </div>
                 </div>
-                <button onClick={() => setShowModal(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
-                    <Plus size={20} /> Input Data
+                <button className="btn-primary" onClick={() => setShowModal(true)}>
+                    <Plus size={20} /> Transaksi Baru
                 </button>
+            </div>
+
+            {/* --- HERO: NET WORTH --- */}
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="hero-card">
+                <Wallet size={120} className="hero-bg-icon" />
+                <p style={{ textTransform: 'uppercase', letterSpacing: '2px', fontSize: '12px', fontWeight: '700', marginBottom: '8px', opacity: 0.8 }}>Total Kekayaan Bersih</p>
+                <h2 style={{ fontSize: '48px', fontWeight: '800', margin: 0, textShadow: '0 0 30px rgba(6, 182, 212, 0.4)' }}>
+                    {formatRupiah(stats.saldoBersih)}
+                </h2>
+                <div style={{ marginTop: '24px', display: 'inline-flex', alignItems: 'center', gap: '12px', background: 'rgba(234, 179, 8, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
+                    <Coins size={16} className="text-yellow-400" />
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#facc15' }}>Harga Emas: {isPriceLoading ? 'Update...' : formatRupiah(goldPrice)} /g</span>
+                </div>
             </motion.div>
 
-            {/* Price Ticker */}
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 flex items-center gap-3">
-                <div className="bg-yellow-500 rounded-full p-1"><Coins size={14} className="text-black" /></div>
-                <span className="text-sm font-bold text-yellow-500">
-                    Harga Emas Saat Ini: {isPriceLoading ? '...' : formatRupiah(goldPrice)} /gram
-                </span>
+            {/* --- STATS GRID --- */}
+            <div className="grid-stats">
+                <StatCard title="Pemasukan Gaji" value={stats.totalGaji} icon={<Banknote size={20} color="#60a5fa" />} color="rgba(59, 130, 246, 0.1)" />
+                <StatCard title="Bonus & Hadiah" value={stats.totalBonus} icon={<Award size={20} color="#c084fc" />} color="rgba(192, 132, 252, 0.1)" />
+                <StatCard title="Tunjangan THR" value={stats.totalTHR} icon={<Landmark size={20} color="#34d399" />} color="rgba(52, 211, 153, 0.1)" />
+                <StatCard title="Aset Emas" value={stats.totalEmasValue} sub={`${stats.totalEmasGrams} Gram`} icon={<Coins size={20} color="#facc15" />} color="rgba(250, 204, 21, 0.1)" />
+                <StatCard title="Pinjaman (Hutang)" value={stats.totalPinjaman} icon={<TrendingDown size={20} color="#f87171" />} color="rgba(248, 113, 113, 0.1)" isDanger />
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <SummaryCard icon={<Banknote />} label="Total Gaji" value={stats.totalGaji} color="blue" />
-                <SummaryCard icon={<Award />} label="Total Bonus" value={stats.totalBonus} color="purple" />
-                <SummaryCard icon={<Landmark />} label="Total THR" value={stats.totalTHR} color="emerald" />
-                <SummaryCard
-                    icon={<Coins />}
-                    label="Emas (Aset)"
-                    value={stats.totalEmasValue}
-                    subtext={`${stats.totalEmasGrams} Gram`}
-                    color="yellow"
-                />
-                <SummaryCard icon={<TrendingDown />} label="Pinjaman" value={stats.totalPinjaman} color="red" />
-                <SummaryCard icon={<Wallet />} label="Saldo Bersih" value={stats.saldoBersih} color={stats.saldoBersih >= 0 ? "green" : "red"} highlight />
-            </div>
-
-            {/* Visuals Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-50"><TrendingUp size={100} className="text-white/5" /></div>
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Calendar size={20} className="text-blue-400" /> Tren Aset (6 Bulan)</h3>
-                    <div className="flex items-end justify-between h-48 gap-2">
-                        {monthlyData.map((d, i) => (
-                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                                <div className="w-full bg-slate-700/50 rounded-t-lg relative h-full flex items-end overflow-hidden">
-                                    <motion.div
-                                        initial={{ height: 0 }}
-                                        animate={{ height: `${(d.value / (Math.max(...monthlyData.map(m => m.value)) || 1)) * 100}%` }}
-                                        className="w-full bg-gradient-to-t from-blue-600 to-cyan-400 opacity-80 group-hover:opacity-100 transition-all rounded-t-lg"
-                                    />
+            {/* --- VISUALS & LIST GRID --- */}
+            <div className="grid-visuals">
+                {/* CHART */}
+                <div className="glass-card" style={{ gridColumn: isMobile ? 'span 1' : 'span 2' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                        <div style={{ padding: '8px', background: 'rgba(6, 182, 212, 0.2)', borderRadius: '8px' }}><TrendingUp size={20} className="text-cyan-400" /></div>
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Pertumbuhan Aset (6 Bulan)</h3>
+                    </div>
+                    <div className="bar-container">
+                        {monthlyData.map((d, i) => {
+                            const maxVal = Math.max(...monthlyData.map(m => m.value)) || 1;
+                            const hEffect = (d.value / maxVal) * 100;
+                            return (
+                                <div key={i} className="bar-col">
+                                    <div className="bar-track">
+                                        <motion.div
+                                            initial={{ height: 0 }}
+                                            animate={{ height: `${hEffect}%` }}
+                                            className="bar-fill"
+                                            style={{ opacity: 0.6 + (i * 0.1) }}
+                                        />
+                                    </div>
+                                    <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-muted)' }}>{d.name}</span>
                                 </div>
-                                <span className="text-xs font-bold text-slate-400">{d.name}</span>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
 
-                <div className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6">
-                    <h3 className="text-xl font-bold mb-6">Komposisi Aset</h3>
-                    <div className="space-y-4">
-                        <CompBar label="Gaji" value={stats.totalGaji} total={stats.totalPemasukan} color="bg-blue-500" />
-                        <CompBar label="Bonus" value={stats.totalBonus} total={stats.totalPemasukan} color="bg-purple-500" />
-                        <CompBar label="THR" value={stats.totalTHR} total={stats.totalPemasukan} color="bg-emerald-500" />
-                        <CompBar label="Emas" value={stats.totalEmasValue} total={stats.totalPemasukan} color="bg-yellow-500" />
+                {/* COMPOSITION */}
+                <div className="glass-card">
+                    <h3 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: '700' }}>Komposisi</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <CompItem label="Gaji" val={stats.totalGaji} total={stats.totalPemasukan} color="#3b82f6" />
+                        <CompItem label="Bonus" val={stats.totalBonus} total={stats.totalPemasukan} color="#a855f7" />
+                        <CompItem label="THR" val={stats.totalTHR} total={stats.totalPemasukan} color="#10b981" />
+                        <CompItem label="Emas" val={stats.totalEmasValue} total={stats.totalPemasukan} color="#eab308" />
                     </div>
                 </div>
             </div>
 
-            {/* Transaction List */}
-            <div className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden min-h-[400px]">
-                <div className="p-6 border-b border-white/5 flex flex-wrap gap-4 justify-between items-center">
-                    <h3 className="text-xl font-bold flex items-center gap-2"><GripHorizontal /> Riwayat Transaksi</h3>
-                    <div className="flex gap-2">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+            {/* --- TRANSACTIONS --- */}
+            <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+                <div style={{ padding: '24px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}><GripHorizontal size={20} /> Riwayat Transaksi</h3>
+                    <div style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '400px' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
                             <input
-                                type="text"
-                                placeholder="Cari..."
+                                className="search-bar"
+                                style={{ paddingLeft: '40px' }}
+                                placeholder="Cari transaksi..."
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="bg-slate-900/50 pl-10 pr-4 py-2 rounded-xl text-sm border border-white/10 focus:outline-none focus:border-blue-500"
                             />
                         </div>
-                        <select
-                            value={filterType}
-                            onChange={e => setFilterType(e.target.value)}
-                            className="bg-slate-900/50 px-4 py-2 rounded-xl text-sm border border-white/10 focus:outline-none"
-                        >
-                            <option value="all">Semua Jenis</option>
-                            <option value="gaji">💼 Gaji</option>
-                            <option value="bonus">🎁 Bonus</option>
-                            <option value="thr">🕌 THR</option>
-                            <option value="emas">Coins Emas</option>
-                            <option value="pinjaman">📉 Pinjaman</option>
-                        </select>
                     </div>
                 </div>
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-900/50 text-slate-400 text-xs uppercase font-bold">
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="trx-table">
+                        <thead>
                             <tr>
-                                <th className="p-4">Tanggal</th>
-                                <th className="p-4">Jenis</th>
-                                <th className="p-4">Keterangan</th>
-                                <th className="p-4 text-right">Nilai / Berat</th>
-                                <th className="p-4 text-center">Aksi</th>
+                                <th>Tanggal</th>
+                                <th>Kategori</th>
+                                <th>Deskripsi</th>
+                                <th style={{ textAlign: 'right' }}>Nilai</th>
+                                <th style={{ textAlign: 'center' }}>Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {filteredTransactions.map((t) => (
-                                <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                                    <td className="p-4 font-mono text-sm text-slate-300">{new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}</td>
-                                    <td className="p-4">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase
-                                            ${t.type === 'pinjaman' ? 'bg-red-500/20 text-red-400' :
-                                                t.type === 'gaji' ? 'bg-blue-500/20 text-blue-400' :
-                                                    t.type === 'emas' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
-                                            }`}>
-                                            {t.type === 'pinjaman' ? 'DEBIT' : t.type}
+                        <tbody>
+                            {filteredTransactions.map(t => (
+                                <tr key={t.id}>
+                                    <td style={{ fontWeight: '500', color: '#cbd5e1' }}>{new Date(t.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                    <td>
+                                        <span className="badge" style={{
+                                            background: t.type === 'pinjaman' ? 'rgba(239, 68, 68, 0.2)' : t.type === 'emas' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                            color: t.type === 'pinjaman' ? '#fca5a5' : t.type === 'emas' ? '#fde047' : '#6ee7b7'
+                                        }}>
+                                            {t.type}
                                         </span>
                                     </td>
-                                    <td className="p-4 font-medium">{t.description || '-'}</td>
-                                    <td className={`p-4 text-right font-bold font-mono ${t.type === 'pinjaman' ? 'text-red-400' : 'text-green-400'}`}>
-                                        {t.type === 'pinjaman' ? '-' : '+'}
-                                        {t.type === 'emas' ? ` ${t.amount} Gram` : formatRupiah(t.amount)}
+                                    <td style={{ color: '#e2e8f0' }}>{t.description || '-'}</td>
+                                    <td style={{ textAlign: 'right', fontWeight: '700', color: t.type === 'pinjaman' ? '#f87171' : '#fff' }}>
+                                        {t.type === 'pinjaman' ? '-' : '+'} {t.type === 'emas' ? `${t.amount} g` : formatRupiah(t.amount)}
                                     </td>
-                                    <td className="p-4 text-center">
-                                        <button onClick={() => handleDelete(t.id)} className="text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                                    <td style={{ textAlign: 'center' }}>
+                                        <button onClick={() => handleDelete(t.id)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                            <Trash2 size={16} />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
                             {filteredTransactions.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="p-12 text-center text-slate-500 italic">
-                                        Belum ada data transaksi.
-                                    </td>
-                                </tr>
+                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Belum ada data transaksi.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Modal Input */}
+            {/* --- MODAL --- */}
             <AnimatePresence>
                 {showModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-slate-900 border border-white/10 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
-                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                                <h3 className="font-bold text-xl">Tambah Data</h3>
-                                <button onClick={() => setShowModal(false)}><X className="text-slate-400 hover:text-white" /></button>
+                    <div className="modal-overlay">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="modal-content">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
+                                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '20px' }}>Input Data Baru</h3>
+                                <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X /></button>
                             </div>
-                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Jenis Transaksi</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                            <form onSubmit={handleSubmit}>
+                                <div className="form-group">
+                                    <label className="form-label">Tipe Transaksi</label>
+                                    <div className="type-grid">
                                         {['gaji', 'bonus', 'thr', 'emas', 'pinjaman'].map(type => (
-                                            <button
+                                            <div
                                                 key={type}
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, type, amount: '' })} // Reset amount on change
-                                                className={`px-2 py-2 rounded-xl text-xs font-bold uppercase border active:scale-95 transition-all
-                                                    ${formData.type === type ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400 hover:bg-slate-700'}`}
+                                                className={`type-btn ${formData.type === type ? 'active' : ''}`}
+                                                onClick={() => setFormData({ ...formData, type, amount: '' })}
                                             >
-                                                {type}
-                                            </button>
+                                                {type.toUpperCase()}
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">
-                                        {formData.type === 'emas' ? 'Berat (Gram)' : 'Nominal (Rp)'}
-                                    </label>
+                                <div className="form-group">
+                                    <label className="form-label">{formData.type === 'emas' ? 'Berat (Gram)' : 'Nominal (Rp)'}</label>
                                     <input
-                                        type="text"
+                                        className="form-input"
+                                        style={{ fontSize: '24px', fontWeight: '700', fontFamily: 'monospace' }}
                                         value={formData.type === 'emas' ? formData.amount : formatRupiah(formData.amount).replace('Rp', '').trim()}
                                         onChange={e => {
-                                            const val = e.target.value;
-                                            // Allow decimals for Grams, Only integers for IDR
-                                            const clean = formData.type === 'emas' ? val : val.replace(/\D/g, '');
+                                            const v = e.target.value;
+                                            // Allow decimals for gold, integers for IDR
+                                            const clean = formData.type === 'emas' ? v : v.replace(/\D/g, '');
                                             setFormData({ ...formData, amount: clean });
                                         }}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 font-mono text-lg font-bold focus:border-blue-500 focus:outline-none"
-                                        placeholder={formData.type === 'emas' ? "Contoh: 5.5" : "0"}
+                                        placeholder="0"
                                         required
                                     />
                                     {formData.type === 'emas' && formData.amount && (
-                                        <p className="text-xs text-yellow-500 mt-2 font-bold">
-                                            Estimasi Nilai: {formatRupiah(Number(formData.amount) * goldPrice)}
+                                        <p style={{ fontSize: '12px', color: '#eab308', marginTop: '8px' }}>
+                                            ≈ {formatRupiah(Number(formData.amount) * goldPrice)}
                                         </p>
                                     )}
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Keterangan</label>
-                                    <input
-                                        type="text"
-                                        value={formData.description}
-                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
-                                        placeholder="Contoh: Gaji Bulan Januari"
-                                    />
+                                <div className="form-group">
+                                    <label className="form-label">Keterangan</label>
+                                    <input className="form-input" placeholder="Contoh: Bonus Tahunan" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                                 </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Tanggal</label>
-                                    <input
-                                        type="date"
-                                        value={formData.date}
-                                        onChange={e => setFormData({ ...formData, date: e.target.value })}
-                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
-                                        required
-                                    />
+                                <div className="form-group">
+                                    <label className="form-label">Tanggal</label>
+                                    <input type="date" className="form-input" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
                                 </div>
-
-                                <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all mt-4">
-                                    Simpan Transaksi
+                                <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '16px', marginTop: '16px' }}>
+                                    SIMPAN DATA
                                 </button>
                             </form>
                         </motion.div>
@@ -456,45 +471,31 @@ const Keuangan = () => {
     );
 };
 
-// Components
-const SummaryCard = ({ icon, label, value, subtext, color, highlight = false }) => {
-    const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
+/* --- SUB COMPONENTS --- */
+const StatCard = ({ title, value, icon, color, sub, isDanger }) => (
+    <div className="glass-card stat-card">
+        <div className="stat-icon" style={{ background: color }}>{icon}</div>
+        <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{title}</span>
+        <h4 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: isDanger ? '#f87171' : 'white' }}>{formatRupiah(value)}</h4>
+        {sub && <span style={{ fontSize: '10px', color: '#eab308', fontWeight: '600' }}>{sub}</span>}
+    </div>
+);
 
-    const colors = {
-        blue: 'from-blue-500/10 to-blue-500/5 text-blue-400 border-blue-500/20',
-        purple: 'from-purple-500/10 to-purple-500/5 text-purple-400 border-purple-500/20',
-        emerald: 'from-emerald-500/10 to-emerald-500/5 text-emerald-400 border-emerald-500/20',
-        yellow: 'from-yellow-500/10 to-yellow-500/5 text-yellow-400 border-yellow-500/20',
-        red: 'from-red-500/10 to-red-500/5 text-red-400 border-red-500/20',
-        green: 'from-green-500/10 to-green-500/5 text-green-400 border-green-500/20'
-    };
-
-    return (
-        <motion.div whileHover={{ y: -5 }} className={`relative overflow-hidden rounded-2xl border p-5 bg-gradient-to-br ${colors[color]} ${highlight ? 'ring-2 ring-white/20' : ''}`}>
-            <div className="flex justify-between items-start mb-4">
-                <div className="p-3 bg-white/5 rounded-xl">{icon}</div>
-                {highlight && <div className="text-xs font-bold px-2 py-1 bg-white/10 rounded-lg animate-pulse">LIVE</div>}
-            </div>
-            <p className="text-xs font-bold uppercase opacity-60 mb-1">{label}</p>
-            <h3 className="text-lg md:text-xl font-black truncate">{formatRupiah(value)}</h3>
-            {subtext && <p className="text-xs font-medium opacity-80 mt-1">{subtext}</p>}
-        </motion.div>
-    );
-};
-
-const CompBar = ({ label, value, total, color }) => {
-    const percent = total > 0 ? (value / total) * 100 : 0;
+const CompItem = ({ label, val, total, color }) => {
+    const pct = total > 0 ? (val / total) * 100 : 0;
     return (
         <div>
-            <div className="flex justify-between text-xs font-bold mb-1">
-                <span className="text-slate-400">{label}</span>
-                <span>{percent.toFixed(1)}%</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px', fontWeight: '600' }}>
+                <span style={{ color: '#cbd5e1' }}>{label}</span>
+                <span style={{ color: color }}>{pct.toFixed(1)}%</span>
             </div>
-            <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div className={`h-full ${color}`} style={{ width: `${percent}%` }}></div>
+            <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} style={{ height: '100%', background: color, borderRadius: '4px' }} />
             </div>
         </div>
     );
-};
+}
+
+const varColor = (ok) => ok ? '#4ade80' : '#f87171';
 
 export default Keuangan;
