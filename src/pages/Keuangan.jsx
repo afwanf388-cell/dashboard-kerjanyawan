@@ -2,295 +2,419 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote, Trash2, Edit2, ChevronRight, BarChart3, PiggyBank, Coins, Sparkles, X, AlertCircle } from 'lucide-react';
+import {
+    Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote,
+    Trash2, Search, Calendar, Filter, GripHorizontal,
+    ArrowUpRight, ArrowDownLeft, Coins, Landmark, Zap
+} from 'lucide-react';
 
 const Keuangan = () => {
     const { user } = useAuth();
-
-    const [monthlyData, setMonthlyData] = useState([]);
-    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    const [transactions, setTransactions] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [editingId, setEditingId] = useState(null);
-    const [goldPrice, setGoldPrice] = useState(2549000);
-    const [isPriceLoading, setIsPriceLoading] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+    const [syncStatus, setSyncStatus] = useState('🟢 Sinkronisasi Cloud OK');
 
+    // Form State
     const [formData, setFormData] = useState({
-        gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0
+        type: 'gaji', // gaji, bonus, thr, emas, pinjaman
+        amount: '',
+        description: '',
+        date: new Date().toISOString().split('T')[0]
     });
 
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth <= 1024);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    // Filters
+    const [filterType, setFilterType] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
 
-    // Graceful Gold Price Fetch
-    useEffect(() => {
-        const fetchGoldPrice = async () => {
-            setIsPriceLoading(true);
-            try {
-                const response = await fetch('https://logammulia-api.vercel.app/api/antam');
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result.data && result.data[0]) {
-                        setGoldPrice(Number(result.data[0].harga) || 2549000);
-                    }
-                }
-            } catch (e) { /* Silent fail for CORS */ }
-            finally { setIsPriceLoading(false); }
-        };
-        fetchGoldPrice();
-    }, []);
-
-
-    const fetchFinanceData = useCallback(async () => {
+    // Fetch Data
+    const fetchData = useCallback(async () => {
         if (!user?.username) return;
-
-        // 1. Load Local Immediately (Fast)
-        const localKey = `app_finance_v3_${user.username}`;
-        const savedLocal = localStorage.getItem(localKey);
-        if (savedLocal) {
-            setMonthlyData(JSON.parse(savedLocal));
-            setIsInitialLoaded(true);
-        }
-
-        // 2. Fetch Cloud in Background (Silent)
-        if (!supabase) return;
-
+        setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('finance_data')
-                .select('*')
-                .eq('user_id', user.username)
-                .order('month', { ascending: true });
+            // Local First
+            const localKey = `finance_trx_${user.username}`;
+            const cached = localStorage.getItem(localKey);
+            if (cached) setTransactions(JSON.parse(cached));
 
-            if (error) throw error;
+            // Cloud Fetch
+            if (supabase) {
+                const { data, error } = await supabase
+                    .from('financial_records')
+                    .select('*')
+                    .eq('user_id', user.username)
+                    .order('date', { ascending: false });
 
-            if (data && data.length > 0) {
-                // Determine if we should update local
-                const cloudData = data.map(item => ({ ...item, id: Number(item.id) }));
-
-                // Simple strategy: Cloud wins if it exists. 
-                // This restores data if local is empty (the user's issue).
-                setMonthlyData(cloudData);
-                localStorage.setItem(localKey, JSON.stringify(cloudData));
+                if (error) throw error;
+                if (data) {
+                    setTransactions(data);
+                    localStorage.setItem(localKey, JSON.stringify(data));
+                    setSyncStatus('🟢 Sinkronisasi Cloud OK');
+                } else {
+                    setSyncStatus('🔴 Sinkronisasi Awan Kosong (Data Baru)');
+                }
             }
         } catch (err) {
-            console.error("Background Fetch Error:", err);
-            // On error, we just keep using local data, no scary alerts.
+            console.error("Fetch Error:", err);
+            setSyncStatus('🔴 Offline / Error Fetch');
+        } finally {
+            setLoading(false);
         }
     }, [user?.username]);
 
+    // Initial Load & Realtime
     useEffect(() => {
-        if (user?.username) fetchFinanceData();
-
-        const channel = supabase?.channel(`finance_data_${user?.username}`)
+        fetchData();
+        const channel = supabase?.channel(`financial_records_${user?.username}`)
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
-                table: 'finance_data',
+                table: 'financial_records',
                 filter: `user_id=eq.${user?.username}`
-            }, () => fetchFinanceData())
+            }, () => fetchData())
             .subscribe();
-
         return () => { if (channel) supabase.removeChannel(channel); };
-    }, [user?.username, fetchFinanceData]);
+    }, [user?.username, fetchData]);
 
-    const calculatedData = useMemo(() => {
-        let runningTotal = 0;
-        return (monthlyData || []).map(item => {
-            const totalBulanan = (Number(item.gaji) + Number(item.bonus) + Number(item.thr)) - Number(item.pengeluaran) - Number(item.pinjaman);
-            runningTotal += totalBulanan;
-            return { ...item, totalBulanan, akumulasiTabungan: runningTotal };
-        });
-    }, [monthlyData]);
-
-    const stats = useMemo(() => {
-        const lastItem = calculatedData[calculatedData.length - 1];
-        const totalCash = lastItem?.akumulasiTabungan || 0;
-        const totalEmasGram = monthlyData.reduce((acc, curr) => acc + Number(curr.emas || 0), 0);
-        const totalEmasIDR = totalEmasGram * goldPrice;
-
-        return {
-            totalAkumulasi: totalCash + totalEmasIDR,
-            totalGaji: monthlyData.reduce((acc, curr) => acc + Number(curr.gaji || 0), 0),
-            totalPinjaman: monthlyData.reduce((acc, curr) => acc + Number(curr.pinjaman || 0), 0),
-            totalEmasGram,
-            totalEmasIDR
-        };
-    }, [calculatedData, monthlyData, goldPrice]);
-
+    // CRUD
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        const numericData = {
-            gaji: Number(formData.gaji) || 0,
-            bonus: Number(formData.bonus) || 0,
-            thr: Number(formData.thr) || 0,
-            pengeluaran: Number(formData.pengeluaran) || 0,
-            emas: Number(formData.emas) || 0,
-            pinjaman: Number(formData.pinjaman) || 0
+        const newItem = {
+            id: Date.now(), // Temp ID
+            user_id: user.username,
+            type: formData.type,
+            amount: Number(formData.amount.replace(/\D/g, '')),
+            description: formData.description,
+            date: formData.date
         };
 
-        let itemToSync;
-        let updated;
-
-        if (editingId) {
-            itemToSync = { ...monthlyData.find(m => m.id === editingId), ...numericData, last_updated: new Date().toISOString() };
-            updated = monthlyData.map(m => m.id === editingId ? itemToSync : m);
-        } else {
-            const nextMonth = monthlyData.length > 0 ? Math.max(...monthlyData.map(m => m.month)) + 1 : 1;
-            itemToSync = {
-                ...numericData,
-                id: Date.now(),
-                user_id: user.username,
-                month: nextMonth,
-                last_updated: new Date().toISOString()
-            };
-            updated = [...monthlyData, itemToSync];
-        }
-
-        // 1. Optimistic Update (Instant)
-        setMonthlyData(updated);
-        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(updated));
+        // Optimistic
+        const updated = [newItem, ...transactions];
+        setTransactions(updated);
+        localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
         setShowModal(false);
-        setEditingId(null);
-        setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 });
+        setFormData({ type: 'gaji', amount: '', description: '', date: new Date().toISOString().split('T')[0] });
 
-        // 2. Background Sync (Silent)
+        // Cloud
         try {
-            await supabase.from('finance_data').upsert(itemToSync);
+            const { error } = await supabase.from('financial_records').insert({
+                user_id: user.username,
+                type: newItem.type,
+                amount: newItem.amount,
+                description: newItem.description,
+                date: newItem.date
+            });
+            if (error) throw error;
+            setSyncStatus('🟢 Sinkronisasi Cloud OK');
         } catch (err) {
-            console.error("Silent Sync Error:", err);
-            // Suppress visible errors to avoid user anxiety, retry logic could go here
+            setSyncStatus('🔴 Gagal Upload (Disimpan Lokal)');
         }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Hapus data bulan ini?')) return;
+        if (!window.confirm("Hapus transaksi ini?")) return;
 
-        const updated = monthlyData.filter(m => m.id !== id);
-        const reordered = updated.map((m, i) => ({ ...m, month: i + 1 }));
+        // Optimistic
+        const updated = transactions.filter(t => t.id !== id);
+        setTransactions(updated);
+        localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
 
-        // 1. Optimistic Update (Instant)
-        setMonthlyData(reordered);
-        localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
-
-        // 2. Background Sync (Silent)
         try {
-            const { error } = await supabase.from('finance_data').delete().eq('id', id);
-            if (error) throw error;
-
-            if (reordered.length > 0) {
-                await supabase.from('finance_data').upsert(reordered.map(m => ({
-                    ...m,
-                    user_id: user.username
-                })));
-            }
-        } catch (e) {
-            console.error("Silent Delete Error:", e);
+            await supabase.from('financial_records').delete().eq('id', id);
+        } catch (err) {
+            console.error("Delete Fail", err);
         }
     };
 
+    // Calculations
+    const stats = useMemo(() => {
+        const totalGaji = transactions.filter(t => t.type === 'gaji').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        const totalBonus = transactions.filter(t => t.type === 'bonus').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        const totalTHR = transactions.filter(t => t.type === 'thr').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        const totalEmas = transactions.filter(t => t.type === 'emas').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        const totalPinjaman = transactions.filter(t => t.type === 'pinjaman').reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+        const totalPemasukan = totalGaji + totalBonus + totalTHR + totalEmas;
+        const saldoBersih = totalPemasukan - totalPinjaman;
+
+        return { totalGaji, totalBonus, totalTHR, totalEmas, totalPinjaman, saldoBersih, totalPemasukan };
+    }, [transactions]);
+
     const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
-    const formatJt = (num) => (num || 0) >= 1000000 ? (num / 1000000).toFixed(1) + ' jt' : (num || 0).toLocaleString('id-ID');
+
+    // Chart Data Preparation
+    const monthlyData = useMemo(() => { // Last 6 months
+        const months = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = d.toLocaleString('default', { month: 'short' });
+            months[key] = 0;
+        }
+        transactions.forEach(t => {
+            if (t.type !== 'pinjaman') {
+                const d = new Date(t.date);
+                const key = d.toLocaleString('default', { month: 'short' });
+                if (months[key] !== undefined) months[key] += Number(t.amount);
+            }
+        });
+        return Object.entries(months).map(([name, value]) => ({ name, value }));
+    }, [transactions]);
+
+    // Filtered List
+    const filteredTransactions = transactions.filter(t => {
+        const matchType = filterType === 'all' ? true : t.type === filterType;
+        const matchSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            t.amount?.toString().includes(searchTerm);
+        return matchType && matchSearch;
+    });
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="min-h-screen text-white p-4 md:p-8 space-y-8 font-sans">
             {/* Header */}
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-end flex-wrap gap-4">
                 <div>
-                    <h2 style={{ fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: '900', color: 'white' }}>Dashboard Keuangan</h2>
+                    <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
+                        Keuangan Personal
+                    </h1>
+                    <p className="text-sm font-medium text-slate-400 mt-2 flex items-center gap-2">
+                        {syncStatus.includes('OK') ? <Zap size={14} className="text-green-400" /> : <Zap size={14} className="text-red-400" />}
+                        {syncStatus}
+                    </p>
                 </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => { setEditingId(null); setFormData({ gaji: 0, bonus: 0, thr: 0, pengeluaran: 0, emas: 0, pinjaman: 0 }); setShowModal(true); }} style={{ padding: '12px 24px', borderRadius: '14px', background: 'var(--primary)', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)', cursor: 'pointer' }}>
-                        <Plus size={20} /> {isMobile ? '' : 'Input Data'}
-                    </button>
+                <button onClick={() => setShowModal(true)} className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+                    <Plus size={20} /> Input Data
+                </button>
+            </motion.div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <SummaryCard icon={<Banknote />} label="Total Gaji" value={stats.totalGaji} color="blue" />
+                <SummaryCard icon={<Award />} label="Total Bonus" value={stats.totalBonus} color="purple" />
+                <SummaryCard icon={<Landmark />} label="Total THR" value={stats.totalTHR} color="emerald" />
+                <SummaryCard icon={<Coins />} label="Total Emas" value={stats.totalEmas} color="yellow" />
+                <SummaryCard icon={<TrendingDown />} label="Pinjaman" value={stats.totalPinjaman} color="red" />
+                <SummaryCard icon={<Wallet />} label="Saldo Bersih" value={stats.saldoBersih} color={stats.saldoBersih >= 0 ? "green" : "red"} highlight />
+            </div>
+
+            {/* Visuals Area */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Monthly Chart (Simple CSS Bar) */}
+                <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-50"><TrendingUp size={100} className="text-white/5" /></div>
+                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Calendar size={20} className="text-blue-400" /> Tren Pemasukan (6 Bulan)</h3>
+                    <div className="flex items-end justify-between h-48 gap-2">
+                        {monthlyData.map((d, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                                <div className="w-full bg-slate-700/50 rounded-t-lg relative h-full flex items-end overflow-hidden">
+                                    <motion.div
+                                        initial={{ height: 0 }}
+                                        animate={{ height: `${(d.value / (Math.max(...monthlyData.map(m => m.value)) || 1)) * 100}%` }}
+                                        className="w-full bg-gradient-to-t from-blue-600 to-cyan-400 opacity-80 group-hover:opacity-100 transition-all rounded-t-lg"
+                                    />
+                                </div>
+                                <span className="text-xs font-bold text-slate-400">{d.name}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </header>
 
-            {/* Content would go here... for brevity focusing on the fix */}
-
-
-            {/* Rest of the UI (Chart, Stats, Table) remains the same but with the fixed data logic */}
-            {/* [REINSERTING ORIGINAL UI COMPONENTS WITH FIXED PROPS] */}
-
-            <div className="chart-container" style={{ padding: '24px', background: 'rgba(15, 23, 42, 0.3)', borderRadius: '28px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                {/* SavingsTrendChart would go here - using previously defined logic */}
-                <div style={{ height: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                    Grafik Sedang Memuat...
+                {/* Composition (Simple List for Donut Replacement to keep simple) */}
+                <div className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6">
+                    <h3 className="text-xl font-bold mb-6">Komposisi Pemasukan</h3>
+                    <div className="space-y-4">
+                        <CompBar label="Gaji" value={stats.totalGaji} total={stats.totalPemasukan} color="bg-blue-500" />
+                        <CompBar label="Bonus" value={stats.totalBonus} total={stats.totalPemasukan} color="bg-purple-500" />
+                        <CompBar label="THR" value={stats.totalTHR} total={stats.totalPemasukan} color="bg-emerald-500" />
+                        <CompBar label="Emas" value={stats.totalEmas} total={stats.totalPemasukan} color="bg-yellow-500" />
+                    </div>
                 </div>
             </div>
 
-            <div className="finance-stats-grid">
-                <div className="glass-effect" style={{ padding: '24px', borderLeft: '4px solid #10b981' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><PiggyBank size={24} color="#10b981" /><span style={{ fontSize: '12px', fontWeight: '800', color: '#10b981' }}>TOTAL TABUNGAN</span></div>
-                    <h3 style={{ fontSize: '24px', fontWeight: '900', color: 'white' }}>{formatRupiah(stats.totalAkumulasi)}</h3>
+            {/* Transaction List */}
+            <div className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden min-h-[400px]">
+                <div className="p-6 border-b border-white/5 flex flex-wrap gap-4 justify-between items-center">
+                    <h3 className="text-xl font-bold flex items-center gap-2"><GripHorizontal /> Riwayat Transaksi</h3>
+                    <div className="flex gap-2">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Cari..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="bg-slate-900/50 pl-10 pr-4 py-2 rounded-xl text-sm border border-white/10 focus:outline-none focus:border-blue-500"
+                            />
+                        </div>
+                        <select
+                            value={filterType}
+                            onChange={e => setFilterType(e.target.value)}
+                            className="bg-slate-900/50 px-4 py-2 rounded-xl text-sm border border-white/10 focus:outline-none"
+                        >
+                            <option value="all">Semua Jenis</option>
+                            <option value="gaji">💼 Gaji</option>
+                            <option value="bonus">🎁 Bonus</option>
+                            <option value="thr">🕌 THR</option>
+                            <option value="emas">Coins Emas</option>
+                            <option value="pinjaman">📉 Pinjaman</option>
+                        </select>
+                    </div>
                 </div>
-                <div className="glass-effect" style={{ padding: '24px', borderLeft: '4px solid #3b82f6' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}><Banknote size={24} color="#3b82f6" /><span style={{ fontSize: '12px', fontWeight: '800', color: '#3b82f6' }}>TOTAL GAJI</span></div>
-                    <h3 style={{ fontSize: '24px', fontWeight: '900', color: 'white' }}>{formatRupiah(stats.totalGaji)}</h3>
-                </div>
-                {/* ... other stats ... */}
-            </div>
 
-            {/* Table */}
-            <div className="glass-effect" style={{ borderRadius: '24px', overflow: 'hidden' }}>
-                <div className="table-responsive-wrapper">
-                    <table className="finance-table-v3">
-                        <thead>
-                            <tr style={{ background: 'rgba(15, 23, 42, 0.4)', textAlign: 'left' }}>
-                                <th style={{ padding: '18px 24px', color: 'var(--text-muted)' }}>BULAN</th>
-                                <th style={{ padding: '18px 24px', color: 'var(--text-muted)' }}>TOTAL</th>
-                                <th style={{ padding: '18px 24px', color: 'var(--text-muted)', textAlign: 'right' }}>AKSI</th>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-900/50 text-slate-400 text-xs uppercase font-bold">
+                            <tr>
+                                <th className="p-4">Tanggal</th>
+                                <th className="p-4">Jenis</th>
+                                <th className="p-4">Keterangan</th>
+                                <th className="p-4 text-right">Nominal</th>
+                                <th className="p-4 text-center">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {calculatedData.map((item) => (
-                                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                    <td style={{ padding: '18px 24px', fontWeight: '700', color: 'white' }}>Bulan {item.month}</td>
-                                    <td style={{ padding: '18px 24px', fontWeight: '900', color: '#10b981' }}>{formatJt(item.akumulasiTabungan)}</td>
-                                    <td style={{ padding: '18px 24px', textAlign: 'right' }}>
-                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                            <button onClick={() => handleDelete(item.id)} style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '8px', borderRadius: '8px' }}><Trash2 size={14} /></button>
-                                        </div>
+                        <tbody className="divide-y divide-white/5">
+                            {filteredTransactions.map((t) => (
+                                <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                                    <td className="p-4 font-mono text-sm text-slate-300">{new Date(t.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}</td>
+                                    <td className="p-4">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase
+                                            ${t.type === 'pinjaman' ? 'bg-red-500/20 text-red-400' :
+                                                t.type === 'gaji' ? 'bg-blue-500/20 text-blue-400' :
+                                                    t.type === 'emas' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
+                                            }`}>
+                                            {t.type === 'pinjaman' ? 'DEBIT' : t.type}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 font-medium">{t.description || '-'}</td>
+                                    <td className={`p-4 text-right font-bold font-mono ${t.type === 'pinjaman' ? 'text-red-400' : 'text-green-400'}`}>
+                                        {t.type === 'pinjaman' ? '-' : '+'} {formatRupiah(t.amount)}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <button onClick={() => handleDelete(t.id)} className="text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                                     </td>
                                 </tr>
                             ))}
+                            {filteredTransactions.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-12 text-center text-slate-500 italic">
+                                        Belum ada data transaksi yang sesuai.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
+            {/* Modal Input */}
             <AnimatePresence>
                 {showModal && (
-                    <div className="finance-modal-overlay">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-effect finance-modal-content">
-                            <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
-                                <h3 style={{ marginBottom: '20px' }}>{editingId ? 'Edit Data' : 'Tambah Keuangan'}</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                                    <div><label>GAJI</label><input type="text" value={formData.gaji.toLocaleString()} onChange={e => setFormData({ ...formData, gaji: e.target.value.replace(/\D/g, '') })} /></div>
-                                    <div><label>OUT</label><input type="text" value={formData.pengeluaran.toLocaleString()} onChange={e => setFormData({ ...formData, pengeluaran: e.target.value.replace(/\D/g, '') })} /></div>
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-slate-900 border border-white/10 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                                <h3 className="font-bold text-xl">Tambah Data</h3>
+                                <button onClick={() => setShowModal(false)}><X className="text-slate-400 hover:text-white" /></button>
+                            </div>
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Jenis Transaksi</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['gaji', 'bonus', 'thr', 'emas', 'pinjaman'].map(type => (
+                                            <button
+                                                key={type}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, type })}
+                                                className={`px-2 py-2 rounded-xl text-xs font-bold uppercase border active:scale-95 transition-all
+                                                    ${formData.type === type ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-white/5 text-slate-400 hover:bg-slate-700'}`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
-                                    <button type="button" onClick={() => setShowModal(false)}>Batal</button>
-                                    <button type="submit" style={{ background: 'var(--primary)' }}>Simpan</button>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Nominal (Rp)</label>
+                                    <input
+                                        type="text"
+                                        value={formatRupiah(formData.amount).replace('Rp', '').trim()}
+                                        onChange={e => setFormData({ ...formData, amount: e.target.value.replace(/\D/g, '') })}
+                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 font-mono text-lg font-bold focus:border-blue-500 focus:outline-none"
+                                        placeholder="0"
+                                        required
+                                    />
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Keterangan</label>
+                                    <input
+                                        type="text"
+                                        value={formData.description}
+                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                                        placeholder="Contoh: Gaji Bulan Januari"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Tanggal</label>
+                                    <input
+                                        type="date"
+                                        value={formData.date}
+                                        onChange={e => setFormData({ ...formData, date: e.target.value })}
+                                        className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                                        required
+                                    />
+                                </div>
+
+                                <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-blue-500/20 active:scale-95 transition-all mt-4">
+                                    Simpan Transaksi
+                                </button>
                             </form>
                         </motion.div>
                     </div>
                 )}
             </AnimatePresence>
+        </div>
+    );
+};
 
-            <style>{`
-                .finance-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
-                .finance-table-v3 { width: 100%; border-collapse: collapse; }
-                .finance-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-                .finance-modal-content { background: #0f172a; width: 400px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
-                .spin-animation { animation: spin 1s linear infinite; }
-                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-            `}</style>
+// Components
+const SummaryCard = ({ icon, label, value, color, highlight = false }) => {
+    const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
+
+    const colors = {
+        blue: 'from-blue-500/10 to-blue-500/5 text-blue-400 border-blue-500/20',
+        purple: 'from-purple-500/10 to-purple-500/5 text-purple-400 border-purple-500/20',
+        emerald: 'from-emerald-500/10 to-emerald-500/5 text-emerald-400 border-emerald-500/20',
+        yellow: 'from-yellow-500/10 to-yellow-500/5 text-yellow-400 border-yellow-500/20',
+        red: 'from-red-500/10 to-red-500/5 text-red-400 border-red-500/20',
+        green: 'from-green-500/10 to-green-500/5 text-green-400 border-green-500/20'
+    };
+
+    return (
+        <motion.div whileHover={{ y: -5 }} className={`relative overflow-hidden rounded-2xl border p-5 bg-gradient-to-br ${colors[color]} ${highlight ? 'ring-2 ring-white/20' : ''}`}>
+            <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-white/5 rounded-xl">{icon}</div>
+                {highlight && <div className="text-xs font-bold px-2 py-1 bg-white/10 rounded-lg animate-pulse">LIVE</div>}
+            </div>
+            <p className="text-xs font-bold uppercase opacity-60 mb-1">{label}</p>
+            <h3 className="text-lg md:text-xl font-black truncate">{formatRupiah(value)}</h3>
+        </motion.div>
+    );
+};
+
+const CompBar = ({ label, value, total, color }) => {
+    const percent = total > 0 ? (value / total) * 100 : 0;
+    return (
+        <div>
+            <div className="flex justify-between text-xs font-bold mb-1">
+                <span className="text-slate-400">{label}</span>
+                <span>{percent.toFixed(1)}%</span>
+            </div>
+            <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div className={`h-full ${color}`} style={{ width: `${percent}%` }}></div>
+            </div>
         </div>
     );
 };
