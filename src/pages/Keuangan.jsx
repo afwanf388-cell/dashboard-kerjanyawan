@@ -490,6 +490,24 @@ const Keuangan = () => {
 
                 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
                 .modal-content { width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); }
+
+                @media (max-width: 768px) {
+                    .modal-content {
+                        width: 100%;
+                        height: 100%;
+                        max-width: 100%;
+                        max-height: 100%;
+                        border-radius: 0;
+                        padding: 16px;
+                        border: none;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .batch-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
+
                 .batch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
                 .form-group { margin-bottom: 16px; }
                 .form-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; }
