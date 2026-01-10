@@ -17,7 +17,45 @@ export const AuthProvider = ({ children }) => {
     return null;
   });
 
-  const [loading, setLoading] = useState(false); // Set to false since we init sync
+  // Sync profile with cloud on mount
+  useEffect(() => {
+    const syncProfile = async () => {
+      if (!supabase || !user?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_accounts')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && data) {
+          const updatedUser = {
+            ...user,
+            id: data.id,
+            username: data.username,
+            displayName: data.display_name || data.username,
+            email: data.email,
+            role: data.role || 'user',
+            avatar: data.avatar,
+            bgImage: data.bg_image,
+            status: data.status
+          };
+
+          // Only update if something actually changed
+          if (JSON.stringify(updatedUser) !== JSON.stringify(user)) {
+            console.log('Profile synced from cloud');
+            setUser(updatedUser);
+            localStorage.setItem('dashboard_user', JSON.stringify(updatedUser));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync profile from cloud:', err);
+      }
+    };
+
+    syncProfile();
+  }, [user?.id]);
 
   const login = (userData) => {
     setUser(userData);
@@ -40,7 +78,7 @@ export const AuthProvider = ({ children }) => {
         const { error } = await supabase
           .from('user_accounts')
           .update({
-            avatar: updatedUser.photoURL || updatedUser.avatar,
+            avatar: updatedUser.avatar,
             bg_image: updatedUser.bgImage,
             status: updatedUser.status,
             display_name: updatedUser.displayName

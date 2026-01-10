@@ -15,7 +15,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
     const [profileData, setProfileData] = useState({
         displayName: user?.displayName || user?.username || '',
         status: user?.status || 'Online',
-        photoURL: user?.photoURL || '',
+        avatar: user?.avatar || '',
         bgImage: user?.bgImage || ''
     });
 
@@ -161,7 +161,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
                         setProfileData({
                             displayName: user?.displayName || user?.username || '',
                             status: user?.status || 'Online',
-                            photoURL: user?.photoURL || '',
+                            avatar: user?.avatar || '',
                             bgImage: user?.bgImage || ''
                         });
                         setShowProfileModal(true);
@@ -202,8 +202,8 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
                         border: '2px solid rgba(59, 130, 246, 0.4)',
                         position: 'relative'
                     }}>
-                        {user?.photoURL ? (
-                            <img src={user.photoURL} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        {user?.avatar ? (
+                            <img src={user.avatar} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
                             <User size={24} color="#3b82f6" />
                         )}
@@ -366,8 +366,8 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
                                             border: '3px solid #3b82f6',
                                             boxShadow: '0 0 20px rgba(59, 130, 246, 0.2)'
                                         }}>
-                                            {profileData.photoURL ? (
-                                                <img src={profileData.photoURL} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            {profileData.avatar ? (
+                                                <img src={profileData.avatar} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             ) : (
                                                 <User size={40} color="#3b82f6" />
                                             )}
@@ -401,7 +401,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
                                                     if (file) {
                                                         const reader = new FileReader();
                                                         reader.onloadend = () => {
-                                                            setProfileData({ ...profileData, photoURL: reader.result });
+                                                            setProfileData({ ...profileData, avatar: reader.result });
                                                         };
                                                         reader.readAsDataURL(file);
                                                     }

@@ -285,15 +285,32 @@ const Keuangan = () => {
         setShowModal(true);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('Hapus data bulan ini?')) {
             const deletedItem = monthlyData.find(item => item.id === id);
             const updated = monthlyData.filter(item => item.id !== id);
             const reordered = updated.map((item, index) => ({ ...item, month: index + 1 }));
-            saveToLocal(reordered);
 
-            // Sync delete to Cloud
-            if (deletedItem) syncToCloud(deletedItem, 'delete');
+            // 1. Update Local State
+            setMonthlyData(reordered);
+            localStorage.setItem(`app_finance_v3_${user.username}`, JSON.stringify(reordered));
+
+            // 2. Sync changes to Cloud
+            try {
+                // Delete the item
+                if (deletedItem) {
+                    await supabase.from('finance_data').delete().eq('id', deletedItem.id);
+                }
+
+                // Sync all reordered items in parallel to ensure cloud matches local
+                const syncPromises = reordered.map(item => syncToCloud(item));
+                await Promise.all(syncPromises);
+
+                setSyncStatus('Cloud Connected');
+            } catch (err) {
+                console.error("Delete sync error:", err);
+                setSyncStatus('Sync Failed');
+            }
         }
     };
 

@@ -57,7 +57,8 @@ const LoginPage = () => {
                     email: foundUser.email,
                     role: foundUser.role || 'user',
                     avatar: foundUser.avatar,
-                    status: 'Online'
+                    bgImage: foundUser.bg_image,
+                    status: foundUser.status || 'Online'
                 });
                 navigate('/');
             } else {
