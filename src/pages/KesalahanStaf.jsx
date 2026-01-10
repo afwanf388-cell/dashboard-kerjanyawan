@@ -126,18 +126,13 @@ const KesalahanStaf = () => {
                     setSyncStatus('Cloud Ready');
                 }
 
-                setIsInitialLoad(false);
-
-                // Trigger Auto Sync from Sheet if enabled
-                if (isAutoSync && sheetUrl) {
-                    setTimeout(() => handleImportFromUrl(true), 1000);
-                }
+                setIsInternalInitialLoaded(true);
             } catch (err) {
                 console.error("Sync Error:", err);
                 setSyncStatus('Offline Mode');
                 const savedLocal = localStorage.getItem(`app_mistakes_${user.username}`);
                 if (savedLocal) setMistakes(JSON.parse(savedLocal));
-                setIsInitialLoad(false);
+                setIsInternalInitialLoaded(true);
             }
         };
 

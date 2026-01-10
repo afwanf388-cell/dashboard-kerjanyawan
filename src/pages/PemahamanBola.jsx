@@ -14,6 +14,7 @@ const PemahamanBola = () => {
     const [activeCategory, setActiveCategory] = useState('Semua');
     const [editingId, setEditingId] = useState(null);
     const [syncStatus, setSyncStatus] = useState('Offline');
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
