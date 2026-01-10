@@ -105,23 +105,66 @@ const Keuangan = () => {
         setLoading(true);
         try {
             const localKey = `finance_trx_${user.username}`;
-            const cached = localStorage.getItem(localKey);
-            if (cached) setTransactions(JSON.parse(cached));
+            const savedLocal = localStorage.getItem(localKey);
+            const localData = savedLocal ? JSON.parse(savedLocal) : [];
+
+            // Show local immediately for speed
+            if (localData.length > 0) setTransactions(localData);
 
             if (supabase) {
-                const { data, error } = await supabase
+                const { data: cloudData, error } = await supabase
                     .from('financial_records')
                     .select('*')
                     .eq('user_id', user.username)
                     .order('date', { ascending: true });
 
                 if (error) throw error;
-                if (data) {
-                    setTransactions(data);
-                    localStorage.setItem(localKey, JSON.stringify(data));
-                    setSyncStatus('🟢 Sinkronisasi Awan OK');
+
+                if (cloudData && cloudData.length > 0) {
+                    // Scenario A: Cloud has data. It is the authority.
+                    setTransactions(cloudData);
+                    localStorage.setItem(localKey, JSON.stringify(cloudData));
+                    setSyncStatus('🟢 Awan Terhubung');
+                } else if (localData.length > 0) {
+                    // Scenario B: Cloud is empty, but Local has data. 
+                    // This implies previous sync failed or new device setup.
+                    // Action: AUTO-BACKUP Local -> Cloud (Self-Healing)
+                    setSyncStatus('🟠 Mencadangkan ke Awan...');
+
+                    const payload = localData.map(item => ({
+                        user_id: user.username,
+                        type: item.type,
+                        amount: item.amount,
+                        description: item.description || '-',
+                        date: item.date
+                        // Exclude ID to let Supabase generate authoritative IDs
+                    }));
+
+                    const { error: uploadError } = await supabase
+                        .from('financial_records')
+                        .insert(payload);
+
+                    if (!uploadError) {
+                        // Re-fetch to get the official IDs from cloud
+                        const { data: newData } = await supabase
+                            .from('financial_records')
+                            .select('*')
+                            .eq('user_id', user.username)
+                            .order('date', { ascending: true });
+
+                        if (newData) {
+                            setTransactions(newData);
+                            localStorage.setItem(localKey, JSON.stringify(newData));
+                            setSyncStatus('🟢 Sinkronisasi Sukses');
+                        }
+                    } else {
+                        console.error("Backup failed:", uploadError);
+                        setSyncStatus('🔴 Gagal Upload (Lokal)');
+                    }
                 } else {
-                    setSyncStatus('🔴 Sinkronisasi Awan Kosong');
+                    // Scenario C: Both empty
+                    setTransactions([]);
+                    setSyncStatus('⚪ Data Kosong');
                 }
             }
         } catch (err) {
