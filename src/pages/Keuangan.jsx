@@ -26,6 +26,7 @@ const Keuangan = () => {
     const [isPriceManual, setIsPriceManual] = useState(false);
     const [tempPrice, setTempPrice] = useState('');
     const [lastUpdated, setLastUpdated] = useState(new Date());
+    const [isFetchingPrice, setIsFetchingPrice] = useState(false);
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -36,7 +37,7 @@ const Keuangan = () => {
         thr: '',
         emas: '', // Grams
         pinjaman: '',
-        pengeluaran: '', // New field for expenses
+        pengeluaran: '',
         description: '',
         date: new Date().toISOString().split('T')[0]
     });
@@ -57,33 +58,42 @@ const Keuangan = () => {
 
     // Fetch Gold Price
     const fetchGoldPrice = async () => {
+        if (isPriceManual) return;
+
+        setIsFetchingPrice(true);
         const savedPrice = localStorage.getItem('aceh_gold_price');
         const savedMode = localStorage.getItem('is_gold_manual');
 
         if (savedMode === 'true' && savedPrice) {
             setGoldPrice(Number(savedPrice));
             setIsPriceManual(true);
+            setIsFetchingPrice(false);
         } else {
             try {
-                // Fetch public Antam price
+                // Fetch public Antam price (Logam Mulia Scraping API)
                 const response = await fetch('https://logammulia-api.vercel.app/api/antam');
                 if (response.ok) {
                     const result = await response.json();
                     if (result.data && result.data[0]) {
-                        setGoldPrice(Number(result.data[0].harga));
+                        const newPrice = Number(result.data[0].harga);
+                        setGoldPrice(newPrice);
                         setLastUpdated(new Date());
+                        // Optional: trigger re-calculation UI feedback
                     }
                 }
             } catch (e) {
                 console.warn("Gold price API failed, using fallback");
+            } finally {
+                // Min delay for UX satisfaction
+                setTimeout(() => setIsFetchingPrice(false), 800);
             }
         }
     };
 
     useEffect(() => {
         fetchGoldPrice();
-        // Auto refresh gold price every 30 minutes
-        const interval = setInterval(fetchGoldPrice, 30 * 60 * 1000);
+        // Auto refresh gold price every 60 seconds for "Live" feeling
+        const interval = setInterval(fetchGoldPrice, 60 * 1000);
         return () => clearInterval(interval);
     }, []);
 
@@ -165,7 +175,7 @@ const Keuangan = () => {
             thr: row.thr || '',
             emas: row.emasGram || '',
             pinjaman: row.pinjaman || '',
-            pengeluaran: row.pengeluaran || '', // Load expense data
+            pengeluaran: row.pengeluaran || '',
             description: row.items[0]?.description || '',
             date: row.items[0]?.date || new Date().toISOString().split('T')[0]
         };
@@ -270,7 +280,7 @@ const Keuangan = () => {
         const totalTHR = sum(byType('thr'));
         const totalEmasGrams = sum(byType('emas'));
         const totalPinjaman = sum(byType('pinjaman'));
-        const totalPengeluaran = sum(byType('pengeluaran')); // New
+        const totalPengeluaran = sum(byType('pengeluaran'));
 
         const totalEmasValue = totalEmasGrams * goldPrice;
         const totalPemasukan = totalGaji + totalBonus + totalTHR + totalEmasValue;
@@ -302,10 +312,10 @@ const Keuangan = () => {
             else if (t.type === 'thr') g.thr += amt;
             else if (t.type === 'emas') {
                 g.emasGram += amt;
-                g.emasVal += (amt * goldPrice);
+                g.emasVal += (amt * goldPrice); // LIVE CALCULATION
             }
             else if (t.type === 'pinjaman') g.pinjaman += amt;
-            else if (t.type === 'pengeluaran') g.pengeluaran += amt; // Add to monthly expenses
+            else if (t.type === 'pengeluaran') g.pengeluaran += amt;
         });
 
         let runningBalance = 0;
@@ -316,7 +326,7 @@ const Keuangan = () => {
 
         sortedKeys.forEach(key => {
             const g = groups.get(key);
-            g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman - g.pengeluaran; // Subtract expenses
+            g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman - g.pengeluaran;
             runningBalance += g.netMonth;
             g.accumulated = runningBalance;
 
@@ -343,7 +353,6 @@ const Keuangan = () => {
     const ChartBackground = ({ data }) => {
         const height = 250;
         const width = 1000;
-
         let chartData = [];
         if (!data || data.length === 0) {
             chartData = Array(10).fill(0).map((_, i) => ({ accumulated: Math.sin(i) * 1000000 + 5000000 }));
@@ -360,7 +369,6 @@ const Keuangan = () => {
         const maxVal = Math.max(...chartData.map(d => d.accumulated)) * 1.1;
         const minVal = Math.min(...chartData.map(d => d.accumulated)) * 0.9;
         const range = maxVal - minVal || 1;
-
         const points = chartData.map((d, i) => {
             const x = (i / (chartData.length - 1)) * width;
             const y = height - ((d.accumulated - minVal) / range) * height * 0.7 - 20;
@@ -503,6 +511,8 @@ const Keuangan = () => {
                     50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 20px #4ade80; }
                     100% { transform: scale(0.95); opacity: 0.7; }
                 }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .spin-icon { animation: spin 1s linear infinite; }
             `}</style>
 
             {/* HEADERS & BUTTONS */}
@@ -543,8 +553,8 @@ const Keuangan = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             {!isPriceManual && (
                                 <div className="pulse-wrapper">
-                                    <div className="pulse-dot" />
-                                    <span className="live-badge">LIVE</span>
+                                    <div className={`pulse-dot ${isFetchingPrice ? 'bg-blue-400' : ''}`} style={isFetchingPrice ? { boxShadow: '0 0 10px #60a5fa' } : {}} />
+                                    <span className="live-badge" style={isFetchingPrice ? { color: '#60a5fa' } : {}}>{isFetchingPrice ? 'UPDATING...' : 'LIVE'}</span>
                                 </div>
                             )}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -558,7 +568,7 @@ const Keuangan = () => {
                                     <span style={{ fontSize: '10px', color: '#94a3b8' }}>/gram</span>
                                 </div>
                                 {!isPriceManual && (
-                                    <span style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Updated: {lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    <span style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Auto Update: {lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                                 )}
                             </div>
                         </div>
@@ -569,7 +579,7 @@ const Keuangan = () => {
                             </button>
                             {!isPriceManual && (
                                 <button onClick={fetchGoldPrice} className="hover:bg-white/10 p-2 rounded-full transition text-green-400" title="Refresh Harga">
-                                    <RefreshCw size={18} />
+                                    <RefreshCw size={18} className={isFetchingPrice ? 'spin-icon' : ''} />
                                 </button>
                             )}
                         </div>
@@ -605,11 +615,11 @@ const Keuangan = () => {
                                 <th>Gaji Disimpan</th>
                                 <th>Bonus</th>
                                 <th>THR</th>
-                                <th>Emas</th>
+                                <th>Emas (Kurs Live)</th>
                                 <th>Pinjaman</th>
                                 <th>Uang Keluar</th>
                                 <th>Total Bulanan</th>
-                                <th style={{ color: '#4ade80' }}>Akumulasi Tabungan</th>
+                                <th style={{ color: '#4ade80' }}>Total Aset (Live)</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
