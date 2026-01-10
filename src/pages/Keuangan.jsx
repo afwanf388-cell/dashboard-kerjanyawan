@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import {
     Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote,
     Trash2, Search, Calendar, Coins, Landmark, Zap, X,
-    Save, Edit2, RotateCcw, RefreshCw
+    Save, Edit2, RotateCcw, RefreshCw, ShoppingCart
 } from 'lucide-react';
 
 /* =========================
@@ -36,6 +36,7 @@ const Keuangan = () => {
         thr: '',
         emas: '', // Grams
         pinjaman: '',
+        pengeluaran: '', // New field for expenses
         description: '',
         date: new Date().toISOString().split('T')[0]
     });
@@ -164,6 +165,7 @@ const Keuangan = () => {
             thr: row.thr || '',
             emas: row.emasGram || '',
             pinjaman: row.pinjaman || '',
+            pengeluaran: row.pengeluaran || '', // Load expense data
             description: row.items[0]?.description || '',
             date: row.items[0]?.date || new Date().toISOString().split('T')[0]
         };
@@ -176,7 +178,7 @@ const Keuangan = () => {
         e.preventDefault();
 
         const newRecords = [];
-        const types = ['gaji', 'bonus', 'thr', 'emas', 'pinjaman'];
+        const types = ['gaji', 'bonus', 'thr', 'emas', 'pinjaman', 'pengeluaran'];
         const timestamp = Date.now();
 
         types.forEach((type, index) => {
@@ -218,7 +220,7 @@ const Keuangan = () => {
 
         setShowModal(false);
         setFormData({
-            gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
+            gaji: '', bonus: '', thr: '', emas: '', pinjaman: '', pengeluaran: '',
             description: '', date: new Date().toISOString().split('T')[0]
         });
 
@@ -254,7 +256,7 @@ const Keuangan = () => {
         setShowModal(false);
         setEditingIds([]);
         setFormData({
-            gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
+            gaji: '', bonus: '', thr: '', emas: '', pinjaman: '', pengeluaran: '',
             description: '', date: new Date().toISOString().split('T')[0]
         });
     };
@@ -268,12 +270,13 @@ const Keuangan = () => {
         const totalTHR = sum(byType('thr'));
         const totalEmasGrams = sum(byType('emas'));
         const totalPinjaman = sum(byType('pinjaman'));
+        const totalPengeluaran = sum(byType('pengeluaran')); // New
 
         const totalEmasValue = totalEmasGrams * goldPrice;
         const totalPemasukan = totalGaji + totalBonus + totalTHR + totalEmasValue;
-        const saldoBersih = totalPemasukan - totalPinjaman;
+        const saldoBersih = totalPemasukan - totalPinjaman - totalPengeluaran;
 
-        return { totalGaji, totalBonus, totalTHR, totalEmasGrams, totalEmasValue, totalPinjaman, saldoBersih };
+        return { totalGaji, totalBonus, totalTHR, totalEmasGrams, totalEmasValue, totalPinjaman, totalPengeluaran, saldoBersih };
     }, [transactions, goldPrice]);
 
     // ACCUMULATION DATA LOGIC
@@ -287,7 +290,7 @@ const Keuangan = () => {
             if (!groups.has(key)) {
                 groups.set(key, {
                     key, dateObj: d, items: [],
-                    gaji: 0, bonus: 0, thr: 0, emasVal: 0, emasGram: 0, pinjaman: 0,
+                    gaji: 0, bonus: 0, thr: 0, emasVal: 0, emasGram: 0, pinjaman: 0, pengeluaran: 0,
                     netMonth: 0
                 });
             }
@@ -302,17 +305,18 @@ const Keuangan = () => {
                 g.emasVal += (amt * goldPrice);
             }
             else if (t.type === 'pinjaman') g.pinjaman += amt;
+            else if (t.type === 'pengeluaran') g.pengeluaran += amt; // Add to monthly expenses
         });
 
         let runningBalance = 0;
         const result = [];
 
-        // Sort keys again to be sure (Map preserves insertion order but safety first)
+        // Sort keys again
         const sortedKeys = Array.from(groups.keys()).sort();
 
         sortedKeys.forEach(key => {
             const g = groups.get(key);
-            g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman;
+            g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman - g.pengeluaran; // Subtract expenses
             runningBalance += g.netMonth;
             g.accumulated = runningBalance;
 
@@ -340,15 +344,12 @@ const Keuangan = () => {
         const height = 250;
         const width = 1000;
 
-        // Ensure we always have visualization data
         let chartData = [];
         if (!data || data.length === 0) {
-            // Default "waiting" wave
             chartData = Array(10).fill(0).map((_, i) => ({ accumulated: Math.sin(i) * 1000000 + 5000000 }));
         } else if (data.length === 1) {
-            // If only 1 point, create a growth curve from 0 to Current
             chartData = [
-                { accumulated: data[0].accumulated * 0.2 }, // Fake start
+                { accumulated: data[0].accumulated * 0.2 },
                 { accumulated: data[0].accumulated * 0.6 },
                 { accumulated: data[0].accumulated }
             ];
@@ -356,18 +357,16 @@ const Keuangan = () => {
             chartData = data;
         }
 
-        const maxVal = Math.max(...chartData.map(d => d.accumulated)) * 1.1; // Add headroom
+        const maxVal = Math.max(...chartData.map(d => d.accumulated)) * 1.1;
         const minVal = Math.min(...chartData.map(d => d.accumulated)) * 0.9;
         const range = maxVal - minVal || 1;
 
-        // Generate smooth bezier points
         const points = chartData.map((d, i) => {
             const x = (i / (chartData.length - 1)) * width;
             const y = height - ((d.accumulated - minVal) / range) * height * 0.7 - 20;
             return [x, y];
         });
 
-        // Construct Path Command (Simple Line for now, could be curved)
         const linePath = `M${points[0][0]},${points[0][1]} ` + points.map(p => `L${p[0]},${p[1]}`).join(' ');
         const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
 
@@ -381,8 +380,6 @@ const Keuangan = () => {
                             <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                         </linearGradient>
                     </defs>
-
-                    {/* Area Fill */}
                     <motion.path
                         d={areaPath}
                         fill="url(#chartFill)"
@@ -390,8 +387,6 @@ const Keuangan = () => {
                         animate={{ opacity: 1, pathLength: 1 }}
                         transition={{ duration: 1.5, ease: "easeOut" }}
                     />
-
-                    {/* Stroke Line */}
                     <motion.path
                         d={linePath}
                         fill="none"
@@ -401,7 +396,7 @@ const Keuangan = () => {
                         strokeLinejoin="round"
                         initial={{ pathLength: 0, opacity: 0 }}
                         animate={{ pathLength: 1, opacity: 1 }}
-                        transition={{ duration: 2, ease: "easeInOut" }} // Slower draw
+                        transition={{ duration: 2, ease: "easeInOut" }}
                     />
                 </svg>
             </div>
@@ -442,7 +437,6 @@ const Keuangan = () => {
                     border-radius: 16px; color: white; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;
                     box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3); transition: all 0.2s;
                 }
-                .btn-primary:active { transform: scale(0.95); }
                 .search-bar {
                     background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 12px;
                     padding: 10px 16px; color: white; width: 100%; outline: none;
@@ -450,7 +444,7 @@ const Keuangan = () => {
                 /* ACCUMULATION TABLE STYLES */
                 .acc-table-container { width: 100%; overflow-x: auto; max-height: 600px; overflow-y: auto; }
                 .acc-table { 
-                    width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px;
+                    width: 100%; border-collapse: separate; border-spacing: 0; min-width: 900px;
                     font-size: 13px; margin-top: 8px;
                 }
                 .acc-table th { 
@@ -460,7 +454,7 @@ const Keuangan = () => {
                     font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
                     border-bottom: 2px solid var(--glass-border);
                 }
-                .acc-table th:first-child { text-align: left; left: 0; z-index: 20; background: #0f172a; } /* Sticky first col */
+                .acc-table th:first-child { text-align: left; left: 0; z-index: 20; background: #0f172a; } 
                 .acc-table td { 
                     padding: 16px; border-bottom: 1px solid var(--glass-border); text-align: right; 
                     white-space: nowrap; color: #e2e8f0;
@@ -486,7 +480,6 @@ const Keuangan = () => {
                 .action-btn.del { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
                 .action-btn.del:hover { background: #ef4444; color: white; }
 
-                .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: inline-block; margin-bottom: 4px;}
                 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
                 .modal-content { width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); }
                 .batch-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
@@ -591,6 +584,7 @@ const Keuangan = () => {
                 <StatCard title="THR" value={stats.totalTHR} icon={<Landmark size={20} color="#34d399" />} color="rgba(52, 211, 153, 0.1)" />
                 <StatCard title="Emas" value={stats.totalEmasValue} sub={`${stats.totalEmasGrams.toFixed(2)} Gr`} icon={<Coins size={20} color="#facc15" />} color="rgba(250, 204, 21, 0.1)" />
                 <StatCard title="Pinjaman" value={stats.totalPinjaman} icon={<TrendingDown size={20} color="#f87171" />} color="rgba(248, 113, 113, 0.1)" isDanger />
+                <StatCard title="Uang Keluar" value={stats.totalPengeluaran} icon={<ShoppingCart size={20} color="#f97316" />} color="rgba(249, 115, 22, 0.1)" isDanger />
             </div>
 
             {/* ACCUMULATION TABLE (Replacing old list) */}
@@ -613,6 +607,7 @@ const Keuangan = () => {
                                 <th>THR</th>
                                 <th>Emas</th>
                                 <th>Pinjaman</th>
+                                <th>Uang Keluar</th>
                                 <th>Total Bulanan</th>
                                 <th style={{ color: '#4ade80' }}>Akumulasi Tabungan</th>
                                 <th>Aksi</th>
@@ -637,6 +632,7 @@ const Keuangan = () => {
                                         </div>
                                     </td>
                                     <td className={row.pinjaman > 0 ? 'val-neg' : 'val-neu'}>{formatRupiah(row.pinjaman)}</td>
+                                    <td className={row.pengeluaran > 0 ? 'val-neg' : 'val-neu'}>{formatRupiah(row.pengeluaran)}</td>
                                     <td style={{ fontWeight: '700', color: row.netMonth >= 0 ? 'white' : '#f87171' }}>
                                         {formatRupiah(row.netMonth)}
                                     </td>
@@ -668,7 +664,7 @@ const Keuangan = () => {
                             <tr ref={tableEndRef} />
                             {accumulationData.length === 0 && (
                                 <tr>
-                                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                                    <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
                                         Belum ada data akumulasi. Input data baru untuk memulai.
                                     </td>
                                 </tr>
@@ -757,6 +753,10 @@ const Keuangan = () => {
                                     <div className="form-group">
                                         <label className="form-label">📉 Ambil Pinjaman <span style={{ color: '#f87171' }}>IDR</span></label>
                                         <input className="form-input" placeholder="0" value={formData.pinjaman ? formatRupiah(formData.pinjaman).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'pinjaman')} style={{ borderColor: '#ef4444', color: '#fca5a5' }} />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">🛒 Uang Keluar (Belanja) <span style={{ color: '#f97316' }}>IDR</span></label>
+                                        <input className="form-input" placeholder="0" value={formData.pengeluaran ? formatRupiah(formData.pengeluaran).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'pengeluaran')} style={{ borderColor: '#f97316', color: '#fdba74' }} />
                                     </div>
                                 </div>
 
