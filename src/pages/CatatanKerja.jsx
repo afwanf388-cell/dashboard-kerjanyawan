@@ -429,17 +429,22 @@ const CatatanKerja = () => {
                 {isModalOpen && (
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 1000,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        padding: '20px', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)'
+                        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+                        padding: isMobile ? '0' : '20px',
+                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)'
                     }}>
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 40 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 30 }}
+                            initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 40 }}
+                            animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+                            exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 30 }}
+                            transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
                             style={{
-                                width: '100%', maxWidth: '1100px', height: '90vh',
-                                background: '#0b1120', border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '32px', overflow: 'hidden', display: 'flex',
+                                width: '100%', maxWidth: '1100px',
+                                height: isMobile ? '100dvh' : '90vh', // Use dvh for mobile address bars
+                                background: '#0b1120',
+                                border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: isMobile ? '0' : '32px',
+                                overflow: 'hidden', display: 'flex',
                                 boxShadow: '0 30px 60px rgba(0,0,0,0.6)'
                             }}
                         >

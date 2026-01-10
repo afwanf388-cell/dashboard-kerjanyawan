@@ -90,11 +90,11 @@ const KesalahanStaf = () => {
             setSyncStatus('Syncing...');
 
             try {
-                // 1. Fetch Cloud Data
+                // 1. Fetch Cloud Data (GLOBAL ACCESS - No .eq user_id)
                 const { data: cloudData, error: fetchError } = await supabase
                     .from('staff_mistakes')
                     .select('*')
-                    .eq('user_id', user.username || user.email)
+                    //.eq('user_id', user.username || user.email) <--- Removed to allow public viewing
                     .order('id', { ascending: false });
 
                 if (fetchError) throw fetchError;
@@ -140,12 +140,12 @@ const KesalahanStaf = () => {
         syncProcess();
 
         const channel = supabase
-            .channel(`staff_mistakes_${user.username}`)
+            .channel('public_staff_mistakes') // Global channel
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'staff_mistakes',
-                filter: `user_id=eq.${user.username || user.email}`
+                // filter removed to listen to all changes
             }, (payload) => {
                 // Refresh data on any change
                 syncProcess();
