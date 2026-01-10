@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
     Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote,
-    Trash2, Search, GripHorizontal, Coins, Landmark, Zap, X,
-    Save, ChevronDown, ChevronUp, Edit2, RotateCcw
+    Trash2, Search, Calendar, Coins, Landmark, Zap, X,
+    Save, Edit2, RotateCcw
 } from 'lucide-react';
 
 /* =========================
@@ -22,7 +22,6 @@ const Keuangan = () => {
     const [syncStatus, setSyncStatus] = useState('🟢 Sinkronisasi Cloud OK');
 
     // Gold Price State
-    // Default manual price or fallback
     const [goldPrice, setGoldPrice] = useState(1360000);
     const [isPriceManual, setIsPriceManual] = useState(false);
     const [tempPrice, setTempPrice] = useState('');
@@ -42,7 +41,7 @@ const Keuangan = () => {
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
-    const [expandedDates, setExpandedDates] = useState({});
+    const tableEndRef = useRef(null);
 
     /* =========================
        EFFECTS
@@ -53,7 +52,7 @@ const Keuangan = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Fetch Gold Price (Only if not manual)
+    // Fetch Gold Price
     useEffect(() => {
         const loadPrice = async () => {
             const savedPrice = localStorage.getItem('aceh_gold_price');
@@ -95,7 +94,7 @@ const Keuangan = () => {
                     .from('financial_records')
                     .select('*')
                     .eq('user_id', user.username)
-                    .order('date', { ascending: false });
+                    .order('date', { ascending: true }); // Ascending for accumulation logic
 
                 if (error) throw error;
                 if (data) {
@@ -128,7 +127,7 @@ const Keuangan = () => {
     }, [user?.username, fetchData]);
 
     /* =========================
-       LOGIC: BATCH & MANUAL PRICE
+       LOGIC
     ========================= */
     const handleGoldPriceSave = () => {
         const p = Number(tempPrice.replace(/[^0-9]/g, ''));
@@ -189,7 +188,7 @@ const Keuangan = () => {
             return;
         }
 
-        const updated = [...newRecords, ...transactions];
+        const updated = [...transactions, ...newRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
 
@@ -198,6 +197,9 @@ const Keuangan = () => {
             gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
             description: '', date: new Date().toISOString().split('T')[0]
         });
+
+        // Auto scroll to bottom
+        setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
 
         try {
             const recordsToInsert = newRecords.map(({ id, ...rest }) => rest);
@@ -209,19 +211,16 @@ const Keuangan = () => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm("Hapus transaksi ini?")) return;
-        const updated = transactions.filter(t => t.id !== id);
+    const handleDelete = async (items) => {
+        if (!window.confirm(`Hapus ${items.length} transaksi di bulan ini?`)) return;
+        const idsToDelete = items.map(i => i.id);
+        const updated = transactions.filter(t => !idsToDelete.includes(t.id));
+
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
-        try { await supabase.from('financial_records').delete().eq('id', id); } catch (err) { }
+        try { await supabase.from('financial_records').delete().in('id', idsToDelete); } catch (err) { }
     };
 
-    const toggleDate = (date) => {
-        setExpandedDates(prev => ({ ...prev, [date]: !prev[date] }));
-    };
-
-    // Calculate Stats
     const stats = useMemo(() => {
         const sum = (t) => t.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
         const byType = (type) => transactions.filter(t => t.type === type);
@@ -239,33 +238,64 @@ const Keuangan = () => {
         return { totalGaji, totalBonus, totalTHR, totalEmasGrams, totalEmasValue, totalPinjaman, saldoBersih };
     }, [transactions, goldPrice]);
 
-    // Group Transactions By Date
-    const groupedTransactions = useMemo(() => {
-        const groups = {};
-        transactions.forEach(t => {
-            if (!groups[t.date]) groups[t.date] = { date: t.date, items: [], totalIn: 0, totalOut: 0, goldDelta: 0, types: new Set() };
-            groups[t.date].items.push(t);
-            groups[t.date].types.add(t.type);
+    // ACCUMULATION DATA LOGIC
+    const accumulationData = useMemo(() => {
+        // 1. Group by Month (Map ensures order if we insert chronologically)
+        const groups = new Map();
 
-            if (t.type === 'pinjaman') {
-                groups[t.date].totalOut += Math.abs(t.amount);
-            } else if (t.type === 'emas') {
-                groups[t.date].goldDelta += Number(t.amount);
+        // Sort chrono first
+        const sortedTrx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        sortedTrx.forEach(t => {
+            const d = new Date(t.date);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    dateObj: d,
+                    items: [],
+                    gaji: 0, bonus: 0, thr: 0, emasVal: 0, emasGram: 0, pinjaman: 0,
+                    netMonth: 0
+                });
+            }
+            const g = groups.get(key);
+            g.items.push(t);
+
+            const amt = Number(t.amount);
+            if (t.type === 'gaji') g.gaji += amt;
+            else if (t.type === 'bonus') g.bonus += amt;
+            else if (t.type === 'thr') g.thr += amt;
+            else if (t.type === 'emas') {
+                g.emasGram += amt;
+                g.emasVal += (amt * goldPrice); // Calc dynamic value
+            }
+            else if (t.type === 'pinjaman') g.pinjaman += amt;
+        });
+
+        // 2. Calculate Accumulation
+        let runningBalance = 0;
+        const result = [];
+
+        groups.forEach(g => {
+            g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman;
+            runningBalance += g.netMonth;
+            g.accumulated = runningBalance;
+
+            // Filter search
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                // Check month name or any item description
+                const monthName = g.dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toLowerCase();
+                const hasMatch = monthName.includes(searchLower) || g.items.some(i => i.description?.toLowerCase().includes(searchLower));
+                if (hasMatch) result.push(g);
             } else {
-                groups[t.date].totalIn += Number(t.amount);
+                result.push(g);
             }
         });
 
-        // Convert to array and sort
-        const arr = Object.values(groups).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        // Filter by search
-        if (!searchTerm) return arr;
-        return arr.filter(g =>
-            g.items.some(i => i.description?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            g.date.includes(searchTerm)
-        );
-    }, [transactions, searchTerm]);
+        return result; // Chronological order
+    }, [transactions, goldPrice, searchTerm]);
 
     const handleInputChange = (e, field) => {
         let val = e.target.value;
@@ -310,13 +340,34 @@ const Keuangan = () => {
                     background: rgba(15, 23, 42, 0.6); border: 1px solid var(--glass-border); border-radius: 12px;
                     padding: 10px 16px; color: white; width: 100%; outline: none;
                 }
-                .trx-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 16px; }
-                .trx-table th { text-align: left; padding: 16px; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
-                .trx-row { background: rgba(255,255,255,0.03); transition: all 0.2s; cursor: pointer; }
-                .trx-row:hover { background: rgba(255,255,255,0.05); }
-                .trx-row td { padding: 16px; border-top: 1px solid var(--glass-border); border-bottom: 1px solid var(--glass-border); }
-                .trx-row td:first-child { border-left: 1px solid var(--glass-border); border-top-left-radius: 12px; border-bottom-left-radius: 12px; }
-                .trx-row td:last-child { border-right: 1px solid var(--glass-border); border-top-right-radius: 12px; border-bottom-right-radius: 12px; }
+                /* ACCUMULATION TABLE STYLES */
+                .acc-table-container { width: 100%; overflow-x: auto; max-height: 600px; overflow-y: auto; }
+                .acc-table { 
+                    width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px;
+                    font-size: 13px; margin-top: 8px;
+                }
+                .acc-table th { 
+                    position: sticky; top: 0; z-index: 10;
+                    background: #0f172a; color: var(--text-muted); 
+                    padding: 16px; text-align: right; 
+                    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+                    border-bottom: 2px solid var(--glass-border);
+                }
+                .acc-table th:first-child { text-align: left; left: 0; z-index: 20; background: #0f172a; } /* Sticky first col */
+                .acc-table td { 
+                    padding: 16px; border-bottom: 1px solid var(--glass-border); text-align: right; 
+                    white-space: nowrap; color: #e2e8f0;
+                }
+                .acc-table td:first-child { 
+                    position: sticky; left: 0; background: rgba(15, 23, 42, 0.95); 
+                    text-align: left; font-weight: 600; color: #60a5fa; 
+                    border-right: 1px solid var(--glass-border);
+                }
+                .acc-row:hover td { background: rgba(255,255,255,0.02); }
+                .val-pos { color: #4ade80; }
+                .val-neg { color: #f87171; }
+                .val-neu { color: #94a3b8; opacity: 0.3; }
+                .acc-total-cell { font-weight: 800; color: white; background: rgba(255,255,255,0.03); }
                 
                 .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: inline-block; margin-bottom: 4px;}
                 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
@@ -332,7 +383,7 @@ const Keuangan = () => {
                 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px; }
             `}</style>
 
-            {/* HERDER */}
+            {/* HERDER & BUTTONS */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
                     <h1 style={{ fontSize: '32px', fontWeight: '900', background: 'linear-gradient(to right, #60a5fa, #2dd4bf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
@@ -379,89 +430,74 @@ const Keuangan = () => {
                 <StatCard title="Pinjaman" value={stats.totalPinjaman} icon={<TrendingDown size={20} color="#f87171" />} color="rgba(248, 113, 113, 0.1)" isDanger />
             </div>
 
-            {/* REKAPAN TABLE */}
-            <div className="glass-card" style={{ padding: '0', overflow: 'hidden' }}>
+            {/* ACCUMULATION TABLE (Replacing old list) */}
+            <div className="glass-card" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '24px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}><GripHorizontal size={20} /> Rekapan Per Tanggal</h3>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}><TrendingUp size={20} /> Akumulasi Tabungan</h3>
                     <div style={{ position: 'relative', width: '200px' }}>
                         <Search size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
                         <input className="search-bar" style={{ paddingLeft: '40px' }} placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                     </div>
                 </div>
-                <div style={{ padding: '16px', overflowX: 'auto' }}>
-                    <table className="trx-table">
+
+                <div className="acc-table-container">
+                    <table className="acc-table">
                         <thead>
                             <tr>
-                                <th>Tanggal</th>
-                                <th>Akumulasi</th>
-                                <th style={{ textAlign: 'right' }}>Total Masuk</th>
-                                <th style={{ textAlign: 'right' }}>Total Keluar</th>
-                                <th style={{ width: '50px' }}></th>
+                                <th>Bulan</th>
+                                <th>Gaji Disimpan</th>
+                                <th>Bonus</th>
+                                <th>THR</th>
+                                <th>Emas</th>
+                                <th>Pinjaman</th>
+                                <th>Total Bulanan</th>
+                                <th style={{ color: '#4ade80' }}>Akumulasi Tabungan</th>
+                                <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {groupedTransactions.map(group => (
-                                <React.Fragment key={group.date}>
-                                    <tr className="trx-row" onClick={() => toggleDate(group.date)}>
-                                        <td style={{ fontWeight: '600', color: 'white', whiteSpace: 'nowrap' }}>
-                                            {new Date(group.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                                {Array.from(group.types).map(t => (
-                                                    <span key={t} className="badge" style={{
-                                                        background: t === 'pinjaman' ? 'rgba(239, 68, 68, 0.2)' : t === 'emas' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                                                        color: t === 'pinjaman' ? '#fca5a5' : t === 'emas' ? '#fde047' : '#6ee7b7'
-                                                    }}>{t}</span>
-                                                ))}
-                                                {group.goldDelta > 0 && <span className="badge" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#facc15' }}>+{group.goldDelta}g</span>}
-                                            </div>
-                                        </td>
-                                        <td style={{ textAlign: 'right', fontWeight: '700', color: '#4ade80' }}>
-                                            {group.totalIn > 0 ? formatRupiah(group.totalIn) : '-'}
-                                        </td>
-                                        <td style={{ textAlign: 'right', fontWeight: '700', color: '#f87171' }}>
-                                            {group.totalOut > 0 ? formatRupiah(group.totalOut) : '-'}
-                                        </td>
-                                        <td style={{ textAlign: 'center', color: '#94a3b8' }}>
-                                            {expandedDates[group.date] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                        </td>
-                                    </tr>
-                                    <AnimatePresence>
-                                        {expandedDates[group.date] && (
-                                            <tr>
-                                                <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                                                    <motion.div
-                                                        initial={{ opacity: 0, height: 0 }}
-                                                        animate={{ opacity: 1, height: 'auto' }}
-                                                        exit={{ opacity: 0, height: 0 }}
-                                                        style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', margin: '0 16px 16px' }}
-                                                    >
-                                                        <table style={{ width: '100%' }}>
-                                                            <tbody>
-                                                                {group.items.map(item => (
-                                                                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                                        <td style={{ padding: '8px 0', fontSize: '13px', color: '#cbd5e1' }}>{item.type.toUpperCase()}</td>
-                                                                        <td style={{ padding: '8px 0', fontSize: '13px', color: '#94a3b8' }}>{item.description}</td>
-                                                                        <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: '600', color: item.type === 'pinjaman' ? '#f87171' : 'white' }}>
-                                                                            {item.type === 'emas' ? `${item.amount} Gram` : formatRupiah(item.amount)}
-                                                                        </td>
-                                                                        <td style={{ width: '40px', paddingLeft: '16px' }}>
-                                                                            <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-slate-500 hover:text-red-500"><Trash2 size={14} /></button>
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </motion.div>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </AnimatePresence>
-                                </React.Fragment>
+                            {accumulationData.map((row, index) => (
+                                <tr key={row.key} className="acc-row">
+                                    <td>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Calendar size={14} className="text-slate-500" />
+                                            {row.dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                                        </div>
+                                    </td>
+                                    <td className={row.gaji > 0 ? 'val-pos' : 'val-neu'}>{formatRupiah(row.gaji)}</td>
+                                    <td className={row.bonus > 0 ? 'val-pos' : 'val-neu'}>{formatRupiah(row.bonus)}</td>
+                                    <td className={row.thr > 0 ? 'val-pos' : 'val-neu'}>{formatRupiah(row.thr)}</td>
+                                    <td>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                            <span style={{ color: '#facc15' }}>{formatRupiah(row.emasVal)}</span>
+                                            {row.emasGram > 0 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{row.emasGram}g</span>}
+                                        </div>
+                                    </td>
+                                    <td className={row.pinjaman > 0 ? 'val-neg' : 'val-neu'}>{formatRupiah(row.pinjaman)}</td>
+                                    <td style={{ fontWeight: '700', color: row.netMonth >= 0 ? 'white' : '#f87171' }}>
+                                        {formatRupiah(row.netMonth)}
+                                    </td>
+                                    <td className="acc-total-cell" style={{ color: '#4ade80', fontSize: '14px' }}>
+                                        {formatRupiah(row.accumulated)}
+                                    </td>
+                                    <td>
+                                        <button
+                                            onClick={() => handleDelete(row.items)}
+                                            className="text-slate-500 hover:text-red-500 transition"
+                                            title="Hapus semua data bulan ini"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
                             ))}
-                            {groupedTransactions.length === 0 && (
-                                <tr><td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Belum ada rekapan data.</td></tr>
+                            <tr ref={tableEndRef} />
+                            {accumulationData.length === 0 && (
+                                <tr>
+                                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                                        Belum ada data akumulasi. Input data baru untuk memulai.
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table>
