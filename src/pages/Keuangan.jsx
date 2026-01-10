@@ -337,53 +337,71 @@ const Keuangan = () => {
 
     // GENERATE CHART PATH
     const ChartBackground = ({ data }) => {
-        if (!data || data.length < 2) return null;
-
-        const height = 200;
+        const height = 250;
         const width = 1000;
-        const maxVal = Math.max(...data.map(d => d.accumulated), 1);
-        const minVal = Math.min(...data.map(d => d.accumulated), 0);
-        const range = maxVal - minVal;
 
-        // Generate points
-        const points = data.map((d, i) => {
-            const x = (i / (data.length - 1)) * width;
-            const y = height - ((d.accumulated - minVal) / (range || 1)) * height * 0.6 - 20;
-            return `${x},${y}`;
+        // Ensure we always have visualization data
+        let chartData = [];
+        if (!data || data.length === 0) {
+            // Default "waiting" wave
+            chartData = Array(10).fill(0).map((_, i) => ({ accumulated: Math.sin(i) * 1000000 + 5000000 }));
+        } else if (data.length === 1) {
+            // If only 1 point, create a growth curve from 0 to Current
+            chartData = [
+                { accumulated: data[0].accumulated * 0.2 }, // Fake start
+                { accumulated: data[0].accumulated * 0.6 },
+                { accumulated: data[0].accumulated }
+            ];
+        } else {
+            chartData = data;
+        }
+
+        const maxVal = Math.max(...chartData.map(d => d.accumulated)) * 1.1; // Add headroom
+        const minVal = Math.min(...chartData.map(d => d.accumulated)) * 0.9;
+        const range = maxVal - minVal || 1;
+
+        // Generate smooth bezier points
+        const points = chartData.map((d, i) => {
+            const x = (i / (chartData.length - 1)) * width;
+            const y = height - ((d.accumulated - minVal) / range) * height * 0.7 - 20;
+            return [x, y];
         });
 
-        // Area Path
-        const pathData = `M0,${height} L0,${height} L${points[0].split(',')[0]},${points[0].split(',')[1]} ` +
-            points.join(' L') +
-            ` L${width},${points[points.length - 1].split(',')[1]} L${width},${height} Z`;
-
-        // Line Path
-        const lineData = `M${points[0]} L` + points.join(' L');
+        // Construct Path Command (Simple Line for now, could be curved)
+        const linePath = `M${points[0][0]},${points[0][1]} ` + points.map(p => `L${p[0]},${p[1]}`).join(' ');
+        const areaPath = `${linePath} L${width},${height} L0,${height} Z`;
 
         return (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.3, overflow: 'hidden', borderRadius: '32px' }}>
-                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+            <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', borderRadius: '32px', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 40%, rgba(15, 23, 42, 0.8) 100%)', zIndex: 1 }} />
+                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', opacity: 0.6 }}>
                     <defs>
-                        <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.5" />
-                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+                        <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
                         </linearGradient>
                     </defs>
+
+                    {/* Area Fill */}
                     <motion.path
-                        d={pathData}
-                        fill="url(#chartGrad)"
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1 }}
+                        d={areaPath}
+                        fill="url(#chartFill)"
+                        initial={{ opacity: 0, pathLength: 0 }}
+                        animate={{ opacity: 1, pathLength: 1 }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
                     />
+
+                    {/* Stroke Line */}
                     <motion.path
-                        d={lineData}
+                        d={linePath}
                         fill="none"
                         stroke="#2dd4bf"
-                        strokeWidth="3"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1.5, ease: "easeInOut" }}
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ duration: 2, ease: "easeInOut" }} // Slower draw
                     />
                 </svg>
             </div>
@@ -413,9 +431,9 @@ const Keuangan = () => {
                     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: transform 0.2s ease;
                 }
                 .hero-card {
-                    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.9) 100%);
+                    background: #0f172a; /* Solid dark base to make chart pop */
                     border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; position: relative; overflow: hidden;
-                    padding: 60px 20px; border-radius: 32px; margin-bottom: 32px;
+                    padding: 80px 20px; border-radius: 32px; margin-bottom: 32px;
                     display: flex; flex-direction: column; align-items: center; justify-content: center;
                     box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
                 }
@@ -459,14 +477,14 @@ const Keuangan = () => {
                 .acc-total-cell { font-weight: 800; color: white; background: rgba(255,255,255,0.03); }
                 
                 .action-btn {
-                    padding: 8px; border-radius: 12px; border: none; cursor: pointer;
-                    display: inline-flex; align-items: center; justify-content: center;
-                    transition: all 0.2s; margin-left: 4px;
+                    padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer;
+                    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+                    transition: all 0.2s; margin-left: 6px; font-weight: 600; font-size: 11px;
                 }
-                .action-btn.edit { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-                .action-btn.edit:hover { background: #3b82f6; color: white; transform: translateY(-2px); }
-                .action-btn.del { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-                .action-btn.del:hover { background: #ef4444; color: white; transform: translateY(-2px); }
+                .action-btn.edit { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+                .action-btn.edit:hover { background: #3b82f6; color: white; }
+                .action-btn.del { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+                .action-btn.del:hover { background: #ef4444; color: white; }
 
                 .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; display: inline-block; margin-bottom: 4px;}
                 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
@@ -481,10 +499,12 @@ const Keuangan = () => {
                 .form-input:focus { border-color: var(--primary); }
                 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px; }
                 
+                .pulse-wrapper { position: relative; display: flex; align-items: center; gap: 6px; }
                 .pulse-dot {
                     width: 8px; height: 8px; background: #4ade80; border-radius: 50%;
                     box-shadow: 0 0 10px #4ade80; animation: pulse 2s infinite;
                 }
+                .live-badge { font-size: 9px; font-weight: 900; color: #4ade80; letter-spacing: 1px; }
                 @keyframes pulse {
                     0% { transform: scale(0.95); opacity: 0.7; }
                     50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 20px #4ade80; }
@@ -492,7 +512,7 @@ const Keuangan = () => {
                 }
             `}</style>
 
-            {/* HERDER & BUTTONS */}
+            {/* HEADERS & BUTTONS */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
                     <h1 style={{ fontSize: '32px', fontWeight: '900', background: 'linear-gradient(to right, #60a5fa, #2dd4bf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
@@ -513,40 +533,53 @@ const Keuangan = () => {
                 <ChartBackground data={accumulationData} />
 
                 {/* Content */}
-                <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <p style={{ textTransform: 'uppercase', letterSpacing: '4px', fontSize: '11px', fontWeight: '800', marginBottom: '16px', color: '#94a3b8' }}>Total Kekayaan Bersih</p>
-                    <h2 style={{ fontSize: isMobile ? '36px' : '56px', fontWeight: '900', margin: '0 0 24px 0', textShadow: '0 10px 30px rgba(0,0,0,0.5)', letterSpacing: '-1px' }}>
+                    <h2 style={{ fontSize: isMobile ? '36px' : '64px', fontWeight: '900', margin: '0 0 32px 0', textShadow: '0 10px 30px rgba(0,0,0,0.5)', letterSpacing: '-2px' }}>
                         {formatRupiah(stats.saldoBersih)}
                     </h2>
 
                     {/* Gold Price Control - Re-styled as Floating Glass Pill */}
                     <div style={{
                         display: 'inline-flex', alignItems: 'center', gap: '16px',
-                        background: 'rgba(234, 179, 8, 0.1)', backdropFilter: 'blur(10px)',
-                        padding: '10px 20px', borderRadius: '50px',
-                        border: '1px solid rgba(234, 179, 8, 0.2)',
-                        boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
+                        background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(16px)',
+                        padding: '12px 24px', borderRadius: '50px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {!isPriceManual && <div className="pulse-dot" />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            {!isPriceManual && (
+                                <div className="pulse-wrapper">
+                                    <div className="pulse-dot" />
+                                    <span className="live-badge">LIVE</span>
+                                </div>
+                            )}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#facc15', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                    {isPriceManual ? 'Harga Emas (Manual)' : `Harga Emas (Antam)`}
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#facc15', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    {isPriceManual ? 'Harga Manual (Aceh)' : `Antam Nasional`}
                                 </span>
-                                <span style={{ fontSize: '13px', color: 'white', fontWeight: '600' }}>
-                                    {formatRupiah(goldPrice)} /g
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                    <span style={{ fontSize: '16px', color: 'white', fontWeight: '700' }}>
+                                        {formatRupiah(goldPrice)}
+                                    </span>
+                                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>/gram</span>
+                                </div>
+                                {!isPriceManual && (
+                                    <span style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>Updated: {lastUpdated.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                                )}
                             </div>
                         </div>
-                        <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.2)' }} />
-                        <button onClick={() => { setTempPrice(goldPrice.toString()); setShowPriceModal(true); }} className="hover:text-white text-yellow-400 transition" title="Edit Harga">
-                            <Edit2 size={16} />
-                        </button>
-                        {!isPriceManual && (
-                            <button onClick={fetchGoldPrice} className="hover:text-white text-yellow-400 transition" title="Refresh Harga">
-                                <RefreshCw size={16} />
+                        <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.1)' }} />
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                            <button onClick={() => { setTempPrice(goldPrice.toString()); setShowPriceModal(true); }} className="hover:bg-white/10 p-2 rounded-full transition text-blue-400" title="Edit Harga">
+                                <Edit2 size={18} />
                             </button>
-                        )}
+                            {!isPriceManual && (
+                                <button onClick={fetchGoldPrice} className="hover:bg-white/10 p-2 rounded-full transition text-green-400" title="Refresh Harga">
+                                    <RefreshCw size={18} />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </motion.div>
@@ -615,16 +648,18 @@ const Keuangan = () => {
                                             <button
                                                 onClick={() => handleEdit(row)}
                                                 className="action-btn edit"
-                                                title="Edit data bulan ini"
+                                                title="Edit Data"
                                             >
-                                                <Edit2 size={16} />
+                                                <Edit2 size={13} />
+                                                Edit
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(row.items)}
                                                 className="action-btn del"
-                                                title="Hapus semua data bulan ini"
+                                                title="Hapus Data"
                                             >
-                                                <Trash2 size={16} />
+                                                <Trash2 size={13} />
+                                                Hapus
                                             </button>
                                         </div>
                                     </td>
