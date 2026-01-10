@@ -57,6 +57,7 @@ const KesalahanStaf = () => {
     const [sheetUrl, setSheetUrl] = useState('');
     const [isAutoSync, setIsAutoSync] = useState(false);
     const [lastSyncTime, setLastSyncTime] = useState('-');
+    const [isLoadingSheet, setIsLoadingSheet] = useState(false);
 
     useEffect(() => {
         if (user?.username) {
