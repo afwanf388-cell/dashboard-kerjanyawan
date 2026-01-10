@@ -534,16 +534,18 @@ const CatatanKerja = () => {
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent' }}>
                                 {/* Toolbar / Top Bar */}
                                 <div style={{
-                                    padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                    padding: isMobile ? '16px 20px' : '24px 32px',
+                                    borderBottom: '1px solid rgba(255,255,255,0.05)',
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                    background: 'rgba(15, 23, 42, 0.3)'
+                                    background: 'rgba(15, 23, 42, 0.3)',
+                                    paddingTop: isMobile ? 'env(safe-area-inset-top, 16px)' : '24px'
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                                                <CheckCircle2 size={14} color="#10b981" />
+                                                <CheckCircle2 size={12} color="#10b981" />
                                             </motion.div>
-                                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{saveStatus}</span>
+                                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase' }}>{saveStatus}</span>
                                         </div>
                                     </div>
 
@@ -577,8 +579,8 @@ const CatatanKerja = () => {
                                 </div>
 
                                 {/* Flexible Canvas */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: '40px 60px' }} className="editor-scrollbar">
-                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '24px 20px' : '40px 60px' }} className="editor-scrollbar">
+                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? '20px' : '32px' }}>
                                         {/* Title Area - Auto Resizing Textarea */}
                                         <textarea
                                             ref={titleRef}
@@ -592,11 +594,12 @@ const CatatanKerja = () => {
                                             placeholder="Judul Catatan..."
                                             style={{
                                                 background: 'transparent', border: 'none',
-                                                fontSize: 'clamp(32px, 5vw, 42px)', fontWeight: '900',
+                                                fontSize: isMobile ? '28px' : 'clamp(32px, 5vw, 42px)',
+                                                fontWeight: '900',
                                                 color: activeNote?.color || 'white',
                                                 textShadow: `0 0 30px ${activeNote?.color}40`,
                                                 outline: 'none', width: '100%', resize: 'none',
-                                                lineHeight: '1.4', letterSpacing: '-1.5px',
+                                                lineHeight: '1.3', letterSpacing: '-1px',
                                                 overflow: 'hidden', wordBreak: 'break-word',
                                                 transition: 'color 0.3s ease'
                                             }}
@@ -605,11 +608,11 @@ const CatatanKerja = () => {
                                         {/* Content Area */}
                                         <div style={{
                                             position: 'relative',
-                                            background: 'rgba(255,255,255,0.02)',
-                                            borderRadius: '24px',
-                                            padding: '32px',
+                                            background: 'rgba(255,255,255,0.01)',
+                                            borderRadius: '20px',
+                                            padding: isMobile ? '20px' : '32px',
                                             border: '1px solid rgba(255,255,255,0.05)',
-                                            minHeight: '400px',
+                                            minHeight: isMobile ? '300px' : '400px',
                                             boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.2)'
                                         }}>
                                             <textarea
@@ -617,10 +620,11 @@ const CatatanKerja = () => {
                                                 onChange={e => handleUpdateNote('content', e.target.value)}
                                                 placeholder="Mulailah mengetik ide brilianmu di sini..."
                                                 style={{
-                                                    width: '100%', height: '100%', minHeight: '350px',
+                                                    width: '100%', height: '100%', minHeight: isMobile ? '260px' : '350px',
                                                     background: 'transparent', border: 'none',
-                                                    fontSize: '17px', color: 'rgba(255,255,255,0.8)',
-                                                    outline: 'none', resize: 'none', lineHeight: '1.8'
+                                                    fontSize: isMobile ? '16px' : '17px',
+                                                    color: 'rgba(255,255,255,0.8)',
+                                                    outline: 'none', resize: 'none', lineHeight: '1.6'
                                                 }}
                                             />
                                         </div>
