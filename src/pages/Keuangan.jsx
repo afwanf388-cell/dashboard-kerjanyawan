@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import {
     Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote,
     Trash2, Search, Calendar, Coins, Landmark, Zap, X,
-    Save, Edit2, RotateCcw
+    Save, Edit2, RotateCcw, RefreshCw
 } from 'lucide-react';
 
 /* =========================
@@ -25,6 +25,7 @@ const Keuangan = () => {
     const [goldPrice, setGoldPrice] = useState(1360000);
     const [isPriceManual, setIsPriceManual] = useState(false);
     const [tempPrice, setTempPrice] = useState('');
+    const [lastUpdated, setLastUpdated] = useState(new Date());
 
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
@@ -38,7 +39,7 @@ const Keuangan = () => {
         description: '',
         date: new Date().toISOString().split('T')[0]
     });
-    const [editingIds, setEditingIds] = useState([]); // Track IDs when editing
+    const [editingIds, setEditingIds] = useState([]);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -54,29 +55,35 @@ const Keuangan = () => {
     }, []);
 
     // Fetch Gold Price
-    useEffect(() => {
-        const loadPrice = async () => {
-            const savedPrice = localStorage.getItem('aceh_gold_price');
-            const savedMode = localStorage.getItem('is_gold_manual');
+    const fetchGoldPrice = async () => {
+        const savedPrice = localStorage.getItem('aceh_gold_price');
+        const savedMode = localStorage.getItem('is_gold_manual');
 
-            if (savedMode === 'true' && savedPrice) {
-                setGoldPrice(Number(savedPrice));
-                setIsPriceManual(true);
-            } else {
-                try {
-                    const response = await fetch('https://logammulia-api.vercel.app/api/antam');
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result.data && result.data[0]) {
-                            setGoldPrice(Number(result.data[0].harga));
-                        }
+        if (savedMode === 'true' && savedPrice) {
+            setGoldPrice(Number(savedPrice));
+            setIsPriceManual(true);
+        } else {
+            try {
+                // Fetch public Antam price
+                const response = await fetch('https://logammulia-api.vercel.app/api/antam');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.data && result.data[0]) {
+                        setGoldPrice(Number(result.data[0].harga));
+                        setLastUpdated(new Date());
                     }
-                } catch (e) {
-                    console.warn("Gold price API failed");
                 }
+            } catch (e) {
+                console.warn("Gold price API failed, using fallback");
             }
-        };
-        loadPrice();
+        }
+    };
+
+    useEffect(() => {
+        fetchGoldPrice();
+        // Auto refresh gold price every 30 minutes
+        const interval = setInterval(fetchGoldPrice, 30 * 60 * 1000);
+        return () => clearInterval(interval);
     }, []);
 
     /* =========================
@@ -145,21 +152,12 @@ const Keuangan = () => {
         setIsPriceManual(false);
         localStorage.removeItem('aceh_gold_price');
         localStorage.setItem('is_gold_manual', 'false');
-        try {
-            const response = await fetch('https://logammulia-api.vercel.app/api/antam');
-            if (response.ok) {
-                const result = await response.json();
-                if (result.data && result.data[0]) {
-                    setGoldPrice(Number(result.data[0].harga));
-                }
-            }
-        } catch (e) { }
+        await fetchGoldPrice(); // Re-fetch logic
         setShowPriceModal(false);
     };
 
     // Prepare Edit Form
     const handleEdit = (row) => {
-        // Aggregate existing values
         const data = {
             gaji: row.gaji || '',
             bonus: row.bonus || '',
@@ -167,12 +165,10 @@ const Keuangan = () => {
             emas: row.emasGram || '',
             pinjaman: row.pinjaman || '',
             description: row.items[0]?.description || '',
-            // Use the exact date of items (assuming they share a date since grouped by month, or pick first)
             date: row.items[0]?.date || new Date().toISOString().split('T')[0]
         };
-
         setFormData(data);
-        setEditingIds(row.items.map(i => i.id)); // Store IDs to replace
+        setEditingIds(row.items.map(i => i.id));
         setShowModal(true);
     };
 
@@ -205,14 +201,13 @@ const Keuangan = () => {
 
         if (newRecords.length === 0) {
             if (editingIds.length > 0 && window.confirm("Semua nilai kosong. Hapus data bulan ini?")) {
-                // Determine proceed to delete below, which will happen because newRecords is empty
+                // Allow delete
             } else {
                 alert("Mohon isi minimal satu kategori!");
                 return;
             }
         }
 
-        // Logic: Filter out old IDs first (if editing), then add new records
         const currentTrx = editingIds.length > 0
             ? transactions.filter(t => !editingIds.includes(t.id))
             : transactions;
@@ -221,23 +216,18 @@ const Keuangan = () => {
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
 
-        // Reset
         setShowModal(false);
         setFormData({
             gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
             description: '', date: new Date().toISOString().split('T')[0]
         });
 
-        // If it was just an add, scroll. If edit, stay put usually better but lets scroll to be safe
         if (editingIds.length === 0) setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 500);
 
-        // Sync Cloud
         try {
-            // 1. Delete old IDs if any
             if (editingIds.length > 0) {
                 await supabase.from('financial_records').delete().in('id', editingIds);
             }
-            // 2. Insert new
             if (newRecords.length > 0) {
                 const recordsToInsert = newRecords.map(({ id, ...rest }) => rest);
                 const { error } = await supabase.from('financial_records').insert(recordsToInsert);
@@ -247,7 +237,7 @@ const Keuangan = () => {
         } catch (err) {
             setSyncStatus('🔴 Gagal Upload (Disimpan Lokal)');
         } finally {
-            setEditingIds([]); // Clear editing state
+            setEditingIds([]);
         }
     };
 
@@ -255,7 +245,6 @@ const Keuangan = () => {
         if (!window.confirm(`Hapus ${items.length} transaksi di bulan ini?`)) return;
         const idsToDelete = items.map(i => i.id);
         const updated = transactions.filter(t => !idsToDelete.includes(t.id));
-
         setTransactions(updated);
         localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
         try { await supabase.from('financial_records').delete().in('id', idsToDelete); } catch (err) { }
@@ -263,7 +252,7 @@ const Keuangan = () => {
 
     const handleCloseModal = () => {
         setShowModal(false);
-        setEditingIds([]); // Reset editing state on close
+        setEditingIds([]);
         setFormData({
             gaji: '', bonus: '', thr: '', emas: '', pinjaman: '',
             description: '', date: new Date().toISOString().split('T')[0]
@@ -294,20 +283,16 @@ const Keuangan = () => {
 
         sortedTrx.forEach(t => {
             const d = new Date(t.date);
-            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
-
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             if (!groups.has(key)) {
                 groups.set(key, {
-                    key,
-                    dateObj: d,
-                    items: [],
+                    key, dateObj: d, items: [],
                     gaji: 0, bonus: 0, thr: 0, emasVal: 0, emasGram: 0, pinjaman: 0,
                     netMonth: 0
                 });
             }
             const g = groups.get(key);
             g.items.push(t);
-
             const amt = Number(t.amount);
             if (t.type === 'gaji') g.gaji += amt;
             else if (t.type === 'bonus') g.bonus += amt;
@@ -322,7 +307,11 @@ const Keuangan = () => {
         let runningBalance = 0;
         const result = [];
 
-        groups.forEach(g => {
+        // Sort keys again to be sure (Map preserves insertion order but safety first)
+        const sortedKeys = Array.from(groups.keys()).sort();
+
+        sortedKeys.forEach(key => {
+            const g = groups.get(key);
             g.netMonth = (g.gaji + g.bonus + g.thr + g.emasVal) - g.pinjaman;
             runningBalance += g.netMonth;
             g.accumulated = runningBalance;
@@ -344,6 +333,61 @@ const Keuangan = () => {
         let val = e.target.value;
         if (field !== 'emas' && field !== 'description' && field !== 'date') val = val.replace(/\D/g, '');
         setFormData(prev => ({ ...prev, [field]: val }));
+    };
+
+    // GENERATE CHART PATH
+    const ChartBackground = ({ data }) => {
+        if (!data || data.length < 2) return null;
+
+        const height = 200;
+        const width = 1000;
+        const maxVal = Math.max(...data.map(d => d.accumulated), 1);
+        const minVal = Math.min(...data.map(d => d.accumulated), 0);
+        const range = maxVal - minVal;
+
+        // Generate points
+        const points = data.map((d, i) => {
+            const x = (i / (data.length - 1)) * width;
+            const y = height - ((d.accumulated - minVal) / (range || 1)) * height * 0.6 - 20;
+            return `${x},${y}`;
+        });
+
+        // Area Path
+        const pathData = `M0,${height} L0,${height} L${points[0].split(',')[0]},${points[0].split(',')[1]} ` +
+            points.join(' L') +
+            ` L${width},${points[points.length - 1].split(',')[1]} L${width},${height} Z`;
+
+        // Line Path
+        const lineData = `M${points[0]} L` + points.join(' L');
+
+        return (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.3, overflow: 'hidden', borderRadius: '32px' }}>
+                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
+                    <defs>
+                        <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.5" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.05" />
+                        </linearGradient>
+                    </defs>
+                    <motion.path
+                        d={pathData}
+                        fill="url(#chartGrad)"
+                        initial={{ opacity: 0, y: 100 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 1 }}
+                    />
+                    <motion.path
+                        d={lineData}
+                        fill="none"
+                        stroke="#2dd4bf"
+                        strokeWidth="3"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ duration: 1.5, ease: "easeInOut" }}
+                    />
+                </svg>
+            </div>
+        );
     };
 
     /* =========================
@@ -369,9 +413,11 @@ const Keuangan = () => {
                     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: transform 0.2s ease;
                 }
                 .hero-card {
-                    background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
-                    border: 1px solid rgba(6, 182, 212, 0.3); text-align: center; position: relative; overflow: hidden;
-                    padding: 40px; border-radius: 32px; margin-bottom: 32px;
+                    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.9) 100%);
+                    border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; position: relative; overflow: hidden;
+                    padding: 60px 20px; border-radius: 32px; margin-bottom: 32px;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
                 }
                 .btn-primary {
                     background: linear-gradient(90deg, #3b82f6, #06b6d4); border: none; padding: 12px 24px;
@@ -434,6 +480,16 @@ const Keuangan = () => {
                 }
                 .form-input:focus { border-color: var(--primary); }
                 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px; }
+                
+                .pulse-dot {
+                    width: 8px; height: 8px; background: #4ade80; border-radius: 50%;
+                    box-shadow: 0 0 10px #4ade80; animation: pulse 2s infinite;
+                }
+                @keyframes pulse {
+                    0% { transform: scale(0.95); opacity: 0.7; }
+                    50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 20px #4ade80; }
+                    100% { transform: scale(0.95); opacity: 0.7; }
+                }
             `}</style>
 
             {/* HERDER & BUTTONS */}
@@ -451,26 +507,47 @@ const Keuangan = () => {
                 </button>
             </div>
 
-            {/* HERO */}
+            {/* HERO - WITH CHART */}
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="hero-card">
-                <Wallet size={120} style={{ position: 'absolute', top: '-20px', right: '-20px', opacity: 0.1, transform: 'rotate(15deg)', color: 'white' }} />
-                <p style={{ textTransform: 'uppercase', letterSpacing: '2px', fontSize: '12px', fontWeight: '700', marginBottom: '8px', opacity: 0.8 }}>Total Kekayaan Bersih</p>
-                <h2 style={{ fontSize: '48px', fontWeight: '800', margin: 0, textShadow: '0 0 30px rgba(6, 182, 212, 0.4)' }}>
-                    {formatRupiah(stats.saldoBersih)}
-                </h2>
+                {/* Visual Chart Background */}
+                <ChartBackground data={accumulationData} />
 
-                {/* Gold Price Control */}
-                <div style={{ marginTop: '24px', display: 'inline-flex', alignItems: 'center', gap: '12px', background: 'rgba(234, 179, 8, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>
-                    <Coins size={16} className="text-yellow-400" />
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#facc15' }}>
-                            {isPriceManual ? 'Harga Emas (Manual/Aceh)' : 'Harga Emas Nasional'}
-                        </span>
-                        <span style={{ fontSize: '12px', color: 'white' }}>{formatRupiah(goldPrice)} /gram</span>
+                {/* Content */}
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p style={{ textTransform: 'uppercase', letterSpacing: '4px', fontSize: '11px', fontWeight: '800', marginBottom: '16px', color: '#94a3b8' }}>Total Kekayaan Bersih</p>
+                    <h2 style={{ fontSize: isMobile ? '36px' : '56px', fontWeight: '900', margin: '0 0 24px 0', textShadow: '0 10px 30px rgba(0,0,0,0.5)', letterSpacing: '-1px' }}>
+                        {formatRupiah(stats.saldoBersih)}
+                    </h2>
+
+                    {/* Gold Price Control - Re-styled as Floating Glass Pill */}
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '16px',
+                        background: 'rgba(234, 179, 8, 0.1)', backdropFilter: 'blur(10px)',
+                        padding: '10px 20px', borderRadius: '50px',
+                        border: '1px solid rgba(234, 179, 8, 0.2)',
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.2)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {!isPriceManual && <div className="pulse-dot" />}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#facc15', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                    {isPriceManual ? 'Harga Emas (Manual)' : `Harga Emas (Antam)`}
+                                </span>
+                                <span style={{ fontSize: '13px', color: 'white', fontWeight: '600' }}>
+                                    {formatRupiah(goldPrice)} /g
+                                </span>
+                            </div>
+                        </div>
+                        <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.2)' }} />
+                        <button onClick={() => { setTempPrice(goldPrice.toString()); setShowPriceModal(true); }} className="hover:text-white text-yellow-400 transition" title="Edit Harga">
+                            <Edit2 size={16} />
+                        </button>
+                        {!isPriceManual && (
+                            <button onClick={fetchGoldPrice} className="hover:text-white text-yellow-400 transition" title="Refresh Harga">
+                                <RefreshCw size={16} />
+                            </button>
+                        )}
                     </div>
-                    <button onClick={() => { setTempPrice(goldPrice.toString()); setShowPriceModal(true); }} className="hover:bg-white/10 p-1 rounded-full transition">
-                        <Edit2 size={12} className="text-yellow-400" />
-                    </button>
                 </div>
             </motion.div>
 
