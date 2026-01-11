@@ -55,18 +55,19 @@ const KesalahanStaf = () => {
 
     // Lazy initialize states that depend on USER
     const [sheetUrl, setSheetUrl] = useState('');
-    const [isAutoSync, setIsAutoSync] = useState(false);
+    const [isAutoSync, setIsAutoSync] = useState(true);
     const [lastSyncTime, setLastSyncTime] = useState('-');
     const [isLoadingSheet, setIsLoadingSheet] = useState(false);
 
     useEffect(() => {
         if (user?.username) {
             setSheetUrl(localStorage.getItem(`staff_sheet_url_${user.username}`) || '');
-            setIsAutoSync(localStorage.getItem(`staff_auto_sync_${user.username}`) === 'true');
+            const savedAutoSync = localStorage.getItem(`staff_auto_sync_${user.username}`);
+            setIsAutoSync(savedAutoSync === null ? true : savedAutoSync === 'true');
             setLastSyncTime(localStorage.getItem(`staff_last_sync_${user.username}`) || '-');
         } else {
             setSheetUrl('');
-            setIsAutoSync(false);
+            setIsAutoSync(true);
             setLastSyncTime('-');
         }
     }, [user?.username]);
@@ -673,6 +674,13 @@ const KesalahanStaf = () => {
         }
     };
 
+    // NEW: Automatic Google Sheet Sync on Load
+    useEffect(() => {
+        if (isAutoSync && isInternalInitialLoaded && user?.username && (sheetUrl || localStorage.getItem(`staff_sheet_url_${user.username}`))) {
+            handleImportFromUrl(true);
+        }
+    }, [isInternalInitialLoaded, !!user?.username, !!sheetUrl]);
+
     const handleDelete = (id) => {
         if (window.confirm('Hapus laporan kesalahan ini secara permanen?')) {
             const deletedItem = mistakes.find(m => m.id === id);
@@ -685,15 +693,14 @@ const KesalahanStaf = () => {
         setShowClearConfirm(false);
         setSyncStatus('Deleting All...');
 
-        // Delete from cloud FIRST
-        if (supabase && user) {
-            const userId = (user && (user.username || user.email)) || 'unknown';
-
+        // Delete ALL data from cloud (GLOBAL - since this feature is public)
+        if (supabase) {
             try {
+                // Hapus SEMUA data dari cloud (tidak filter per user karena ini fitur publik)
                 const { error } = await supabase
                     .from('staff_mistakes')
                     .delete()
-                    .eq('user_id', userId);
+                    .neq('id', 0); // Delete all rows (neq id 0 = match all)
 
                 if (error) {
                     console.error('Error deleting from cloud:', error);
@@ -705,9 +712,10 @@ const KesalahanStaf = () => {
             }
         }
 
-        // Clear local storage (User Specific)
+        // Clear local storage for ALL users (if needed for this user)
         if (user?.username) {
             localStorage.removeItem(`app_mistakes_${user.username}`);
+            // IMPORTANT: Also remove sheet URL to prevent auto-sync from bringing data back
             localStorage.removeItem(`staff_sheet_url_${user.username}`);
             localStorage.removeItem(`staff_auto_sync_${user.username}`);
             localStorage.removeItem(`staff_last_sync_${user.username}`);
@@ -717,14 +725,14 @@ const KesalahanStaf = () => {
         localStorage.removeItem('app_mistakes');
         localStorage.removeItem('staff_sheet_url');
 
-        // Reset states
+        // Reset ALL states including sheet URL to prevent auto-sync
         setMistakes([]);
-        setSheetUrl('');
-        setIsAutoSync(false);
+        setSheetUrl(''); // Clear URL so auto-sync won't re-fetch
+        setIsAutoSync(false); // Disable auto-sync
         setLastSyncTime('-');
         setSyncStatus('Data Cleared');
 
-        alert('✅ Semua data berhasil dihapus!');
+        alert('✅ Semua data berhasil dihapus! Auto-sync dinonaktifkan. Import ulang dari sheet jika diperlukan.');
     };
 
 
@@ -1569,7 +1577,11 @@ const KesalahanStaf = () => {
                                             <input
                                                 type="checkbox"
                                                 checked={isAutoSync}
-                                                onChange={e => setIsAutoSync(e.target.checked)}
+                                                onChange={e => {
+                                                    const val = e.target.checked;
+                                                    setIsAutoSync(val);
+                                                    if (user?.username) localStorage.setItem(`staff_auto_sync_${user.username}`, val);
+                                                }}
                                                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                                             />
                                             <div style={{ flex: 1 }}>
