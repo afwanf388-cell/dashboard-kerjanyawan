@@ -497,6 +497,7 @@ const KesalahanStaf = () => {
             // Start from Day 01 of that context month
             let currentDate = `${contextDate.y}-${contextDate.m}-01`;
             const newMistakes = [];
+            const contentOccurrences = {}; // Tracking duplicates in the same batch
 
             allRows.forEach((rowData, lineIndex) => {
                 // Update date if a new one is found in this row separator
@@ -527,14 +528,19 @@ const KesalahanStaf = () => {
                 if (lowerDesc.includes('fatal') || lowerDesc.includes('tidak respon')) severity = 'High';
                 else if (lowerDesc.includes('note') || lowerDesc.includes('salah informasi')) severity = 'Low';
 
-                // Generate a STABLE ID based on content to prevent React key reflows (the "running numbers" issue)
-                const stableIdString = `${rawName}-${currentDate}-${rawDesc}`.toLowerCase().replace(/\s+/g, '');
+                // Generate a TRULY STABLE ID based on content to prevent duplicates upon re-import
+                // We combine Name, Date, Description and Link. 
+                // We also use an occurrence counter to handle multiple TRULY IDENTICAL rows in the same sheet.
+                const contentKey = `${rawName}-${currentDate}-${rawDesc}-${rawLink}`.toLowerCase().replace(/\s+/g, '');
+                contentOccurrences[contentKey] = (contentOccurrences[contentKey] || 0) + 1;
+
+                const stableIdString = `${contentKey}-${contentOccurrences[contentKey]}`;
                 let hash = 0;
                 for (let i = 0; i < stableIdString.length; i++) {
                     hash = ((hash << 5) - hash) + stableIdString.charCodeAt(i);
                     hash |= 0;
                 }
-                const stableId = Math.abs(hash) + (lineIndex * 1);
+                const stableId = Math.abs(hash);
 
                 newMistakes.push({
                     id: stableId,
