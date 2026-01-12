@@ -77,11 +77,12 @@ const CatatanKerja = () => {
                 if (fetchError) throw fetchError;
 
                 if (cloudData && Array.isArray(cloudData)) {
-                    // Update notes if cloud has data or if it's empty but we expect sync
-                    setNotes(cloudData.map(n => ({
+                    // Filter out any potential nulls and ensure color exists
+                    const validData = cloudData.filter(n => n && typeof n === 'object').map(n => ({
                         ...n,
-                        color: n.color || '#3b82f6'
-                    })));
+                        color: typeof n.color === 'string' ? n.color : '#3b82f6'
+                    }));
+                    setNotes(validData);
                     setSaveStatus('Awan Terhubung');
                 }
             } catch (err) {
@@ -130,7 +131,20 @@ const CatatanKerja = () => {
     // Simplified UI control functions
     const openNoteModal = (note) => {
         if (!note) return;
-        setActiveNote({ ...note });
+
+        // ULTIMATE SANITIZATION: Ensure NO field is ever null/undefined before opening modal
+        const safeNote = {
+            ...note,
+            id: note.id || Date.now(),
+            title: note.title || '',
+            content: note.content || '',
+            date: note.date || new Date().toLocaleDateString('id-ID'),
+            color: (typeof note.color === 'string' && note.color.startsWith('#')) ? note.color : '#3b82f6',
+            lastUpdated: note.lastUpdated || note.last_updated || new Date().toLocaleString('id-ID')
+        };
+
+        console.log("Opening Safe Note:", safeNote); // Debugging
+        setActiveNote(safeNote);
         setIsModalOpen(true);
     };
 
@@ -157,7 +171,13 @@ const CatatanKerja = () => {
 
     const handleUpdateNote = (field, value) => {
         if (!activeNote) return;
-        const updated = { ...activeNote, [field]: value, lastUpdated: new Date().toLocaleString('id-ID') };
+        // Defensive check: Ensure we're not setting undefined values
+        const safeValue = value === undefined || value === null ? '' : value;
+        const updated = {
+            ...activeNote,
+            [field]: safeValue,
+            lastUpdated: new Date().toLocaleString('id-ID')
+        };
         setActiveNote(updated);
 
         setNotes(prev => Array.isArray(prev) ? prev.map(n => n.id === updated.id ? updated : n) : [updated]);
@@ -207,15 +227,23 @@ const CatatanKerja = () => {
         };
     }, [isModalOpen]);
 
-    const filteredNotes = Array.isArray(notes) ? notes.filter(n =>
-        (n.title || '').toLowerCase().includes(search.toLowerCase()) ||
-        (n.content || '').toLowerCase().includes(search.toLowerCase())
-    ) : [];
+    const filteredNotes = Array.isArray(notes) ? notes.filter(n => {
+        if (!n || typeof n !== 'object') return false;
+        const searchSafe = (search || '').toLowerCase();
+        const titleSafe = String(n.title || '').toLowerCase();
+        const contentSafe = String(n.content || '').toLowerCase();
+        return titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
+    }) : [];
 
     const getNoteStats = (content) => {
-        const words = content ? content.trim().split(/\s+/).length : 0;
-        const chars = content ? content.length : 0;
-        return { words, chars };
+        try {
+            const text = content === null || content === undefined ? '' : String(content);
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const chars = text.length;
+            return { words, chars };
+        } catch (e) {
+            return { words: 0, chars: 0 };
+        }
     };
 
     const getCardGradient = (index) => {
@@ -319,7 +347,7 @@ const CatatanKerja = () => {
                 ) : (
                     filteredNotes.map((note, index) => (
                         <motion.div
-                            key={note.id}
+                            key={note.id || index}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: index * 0.05 }}

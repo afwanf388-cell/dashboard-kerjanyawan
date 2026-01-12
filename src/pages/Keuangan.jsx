@@ -530,24 +530,26 @@ const Keuangan = () => {
                 }
                 .action-btn.edit { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
                 .action-btn.edit:hover { background: #3b82f6; color: white; }
-                .action-btn.del { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-                .action-btn.del:hover { background: #ef4444; color: white; }
-
-                .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-                .modal-content { width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); }
+                .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+                .modal-content { width: 95%; max-width: 600px; max-height: 85vh; overflow-y: auto; background: #1e293b; border-radius: 24px; padding: 24px; border: 1px solid var(--glass-border); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
 
                 @media (max-width: 768px) {
-                    .modal-content {
-                        width: 100%;
-                        height: 100%;
-                        max-width: 100%;
-                        max-height: 100%;
-                        border-radius: 0;
-                        padding: 16px;
-                        border: none;
-                        display: flex;
-                        flex-direction: column;
+                    .modal-overlay {
+                        align-items: flex-start !important; /* Paksa ke atas */
+                        padding-top: 60px !important; /* Jarak aman dari status bar HP */
                     }
+                    
+                    .modal-content {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        height: 100% !important;
+                        max-height: calc(100vh - 60px) !important; /* Full screen minus padding atas */
+                        margin: 0 !important;
+                        border-radius: 20px 20px 0 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                    }
+
                     .batch-grid {
                         grid-template-columns: 1fr !important;
                     }
