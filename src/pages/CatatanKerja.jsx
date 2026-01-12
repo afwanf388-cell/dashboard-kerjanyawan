@@ -35,10 +35,16 @@ const CatatanKerja = () => {
             setIsInitialLoaded(false);
 
             const saved = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-            if (saved) {
+            if (saved && saved !== 'undefined' && saved !== 'null') {
                 try {
-                    setNotes(JSON.parse(saved));
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) {
+                        setNotes(parsed);
+                    } else {
+                        setNotes([]);
+                    }
                 } catch (e) {
+                    console.error("Failed to parse local notes:", e);
                     setNotes([]);
                 }
             } else {
@@ -93,9 +99,15 @@ const CatatanKerja = () => {
 
                 // 2. Get local data immediately (fresh from storage to avoid closure issues)
                 const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-                const localData = savedLocal ? JSON.parse(savedLocal) : [];
+                let localData = [];
+                if (savedLocal && savedLocal !== 'undefined' && savedLocal !== 'null') {
+                    try {
+                        const parsed = JSON.parse(savedLocal);
+                        if (Array.isArray(parsed)) localData = parsed;
+                    } catch (e) { console.error("Local parse error:", e); }
+                }
 
-                if (cloudData && cloudData.length > 0) {
+                if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
                     const finalData = cloudData.map(n => {
                         // Fallback: If cloud has no color (schema outdated), use local color
                         const localMatch = localData.find(l => l.id === n.id);
@@ -107,7 +119,7 @@ const CatatanKerja = () => {
                     setNotes(finalData);
                     localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(finalData));
                     setSaveStatus('Awan Terhubung');
-                } else if (localData.length > 0) {
+                } else if (localData && localData.length > 0) {
                     // Cloud is empty but local has data - Back up to cloud
                     setSaveStatus('Mencadangkan...');
                     setNotes(localData);
@@ -115,6 +127,7 @@ const CatatanKerja = () => {
                     await Promise.all(syncPromises);
                     setSaveStatus('Awan Terhubung');
                 } else {
+                    setNotes([]);
                     setSaveStatus('Awan Kosong');
                 }
 
@@ -123,7 +136,15 @@ const CatatanKerja = () => {
                 console.error("Sync Error:", err);
                 setSaveStatus('Mode Offline');
                 const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-                if (savedLocal) setNotes(JSON.parse(savedLocal));
+                if (savedLocal && savedLocal !== 'undefined' && savedLocal !== 'null') {
+                    try {
+                        const parsed = JSON.parse(savedLocal);
+                        if (Array.isArray(parsed)) setNotes(parsed);
+                        else setNotes([]);
+                    } catch (e) { setNotes([]); }
+                } else {
+                    setNotes([]);
+                }
                 setIsInitialLoaded(true);
             }
         };
@@ -140,12 +161,13 @@ const CatatanKerja = () => {
             }, (payload) => {
                 if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
                     setNotes(prev => {
-                        const exists = prev.find(n => n.id === payload.new.id);
-                        if (exists) return prev.map(n => n.id === payload.new.id ? payload.new : n);
-                        return [...prev, payload.new];
+                        const current = Array.isArray(prev) ? prev : [];
+                        const exists = current.find(n => n.id === payload.new.id);
+                        if (exists) return current.map(n => n.id === payload.new.id ? payload.new : n);
+                        return [...current, payload.new];
                     });
                 } else if (payload.eventType === 'DELETE') {
-                    setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+                    setNotes(prev => Array.isArray(prev) ? prev.filter(n => n.id !== payload.old.id) : []);
                 }
             })
             .subscribe();
@@ -227,7 +249,10 @@ const CatatanKerja = () => {
             lastUpdated: new Date().toLocaleString('id-ID')
         };
 
-        setNotes(prev => [...prev, newNote]);
+        setNotes(prev => {
+            const current = Array.isArray(prev) ? prev : [];
+            return [...current, newNote];
+        });
         setActiveNote(newNote);
         setIsModalOpen(true);
         syncToCloud(newNote); // Sync creation immediately
@@ -236,7 +261,7 @@ const CatatanKerja = () => {
     const deleteNote = async (id, e) => {
         if (e) e.stopPropagation();
         if (window.confirm('Hapus catatan ini secara permanen?')) {
-            setNotes(prevNotes => prevNotes.filter(n => n.id !== id));
+            setNotes(prevNotes => Array.isArray(prevNotes) ? prevNotes.filter(n => n.id !== id) : []);
 
             if (activeNote && activeNote.id === id) {
                 setActiveNote(null);
@@ -259,10 +284,10 @@ const CatatanKerja = () => {
         setActiveNote(null);
     };
 
-    const filteredNotes = notes.filter(n =>
+    const filteredNotes = Array.isArray(notes) ? notes.filter(n =>
         (n.title || '').toLowerCase().includes(search.toLowerCase()) ||
         (n.content || '').toLowerCase().includes(search.toLowerCase())
-    );
+    ) : [];
 
     const getNoteStats = (content) => {
         const words = content ? content.trim().split(/\s+/).length : 0;
@@ -299,7 +324,7 @@ const CatatanKerja = () => {
                     <div>
                         <h1 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: '800', color: 'white', margin: 0, letterSpacing: '-0.5px' }}>Catatan Kerja</h1>
                         <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Sparkles size={14} color="var(--primary)" /> {notes.length} Ide & Tugas
+                            <Sparkles size={14} color="var(--primary)" /> {Array.isArray(notes) ? notes.length : 0} Ide & Tugas
                         </p>
                     </div>
                 </div>
@@ -515,7 +540,7 @@ const CatatanKerja = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>TERAKHIR DIUBAH</label>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600' }}>
-                                                <Clock size={14} style={{ color: activeNote?.color || 'var(--primary)' }} /> {activeNote?.lastUpdated || '-'}
+                                                <Clock size={14} style={{ color: activeNote?.color || 'var(--primary)' }} /> {activeNote?.lastUpdated || activeNote?.last_updated || new Date().toLocaleString('id-ID')}
                                             </div>
                                         </div>
 
@@ -628,7 +653,7 @@ const CatatanKerja = () => {
                                         <textarea
                                             ref={titleRef}
                                             rows="1"
-                                            value={activeNote?.title}
+                                            value={activeNote?.title || ''}
                                             onChange={e => {
                                                 handleUpdateNote('title', e.target.value);
                                                 e.target.style.height = 'auto';
@@ -655,7 +680,7 @@ const CatatanKerja = () => {
                                             padding: '0'
                                         }}>
                                             <textarea
-                                                value={activeNote?.content}
+                                                value={activeNote?.content || ''}
                                                 onChange={e => handleUpdateNote('content', e.target.value)}
                                                 placeholder="Mulailah mengetik ide brilianmu di sini..."
                                                 style={{
