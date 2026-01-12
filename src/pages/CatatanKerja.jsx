@@ -86,7 +86,7 @@ const CatatanKerja = () => {
                     .from('notes')
                     .select('*')
                     .eq('user_id', user.username)
-                    .order('id', { ascending: true });
+                    .order('id', { ascending: false });
 
                 if (fetchError) throw fetchError;
 
@@ -429,30 +429,32 @@ const CatatanKerja = () => {
                 {isModalOpen && (
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 1000,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        padding: isMobile ? '10px' : '20px',
-                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)'
+                        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                        padding: '40px 20px',
+                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+                        overflowY: 'auto'
                     }}>
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ duration: 0.2 }}
                             style={{
                                 width: '100%', maxWidth: '1100px',
-                                height: isMobile ? '100dvh' : '90vh', // Use dvh for mobile address bars
+                                height: '85vh',
                                 background: '#0b1120',
-                                border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: isMobile ? '0' : '32px',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '32px',
                                 overflow: 'hidden', display: 'flex',
-                                boxShadow: '0 30px 60px rgba(0,0,0,0.6)'
+                                boxShadow: '0 30px 60px rgba(0,0,0,0.6)',
+                                position: 'relative'
                             }}
                         >
                             {/* Editor Sidebar (Meta Data) */}
                             <div className="note-sidebar" style={{
                                 width: '300px', borderRight: '1px solid rgba(255,255,255,0.05)',
-                                background: 'rgba(255,255,255,0.02)', padding: '40px 24px',
-                                display: 'flex', flexDirection: 'column', gap: '32px'
+                                background: 'rgba(255,255,255,0.02)', padding: '24px 20px',
+                                display: 'flex', flexDirection: 'column', gap: '20px'
                             }}>
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
@@ -579,8 +581,8 @@ const CatatanKerja = () => {
                                 </div>
 
                                 {/* Flexible Canvas */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '10px 60px' }} className="editor-scrollbar">
-                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '0px 60px' }} className="editor-scrollbar">
+                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {/* Title Area - Auto Resizing Textarea */}
                                         <textarea
                                             ref={titleRef}
