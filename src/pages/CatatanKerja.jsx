@@ -23,46 +23,35 @@ const NOTE_COLORS = [
 
 const CatatanKerja = () => {
     const { user } = useAuth();
-    // Key localStorage yang unik per user
     const [notes, setNotes] = useState([]);
-    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
-
-    // Initial Load based on USER
-    useEffect(() => {
-        if (user?.username) {
-            // Reset state untuk menghindari data bocor dari user sebelumnya
-            setNotes([]);
-            setIsInitialLoaded(false);
-
-            const saved = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-            if (saved && saved !== 'undefined' && saved !== 'null') {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed)) {
-                        setNotes(parsed);
-                    } else {
-                        setNotes([]);
-                    }
-                } catch (e) {
-                    console.error("Failed to parse local notes:", e);
-                    setNotes([]);
-                }
-            } else {
-                setNotes([]);
-            }
-            setIsInitialLoaded(true);
-        } else {
-            setNotes([]);
-            setIsInitialLoaded(false);
-        }
-    }, [user?.username]);
-
     const [activeNote, setActiveNote] = useState(null);
     const [search, setSearch] = useState('');
-    const [saveStatus, setSaveStatus] = useState('Terurai Otomatis');
+    const [saveStatus, setSaveStatus] = useState('Standby');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+    const [isInitialLoaded, setIsInitialLoaded] = useState(false);
 
+    // Initial load from localStorage ONLY
+    useEffect(() => {
+        if (!user?.username) return;
+
+        const loadLocal = () => {
+            try {
+                const saved = localStorage.getItem(`app_catatan_kerja_${user.username}`);
+                if (saved && saved !== 'undefined' && saved !== 'null') {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) setNotes(parsed);
+                }
+            } catch (e) {
+                console.error("Local load error:", e);
+            }
+            setIsInitialLoaded(true);
+        };
+
+        loadLocal();
+    }, [user?.username]);
+
+    // Resize listener
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth <= 1024);
         window.addEventListener('resize', handleResize);
@@ -72,23 +61,13 @@ const CatatanKerja = () => {
     const timerRef = useRef(null);
     const titleRef = useRef(null);
 
-    // Auto-resize title when modal opens or note changes
+    // Sync with Cloud
     useEffect(() => {
-        if (isModalOpen && titleRef.current) {
-            titleRef.current.style.height = 'auto';
-            titleRef.current.style.height = titleRef.current.scrollHeight + 'px';
-        }
-    }, [isModalOpen, activeNote?.id]);
+        if (!supabase || !user?.username || !isInitialLoaded) return;
 
-    // Unified Initial Load & Sync Logic
-    useEffect(() => {
-        if (!supabase || !user?.username) return;
-
-        const syncProcess = async () => {
+        const syncWithCloud = async () => {
             setSaveStatus('Sinkronisasi...');
-
             try {
-                // 1. Fetch Cloud Data
                 const { data: cloudData, error: fetchError } = await supabase
                     .from('notes')
                     .select('*')
@@ -97,85 +76,120 @@ const CatatanKerja = () => {
 
                 if (fetchError) throw fetchError;
 
-                // 2. Get local data immediately (fresh from storage to avoid closure issues)
-                const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-                let localData = [];
-                if (savedLocal && savedLocal !== 'undefined' && savedLocal !== 'null') {
-                    try {
-                        const parsed = JSON.parse(savedLocal);
-                        if (Array.isArray(parsed)) localData = parsed;
-                    } catch (e) { console.error("Local parse error:", e); }
-                }
-
-                if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
-                    const finalData = cloudData.map(n => {
-                        // Fallback: If cloud has no color (schema outdated), use local color
-                        const localMatch = localData.find(l => l.id === n.id);
-                        return {
-                            ...n,
-                            color: n.color || localMatch?.color || NOTE_COLORS[0]
-                        };
-                    });
-                    setNotes(finalData);
-                    localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(finalData));
+                if (cloudData && Array.isArray(cloudData)) {
+                    // Update notes if cloud has data or if it's empty but we expect sync
+                    setNotes(cloudData.map(n => ({
+                        ...n,
+                        color: n.color || '#3b82f6'
+                    })));
                     setSaveStatus('Awan Terhubung');
-                } else if (localData && localData.length > 0) {
-                    // Cloud is empty but local has data - Back up to cloud
-                    setSaveStatus('Mencadangkan...');
-                    setNotes(localData);
-                    const syncPromises = localData.map(n => syncToCloud(n));
-                    await Promise.all(syncPromises);
-                    setSaveStatus('Awan Terhubung');
-                } else {
-                    setNotes([]);
-                    setSaveStatus('Awan Kosong');
                 }
-
-                setIsInitialLoaded(true);
             } catch (err) {
-                console.error("Sync Error:", err);
+                console.error("Cloud Sync Error:", err);
                 setSaveStatus('Mode Offline');
-                const savedLocal = localStorage.getItem(`app_catatan_kerja_${user.username}`);
-                if (savedLocal && savedLocal !== 'undefined' && savedLocal !== 'null') {
-                    try {
-                        const parsed = JSON.parse(savedLocal);
-                        if (Array.isArray(parsed)) setNotes(parsed);
-                        else setNotes([]);
-                    } catch (e) { setNotes([]); }
-                } else {
-                    setNotes([]);
-                }
-                setIsInitialLoaded(true);
             }
         };
 
-        syncProcess();
+        syncWithCloud();
 
+        // Realtime
         const channel = supabase
-            .channel(`notes_${user.username}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'notes',
-                filter: `user_id=eq.${user.username}`
-            }, (payload) => {
-                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                    setNotes(prev => {
-                        const current = Array.isArray(prev) ? prev : [];
-                        const exists = current.find(n => n.id === payload.new.id);
-                        if (exists) return current.map(n => n.id === payload.new.id ? payload.new : n);
-                        return [...current, payload.new];
-                    });
-                } else if (payload.eventType === 'DELETE') {
-                    setNotes(prev => Array.isArray(prev) ? prev.filter(n => n.id !== payload.old.id) : []);
-                }
-            })
+            .channel(`notes_rt_${user.username}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${user.username}` },
+                (payload) => {
+                    const updatedNote = payload.new;
+                    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        setNotes(prev => {
+                            const exists = prev.find(n => n.id === updatedNote.id);
+                            if (exists) return prev.map(n => n.id === updatedNote.id ? updatedNote : n);
+                            return [...prev, updatedNote];
+                        });
+                    } else if (payload.eventType === 'DELETE') {
+                        setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+                    }
+                })
             .subscribe();
 
-        return () => {
-            supabase.removeChannel(channel);
+        return () => { supabase.removeChannel(channel); };
+    }, [user?.username, isInitialLoaded]);
+
+    // Auto-save to localStorage
+    useEffect(() => {
+        if (!user?.username || !isInitialLoaded) return;
+        localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
+    }, [notes, user?.username, isInitialLoaded]);
+
+    // Auto-resize title when modal opens or note changes
+    useEffect(() => {
+        if (isModalOpen && titleRef.current) {
+            titleRef.current.style.height = 'auto';
+            titleRef.current.style.height = titleRef.current.scrollHeight + 'px';
+        }
+    }, [isModalOpen, activeNote?.id]);
+
+    // Simplified UI control functions
+    const openNoteModal = (note) => {
+        if (!note) return;
+        setActiveNote({ ...note });
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setActiveNote(null);
+    };
+
+    const syncToCloud = async (note) => {
+        if (!supabase || !user) return;
+        setSaveStatus('Menyimpan...');
+        const { error } = await supabase.from('notes').upsert({
+            id: note.id,
+            user_id: user.username,
+            title: note.title,
+            content: note.content,
+            date: note.date,
+            color: note.color || '#3b82f6',
+            last_updated: new Date().toISOString()
+        });
+        if (!error) setSaveStatus('Tersimpan');
+        else setSaveStatus('Gagal Sync');
+    };
+
+    const handleUpdateNote = (field, value) => {
+        if (!activeNote) return;
+        const updated = { ...activeNote, [field]: value, lastUpdated: new Date().toLocaleString('id-ID') };
+        setActiveNote(updated);
+
+        setNotes(prev => Array.isArray(prev) ? prev.map(n => n.id === updated.id ? updated : n) : [updated]);
+
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => syncToCloud(updated), 1000);
+    };
+
+    const addNewNote = () => {
+        const newNote = {
+            id: Date.now(),
+            title: '',
+            content: '',
+            date: new Date().toLocaleDateString('id-ID'),
+            color: '#3b82f6',
+            lastUpdated: new Date().toLocaleString('id-ID')
         };
-    }, [user?.username]);
+        setNotes(prev => [newNote, ...(Array.isArray(prev) ? prev : [])]);
+        setActiveNote(newNote);
+        setIsModalOpen(true);
+        syncToCloud(newNote);
+    };
+
+    const deleteNote = async (id, e) => {
+        if (e) e.stopPropagation();
+        if (!window.confirm('Hapus?')) return;
+
+        setNotes(prev => prev.filter(n => n.id !== id));
+        if (activeNote?.id === id) closeModal();
+
+        if (supabase) await supabase.from('notes').delete().eq('id', id);
+    };
 
     // Lock scroll when modal is open
     useEffect(() => {
@@ -192,97 +206,6 @@ const CatatanKerja = () => {
             if (mainElement) mainElement.style.overflow = 'auto';
         };
     }, [isModalOpen]);
-
-    // Local Backup & Cloud Sync
-    useEffect(() => {
-        if (!user?.username || !isInitialLoaded) return;
-        localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
-    }, [notes, user?.username, isInitialLoaded]);
-
-    const syncToCloud = async (note) => {
-        if (!supabase || !user) return;
-
-        setSaveStatus('Menyimpan ke Awan...');
-        const { error } = await supabase.from('notes').upsert({
-            id: note.id,
-            user_id: user.username, // Wajib menggunakan username, tidak ada guest
-            title: note.title,
-            content: note.content,
-            date: note.date,
-            status: note.status || 'Draft',
-            importance: note.importance || 'Normal',
-            color: note.color, // Add color persistence
-            last_updated: new Date().toISOString() // Use standard ISO for DB
-        });
-
-        if (!error) setSaveStatus('Tersimpan di Awan');
-        else setSaveStatus('Gagal Sync Antar Perangkat');
-    };
-
-    const handleUpdateNote = (field, value) => {
-        if (!activeNote) return;
-
-        // Optimistic UI Update
-        const updatedNote = { ...activeNote, [field]: value, lastUpdated: new Date().toLocaleString('id-ID') };
-        setActiveNote(updatedNote);
-
-        setNotes(prevNotes =>
-            prevNotes.map(n => n.id === updatedNote.id ? updatedNote : n)
-        );
-
-        // Debounce Sync
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-            syncToCloud(updatedNote);
-        }, 1000);
-    };
-
-    const addNewNote = async () => {
-        const newNote = {
-            id: Date.now(),
-            title: '',
-            content: '',
-            date: new Date().toLocaleDateString('id-ID'),
-            status: 'Draft',
-            importance: 'Normal',
-            color: NOTE_COLORS[0],
-            lastUpdated: new Date().toLocaleString('id-ID')
-        };
-
-        setNotes(prev => {
-            const current = Array.isArray(prev) ? prev : [];
-            return [...current, newNote];
-        });
-        setActiveNote(newNote);
-        setIsModalOpen(true);
-        syncToCloud(newNote); // Sync creation immediately
-    };
-
-    const deleteNote = async (id, e) => {
-        if (e) e.stopPropagation();
-        if (window.confirm('Hapus catatan ini secara permanen?')) {
-            setNotes(prevNotes => Array.isArray(prevNotes) ? prevNotes.filter(n => n.id !== id) : []);
-
-            if (activeNote && activeNote.id === id) {
-                setActiveNote(null);
-                setIsModalOpen(false);
-            }
-
-            if (supabase) {
-                await supabase.from('notes').delete().eq('id', id);
-            }
-        }
-    };
-
-    const openNoteModal = (note) => {
-        setActiveNote(note);
-        setIsModalOpen(true);
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setActiveNote(null);
-    };
 
     const filteredNotes = Array.isArray(notes) ? notes.filter(n =>
         (n.title || '').toLowerCase().includes(search.toLowerCase()) ||
