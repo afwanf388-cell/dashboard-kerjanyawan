@@ -86,7 +86,7 @@ const CatatanKerja = () => {
                     .from('notes')
                     .select('*')
                     .eq('user_id', user.username)
-                    .order('id', { ascending: false });
+                    .order('id', { ascending: true });
 
                 if (fetchError) throw fetchError;
 
@@ -210,7 +210,7 @@ const CatatanKerja = () => {
             lastUpdated: new Date().toLocaleString('id-ID')
         };
 
-        setNotes(prev => [newNote, ...prev]);
+        setNotes(prev => [...prev, newNote]);
         setActiveNote(newNote);
         setIsModalOpen(true);
         syncToCloud(newNote); // Sync creation immediately

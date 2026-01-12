@@ -798,8 +798,8 @@ const KesalahanStaf = () => {
         );
     });
 
-    // Urutkan berdasarkan yang terbaru (ID descending)
-    const displayedMistakes = [...filteredMistakes].sort((a, b) => b.id - a.id);
+    // Urutkan berdasarkan yang terlama (ID ascending)
+    const displayedMistakes = [...filteredMistakes].sort((a, b) => a.id - b.id);
 
     const getSeverityColor = (sev) => {
         switch (sev) {
@@ -1338,8 +1338,8 @@ const KesalahanStaf = () => {
                         return acc;
                     }, {});
 
-                    // Sort dates descending (newest first)
-                    const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
+                    // Sort dates ascending (oldest first)
+                    const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(a) - new Date(b));
 
                     // Slice for performance (Virtualization lite)
                     const totalFound = sortedDates.reduce((sum, d) => sum + groupedByDate[d].length, 0);
