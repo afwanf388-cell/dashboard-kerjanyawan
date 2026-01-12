@@ -163,13 +163,17 @@ const CatatanKerja = () => {
 
     // Lock scroll when modal is open
     useEffect(() => {
+        const mainElement = document.querySelector('main');
         if (isModalOpen) {
             document.body.style.overflow = 'hidden';
+            if (mainElement) mainElement.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
+            if (mainElement) mainElement.style.overflow = 'auto';
         }
         return () => {
             document.body.style.overflow = 'unset';
+            if (mainElement) mainElement.style.overflow = 'auto';
         };
     }, [isModalOpen]);
 
@@ -452,12 +456,12 @@ const CatatanKerja = () => {
                             top: 0, left: 0, right: 0, bottom: 0,
                             zIndex: 99999,
                             display: 'flex',
-                            alignItems: isMobile ? 'flex-start' : 'center',
+                            alignItems: 'center', // Always center for stability
                             justifyContent: 'center',
                             padding: isMobile ? '0' : '20px',
                             background: 'rgba(2, 6, 23, 0.95)',
                             backdropFilter: 'blur(20px)',
-                            overflowY: 'auto'
+                            overflow: 'hidden' // Overlay doesn't need to scroll, internal does
                         }}
                         onClick={closeModal}
                     >
@@ -470,8 +474,7 @@ const CatatanKerja = () => {
                             style={{
                                 width: '100%',
                                 maxWidth: '1200px',
-                                minHeight: isMobile ? '100dvh' : 'auto',
-                                height: isMobile ? 'auto' : '85vh',
+                                height: isMobile ? '100dvh' : '90vh', // Fixed height is safer
                                 background: '#0b1120',
                                 border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.1)',
                                 borderRadius: isMobile ? '0' : '32px',
@@ -479,12 +482,13 @@ const CatatanKerja = () => {
                                 display: 'flex',
                                 flexDirection: isMobile ? 'column' : 'row',
                                 boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
-                                transform: 'translateZ(0)' // Force GPU
+                                position: 'relative'
                             }}
                         >
                             {/* Editor Sidebar (Meta Data) */}
                             <div className="note-sidebar" style={{
                                 width: isMobile ? '100%' : '320px',
+                                minHeight: isMobile ? 'auto' : '100%', // Prevent collapse
                                 borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
                                 borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
                                 background: 'rgba(255,255,255,0.02)',
@@ -492,7 +496,8 @@ const CatatanKerja = () => {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: '20px',
-                                flexShrink: 0
+                                flexShrink: 0,
+                                overflowY: isMobile ? 'visible' : 'auto'
                             }}>
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
