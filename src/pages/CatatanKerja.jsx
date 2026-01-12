@@ -66,12 +66,6 @@ const CatatanKerja = () => {
     const timerRef = useRef(null);
     const titleRef = useRef(null);
 
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth <= 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
     // Auto-resize title when modal opens or note changes
     useEffect(() => {
         if (isModalOpen && titleRef.current) {
@@ -449,39 +443,43 @@ const CatatanKerja = () => {
 
             {/* PRO Modal Editor - Ultra Premium Re-Design */}
             <AnimatePresence>
-                {isModalOpen && (
-                    <div
+                {isModalOpen && activeNote && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         style={{
                             position: 'fixed',
                             top: 0, left: 0, right: 0, bottom: 0,
                             zIndex: 99999,
                             display: 'flex',
-                            alignItems: 'center', // Always center for stability
+                            alignItems: 'center',
                             justifyContent: 'center',
                             padding: isMobile ? '0' : '20px',
-                            background: 'rgba(2, 6, 23, 0.95)',
+                            background: 'rgba(0, 0, 0, 0.9)',
                             backdropFilter: 'blur(20px)',
-                            overflow: 'hidden' // Overlay doesn't need to scroll, internal does
+                            overflow: 'hidden'
                         }}
                         onClick={closeModal}
                     >
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
+                            key={activeNote.id}
+                            initial={{ opacity: 0, scale: 0.95, y: 30 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ duration: 0.2 }}
                             onClick={e => e.stopPropagation()}
                             style={{
                                 width: '100%',
                                 maxWidth: '1200px',
-                                height: isMobile ? '100dvh' : '90vh', // Fixed height is safer
-                                background: '#0b1120',
-                                border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: isMobile ? '0' : '32px',
+                                height: isMobile ? '100%' : '85vh',
+                                background: '#111827',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: isMobile ? '0' : '24px',
                                 overflow: 'hidden',
                                 display: 'flex',
                                 flexDirection: isMobile ? 'column' : 'row',
-                                boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+                                boxShadow: '0 50px 100px rgba(0,0,0,0.8)',
                                 position: 'relative'
                             }}
                         >
@@ -675,28 +673,53 @@ const CatatanKerja = () => {
                                 </div>
 
                                 {/* Mobile Bottom Action Bar */}
-                                <div className="note-mobile-footer" style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(15, 23, 42, 0.8)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', flexDir: 'column' }}>
-                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>KARAKTER</span>
-                                            <span style={{ fontSize: '14px', fontWeight: '800' }}>{getNoteStats(activeNote?.content).chars}</span>
+                                <div className="note-mobile-footer" style={{
+                                    padding: '16px 20px',
+                                    borderTop: '1px solid rgba(255,255,255,0.08)',
+                                    background: '#0b1224',
+                                    zIndex: 10
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800' }}>KARAKTER</span>
+                                            <span style={{ fontSize: '14px', fontWeight: '900', color: 'white' }}>{getNoteStats(activeNote?.content).chars}</span>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                        <div style={{ display: 'flex', gap: '10px', flex: 1, justifyContent: 'flex-end' }}>
                                             <button
                                                 onClick={() => {
                                                     syncToCloud(activeNote);
                                                     setSaveStatus('Tersimpan Manual');
                                                     setTimeout(() => closeModal(), 500);
                                                 }}
-                                                style={{ padding: '10px 20px', background: activeNote?.color || 'var(--primary)', border: 'none', borderRadius: '12px', color: 'white', fontWeight: '800', fontSize: '13px' }}
+                                                style={{
+                                                    padding: '12px 20px',
+                                                    background: activeNote?.color || 'var(--primary)',
+                                                    border: 'none',
+                                                    borderRadius: '14px',
+                                                    color: 'white',
+                                                    fontWeight: '800',
+                                                    fontSize: '13px',
+                                                    flex: 1,
+                                                    maxWidth: '120px',
+                                                    boxShadow: `0 4px 15px ${(activeNote?.color || '#3b82f6')}40`
+                                                }}
                                             >
                                                 Simpan
                                             </button>
                                             <button
                                                 onClick={() => deleteNote(activeNote?.id)}
-                                                style={{ padding: '10px 20px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '12px', color: '#ef4444', fontWeight: '800', fontSize: '13px' }}
+                                                style={{
+                                                    padding: '12px 16px',
+                                                    background: 'rgba(239, 68, 68, 0.1)',
+                                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                    borderRadius: '14px',
+                                                    color: '#ef4444',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
                                             >
-                                                Hapus
+                                                <Trash2 size={18} />
                                             </button>
                                         </div>
                                     </div>
@@ -725,7 +748,7 @@ const CatatanKerja = () => {
                                 }
                             `}</style>
                         </motion.div>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 

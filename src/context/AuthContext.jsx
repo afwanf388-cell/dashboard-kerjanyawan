@@ -7,12 +7,14 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem('dashboard_user');
+      console.log('AuthContext: Loading saved user from localStorage:', savedUser ? 'Found' : 'Not found');
       if (savedUser && savedUser !== 'undefined' && savedUser !== 'null') {
-        return JSON.parse(savedUser);
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') return parsed;
       }
     } catch (e) {
-      console.error('Failed to parse saved user:', e);
-      localStorage.removeItem('dashboard_user');
+      console.error('AuthContext: Failed to parse saved user:', e);
+      try { localStorage.removeItem('dashboard_user'); } catch (err) { }
     }
     return null;
   });
@@ -42,15 +44,19 @@ export const AuthProvider = ({ children }) => {
             status: data.status
           };
 
-          // Only update if something actually changed
-          if (JSON.stringify(updatedUser) !== JSON.stringify(user)) {
-            console.log('Profile synced from cloud');
+          // Only update if something actually changed and we have valid data
+          if (data && JSON.stringify(updatedUser) !== JSON.stringify(user)) {
+            console.log('AuthContext: Profile synced from cloud');
             setUser(updatedUser);
-            localStorage.setItem('dashboard_user', JSON.stringify(updatedUser));
+            try {
+              localStorage.setItem('dashboard_user', JSON.stringify(updatedUser));
+            } catch (storageErr) {
+              console.error('AuthContext: Failed to save synced user to localStorage:', storageErr);
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to sync profile from cloud:', err);
+        console.error('AuthContext: Failed to sync profile from cloud:', err);
       }
     };
 
@@ -58,8 +64,28 @@ export const AuthProvider = ({ children }) => {
   }, [user?.id]);
 
   const login = (userData) => {
+    console.log('AuthContext: Logging in user:', userData.username);
     setUser(userData);
-    localStorage.setItem('dashboard_user', JSON.stringify(userData));
+    try {
+      localStorage.setItem('dashboard_user', JSON.stringify(userData));
+    } catch (e) {
+      console.error('AuthContext: Quota full! Retrying with essential data only.', e);
+      if (e.name === 'QuotaExceededError') {
+        // Fallback: Simpan data penting saja (tanpa foto/background raksasa) biar tetep bisa login
+        const essentialData = {
+          id: userData.id,
+          username: userData.username,
+          role: userData.role,
+          displayName: userData.displayName
+        };
+        try {
+          localStorage.setItem('dashboard_user', JSON.stringify(essentialData));
+          console.warn('AuthContext: Session saved without images due to storage limit.');
+        } catch (innerErr) {
+          console.error('AuthContext: Critical storage failure!', innerErr);
+        }
+      }
+    }
   };
 
   const logout = () => {
@@ -69,8 +95,23 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = async (newUserData) => {
     const updatedUser = { ...user, ...newUserData };
+    console.log('AuthContext: Updating user profile');
     setUser(updatedUser);
-    localStorage.setItem('dashboard_user', JSON.stringify(updatedUser));
+    try {
+      localStorage.setItem('dashboard_user', JSON.stringify(updatedUser));
+    } catch (e) {
+      console.error('AuthContext: Failed to save updated user to localStorage:', e);
+      if (e.name === 'QuotaExceededError') {
+        // Fallback: Update hanya data text jika storage penuh
+        const essentialData = { ...updatedUser };
+        delete essentialData.avatar;
+        delete essentialData.bgImage;
+        try {
+          localStorage.setItem('dashboard_user', JSON.stringify(essentialData));
+          alert('Penyimpanan browser penuh min! Foto profil/background gagal disimpan di lokal, tapi profil di cloud (database) tetap aman. Coba pakai gambar yang lebih kecil ya.');
+        } catch (innerErr) { }
+      }
+    }
 
     // Sync with Supabase if online
     if (supabase && updatedUser?.id) {
@@ -86,10 +127,10 @@ export const AuthProvider = ({ children }) => {
           .eq('id', updatedUser.id);
 
         if (error) {
-          console.error('Supabase update error:', error);
+          console.error('AuthContext: Supabase update error:', error);
         }
       } catch (err) {
-        console.error('Failed to sync profile to cloud:', err);
+        console.error('AuthContext: Failed to sync profile to cloud:', err);
       }
     }
   };
