@@ -579,8 +579,8 @@ const CatatanKerja = () => {
                                 </div>
 
                                 {/* Flexible Canvas */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '24px 20px' : '40px 60px' }} className="editor-scrollbar">
-                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? '20px' : '32px' }}>
+                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '10px 60px' }} className="editor-scrollbar">
+                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {/* Title Area - Auto Resizing Textarea */}
                                         <textarea
                                             ref={titleRef}
@@ -605,26 +605,24 @@ const CatatanKerja = () => {
                                             }}
                                         />
 
-                                        {/* Content Area */}
+                                        {/* Content Area - Seamless Integration */}
                                         <div style={{
                                             position: 'relative',
-                                            background: 'rgba(255,255,255,0.01)',
-                                            borderRadius: '20px',
-                                            padding: isMobile ? '20px' : '32px',
-                                            border: '1px solid rgba(255,255,255,0.05)',
-                                            minHeight: isMobile ? '300px' : '400px',
-                                            boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.2)'
+                                            width: '100%',
+                                            padding: '0'
                                         }}>
                                             <textarea
                                                 value={activeNote?.content}
                                                 onChange={e => handleUpdateNote('content', e.target.value)}
                                                 placeholder="Mulailah mengetik ide brilianmu di sini..."
                                                 style={{
-                                                    width: '100%', height: '100%', minHeight: isMobile ? '260px' : '350px',
+                                                    width: '100%',
+                                                    minHeight: isMobile ? '400px' : '500px',
                                                     background: 'transparent', border: 'none',
-                                                    fontSize: isMobile ? '16px' : '17px',
-                                                    color: 'rgba(255,255,255,0.8)',
-                                                    outline: 'none', resize: 'none', lineHeight: '1.6'
+                                                    fontSize: isMobile ? '16px' : '18px',
+                                                    color: 'rgba(255,255,255,0.85)',
+                                                    outline: 'none', resize: 'none', lineHeight: '1.6',
+                                                    paddingBottom: '100px' // Ruang ekstra di bawah agar nyaman mengetik
                                                 }}
                                             />
                                         </div>
