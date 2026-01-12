@@ -55,7 +55,14 @@ const CatatanKerja = () => {
     const [search, setSearch] = useState('');
     const [saveStatus, setSaveStatus] = useState('Terurai Otomatis');
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const timerRef = useRef(null);
     const titleRef = useRef(null);
 
@@ -440,37 +447,52 @@ const CatatanKerja = () => {
             <AnimatePresence>
                 {isModalOpen && (
                     <div
-                        id="note-modal-overlay"
                         style={{
-                            position: 'fixed', inset: 0, zIndex: 10000,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: isMobile ? '10px' : '20px',
-                            background: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(15px)',
-                            overflowY: 'auto',
-                            WebkitOverflowScrolling: 'touch'
+                            position: 'fixed',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            zIndex: 99999,
+                            display: 'flex',
+                            alignItems: isMobile ? 'flex-start' : 'center',
+                            justifyContent: 'center',
+                            padding: isMobile ? '0' : '20px',
+                            background: 'rgba(2, 6, 23, 0.95)',
+                            backdropFilter: 'blur(20px)',
+                            overflowY: 'auto'
                         }}
+                        onClick={closeModal}
                     >
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             transition={{ duration: 0.2 }}
+                            onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: '1100px',
-                                height: '85vh',
+                                width: '100%',
+                                maxWidth: '1200px',
+                                minHeight: isMobile ? '100dvh' : 'auto',
+                                height: isMobile ? 'auto' : '85vh',
                                 background: '#0b1120',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '32px',
-                                overflow: 'hidden', display: 'flex',
-                                boxShadow: '0 30px 60px rgba(0,0,0,0.6)',
-                                position: 'relative'
+                                border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: isMobile ? '0' : '32px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: isMobile ? 'column' : 'row',
+                                boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
+                                transform: 'translateZ(0)' // Force GPU
                             }}
                         >
                             {/* Editor Sidebar (Meta Data) */}
                             <div className="note-sidebar" style={{
-                                width: '300px', borderRight: '1px solid rgba(255,255,255,0.05)',
-                                background: 'rgba(255,255,255,0.02)', padding: '24px 20px',
-                                display: 'flex', flexDirection: 'column', gap: '20px'
+                                width: isMobile ? '100%' : '320px',
+                                borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                                borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                                background: 'rgba(255,255,255,0.02)',
+                                padding: isMobile ? '20px' : '32px 24px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '20px',
+                                flexShrink: 0
                             }}>
                                 <div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
