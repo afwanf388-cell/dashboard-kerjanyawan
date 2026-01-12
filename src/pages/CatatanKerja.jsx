@@ -154,6 +154,18 @@ const CatatanKerja = () => {
         };
     }, [user?.username]);
 
+    // Lock scroll when modal is open
+    useEffect(() => {
+        if (isModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isModalOpen]);
+
     // Local Backup & Cloud Sync
     useEffect(() => {
         if (!user?.username || !isInitialLoaded) return;
@@ -427,13 +439,17 @@ const CatatanKerja = () => {
             {/* PRO Modal Editor - Ultra Premium Re-Design */}
             <AnimatePresence>
                 {isModalOpen && (
-                    <div style={{
-                        position: 'fixed', inset: 0, zIndex: 1000,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        padding: '20px',
-                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
-                        overflowY: 'auto'
-                    }}>
+                    <div
+                        id="note-modal-overlay"
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 10000,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: isMobile ? '10px' : '20px',
+                            background: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(15px)',
+                            overflowY: 'auto',
+                            WebkitOverflowScrolling: 'touch'
+                        }}
+                    >
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
