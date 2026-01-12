@@ -210,7 +210,7 @@ const CatatanKerja = () => {
             lastUpdated: new Date().toLocaleString('id-ID')
         };
 
-        setNotes(prev => [...prev, newNote]);
+        setNotes(prev => [newNote, ...prev]);
         setActiveNote(newNote);
         setIsModalOpen(true);
         syncToCloud(newNote); // Sync creation immediately
@@ -429,15 +429,15 @@ const CatatanKerja = () => {
                 {isModalOpen && (
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 1000,
-                        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
-                        padding: isMobile ? '0' : '20px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: isMobile ? '10px' : '20px',
                         background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)'
                     }}>
                         <motion.div
-                            initial={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 40 }}
-                            animate={isMobile ? { y: 0 } : { opacity: 1, scale: 1, y: 0 }}
-                            exit={isMobile ? { y: '100%' } : { opacity: 0, scale: 0.95, y: 30 }}
-                            transition={{ type: isMobile ? 'spring' : 'tween', damping: 25, stiffness: 300 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                             style={{
                                 width: '100%', maxWidth: '1100px',
                                 height: isMobile ? '100dvh' : '90vh', // Use dvh for mobile address bars

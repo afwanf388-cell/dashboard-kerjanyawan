@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Trash2, Search, Calendar, User, Link as LinkIcon,
@@ -58,16 +58,28 @@ const KesalahanStaf = () => {
     const [isAutoSync, setIsAutoSync] = useState(true);
     const [lastSyncTime, setLastSyncTime] = useState('-');
     const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+    const [isClearMode, setIsClearMode] = useState(false); // Flag to prevent auto-sync after clear
+    const clearModeRef = useRef(false); // Ref version for realtime callback access
 
     useEffect(() => {
         if (user?.username) {
-            setSheetUrl(localStorage.getItem(`staff_sheet_url_${user.username}`) || '');
+            const savedSheetUrl = localStorage.getItem(`staff_sheet_url_${user.username}`) || '';
+            setSheetUrl(savedSheetUrl);
+
+            // IMPORTANT: Only enable auto-sync if there's a sheet URL AND it was explicitly enabled
+            // If no sheet URL exists, auto-sync should be FALSE regardless of localStorage
             const savedAutoSync = localStorage.getItem(`staff_auto_sync_${user.username}`);
-            setIsAutoSync(savedAutoSync === null ? true : savedAutoSync === 'true');
+            const hasSheetUrl = savedSheetUrl.length > 0;
+
+            // Only auto-sync if: have URL AND (was explicitly true OR is first time with URL)
+            setIsAutoSync(hasSheetUrl && (savedAutoSync === 'true'));
+
             setLastSyncTime(localStorage.getItem(`staff_last_sync_${user.username}`) || '-');
+
+            console.log(`[Init] Sheet URL: ${savedSheetUrl ? 'EXISTS' : 'EMPTY'}, AutoSync: ${hasSheetUrl && savedAutoSync === 'true'}`);
         } else {
             setSheetUrl('');
-            setIsAutoSync(true);
+            setIsAutoSync(false); // Changed from true to false
             setLastSyncTime('-');
         }
     }, [user?.username]);
@@ -88,6 +100,12 @@ const KesalahanStaf = () => {
         if (!user) return;
 
         const syncProcess = async () => {
+            // CRITICAL: Check clearModeRef to prevent sync after clear
+            if (clearModeRef.current) {
+                console.log('[syncProcess] Skipped - Clear mode active');
+                return;
+            }
+
             setSyncStatus('Syncing...');
 
             try {
@@ -99,6 +117,12 @@ const KesalahanStaf = () => {
                     .order('id', { ascending: false });
 
                 if (fetchError) throw fetchError;
+
+                // Double-check clearMode before updating state
+                if (clearModeRef.current) {
+                    console.log('[syncProcess] Aborted mid-way - Clear mode active');
+                    return;
+                }
 
                 // 2. Load Local Data (fresh from storage)
                 const savedLocal = localStorage.getItem(`app_mistakes_${user.username}`);
@@ -117,13 +141,16 @@ const KesalahanStaf = () => {
                     setSyncStatus('Cloud Connected');
                 } else if (localData.length > 0) {
                     // Cloud empty but local has data - back up to cloud
-                    setSyncStatus('Backing up...');
-                    setMistakes(localData);
-                    // Push local items to cloud sequentially or in batch
-                    for (const m of localData) {
-                        await syncToCloud(m);
+                    // BUT only if NOT in clear mode
+                    if (!clearModeRef.current) {
+                        setSyncStatus('Backing up...');
+                        setMistakes(localData);
+                        // Push local items to cloud sequentially or in batch
+                        for (const m of localData) {
+                            await syncToCloud(m);
+                        }
+                        setSyncStatus('Cloud Connected');
                     }
-                    setSyncStatus('Cloud Connected');
                 } else {
                     setSyncStatus('Cloud Ready');
                 }
@@ -133,7 +160,7 @@ const KesalahanStaf = () => {
                 console.error("Sync Error:", err);
                 setSyncStatus('Offline Mode');
                 const savedLocal = localStorage.getItem(`app_mistakes_${user.username}`);
-                if (savedLocal) setMistakes(JSON.parse(savedLocal));
+                if (savedLocal && !clearModeRef.current) setMistakes(JSON.parse(savedLocal));
                 setIsInternalInitialLoaded(true);
             }
         };
@@ -148,7 +175,13 @@ const KesalahanStaf = () => {
                 table: 'staff_mistakes',
                 // filter removed to listen to all changes
             }, (payload) => {
+                // CRITICAL: Check clearModeRef before refreshing
+                if (clearModeRef.current) {
+                    console.log('[Realtime] Ignoring change - Clear mode active');
+                    return;
+                }
                 // Refresh data on any change
+                console.log('[Realtime] Detected change, syncing...');
                 syncProcess();
             })
             .subscribe();
@@ -645,7 +678,7 @@ const KesalahanStaf = () => {
 
         if (!isBackground && user?.username) {
             localStorage.setItem(`staff_sheet_url_${user.username}`, urlToUse);
-            localStorage.setItem(`staff_auto_sync_${user.username}`, isAutoSync);
+            localStorage.setItem(`staff_auto_sync_${user.username}`, String(isAutoSync)); // Ensure string
         }
 
         setIsLoadingSheet(true);
@@ -675,11 +708,18 @@ const KesalahanStaf = () => {
     };
 
     // NEW: Automatic Google Sheet Sync on Load
+    // IMPORTANT: Only run if NOT in clear mode
     useEffect(() => {
+        // Skip auto-sync if isClearMode is true (user just cleared data)
+        if (isClearMode) {
+            console.log('[Auto-Sync] Skipped - Clear mode active');
+            return;
+        }
         if (isAutoSync && isInternalInitialLoaded && user?.username && (sheetUrl || localStorage.getItem(`staff_sheet_url_${user.username}`))) {
+            console.log('[Auto-Sync] Running auto-sync from sheet...');
             handleImportFromUrl(true);
         }
-    }, [isInternalInitialLoaded, !!user?.username, !!sheetUrl]);
+    }, [isInternalInitialLoaded, !!user?.username, !!sheetUrl, isClearMode]);
 
     const handleDelete = (id) => {
         if (window.confirm('Hapus laporan kesalahan ini secara permanen?')) {
@@ -693,22 +733,38 @@ const KesalahanStaf = () => {
         setShowClearConfirm(false);
         setSyncStatus('Deleting All...');
 
+        // CRITICAL: Set clear mode FIRST to prevent any auto-sync from running
+        // Using BOTH state and ref to cover all scenarios (state for React, ref for callbacks)
+        clearModeRef.current = true;
+        setIsClearMode(true);
+        setIsAutoSync(false);
+        setSheetUrl('');
+
+
         // Delete ALL data from cloud (GLOBAL - since this feature is public)
         if (supabase) {
             try {
-                // Hapus SEMUA data dari cloud (tidak filter per user karena ini fitur publik)
-                const { error } = await supabase
+                // Hapus SEMUA data dari cloud menggunakan .gt('id', 0) untuk match semua ID positif
+                const { data: deletedData, error, count } = await supabase
                     .from('staff_mistakes')
                     .delete()
-                    .neq('id', 0); // Delete all rows (neq id 0 = match all)
+                    .gt('id', 0) // Delete all rows with id > 0 (all valid IDs)
+                    .select(); // Return deleted rows for verification
 
                 if (error) {
                     console.error('Error deleting from cloud:', error);
                     alert('Gagal hapus dari cloud: ' + error.message);
+                    clearModeRef.current = false;
+                    setIsClearMode(false);
                     return;
                 }
+
+                console.log(`[Clear All] Cloud data deleted successfully. Rows affected: ${deletedData?.length || 0}`);
             } catch (e) {
                 console.error('Cloud delete exception:', e);
+                clearModeRef.current = false;
+                setIsClearMode(false);
+                return;
             }
         }
 
@@ -725,14 +781,13 @@ const KesalahanStaf = () => {
         localStorage.removeItem('app_mistakes');
         localStorage.removeItem('staff_sheet_url');
 
-        // Reset ALL states including sheet URL to prevent auto-sync
+        // Reset ALL states - data is now empty
         setMistakes([]);
-        setSheetUrl(''); // Clear URL so auto-sync won't re-fetch
-        setIsAutoSync(false); // Disable auto-sync
         setLastSyncTime('-');
-        setSyncStatus('Data Cleared');
+        setSyncStatus('Data Cleared - Import Ulang Diperlukan');
 
-        alert('✅ Semua data berhasil dihapus! Auto-sync dinonaktifkan. Import ulang dari sheet jika diperlukan.');
+        console.log('[Clear All] All data cleared. Clear mode active to prevent re-sync.');
+        alert('✅ Semua data berhasil dihapus!\n\n⚠️ PENTING: Link Google Sheet juga dihapus. Jika ingin import ulang, masukkan kembali link sheet.');
     };
 
 
@@ -743,10 +798,8 @@ const KesalahanStaf = () => {
         );
     });
 
-    // Urutkan berdasarkan Nama Staf A-Z
-    const displayedMistakes = [...filteredMistakes].sort((a, b) =>
-        (a.staffName || '').localeCompare(b.staffName || '', 'en', { sensitivity: 'base' })
-    );
+    // Urutkan berdasarkan yang terbaru (ID descending)
+    const displayedMistakes = [...filteredMistakes].sort((a, b) => b.id - a.id);
 
     const getSeverityColor = (sev) => {
         switch (sev) {
@@ -1285,8 +1338,8 @@ const KesalahanStaf = () => {
                         return acc;
                     }, {});
 
-                    // Sort dates ascending (oldest first to match sheet flow: 1, 2, 3...)
-                    const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(a) - new Date(b));
+                    // Sort dates descending (newest first)
+                    const sortedDates = Object.keys(groupedByDate).sort((a, b) => new Date(b) - new Date(a));
 
                     // Slice for performance (Virtualization lite)
                     const totalFound = sortedDates.reduce((sum, d) => sum + groupedByDate[d].length, 0);
