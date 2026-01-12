@@ -429,8 +429,8 @@ const CatatanKerja = () => {
                 {isModalOpen && (
                     <div style={{
                         position: 'fixed', inset: 0, zIndex: 1000,
-                        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-                        padding: '40px 20px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '20px',
                         background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
                         overflowY: 'auto'
                     }}>
