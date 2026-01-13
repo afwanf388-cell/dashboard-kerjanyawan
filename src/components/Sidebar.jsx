@@ -202,32 +202,42 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
                             </div>
 
                             {/* Title & Badge */}
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
                                     <h1 style={{
-                                        fontSize: '18px', fontWeight: '900',
+                                        fontSize: isMobile ? '18px' : '18px',
+                                        fontWeight: '900',
                                         color: 'white',
                                         margin: 0,
+                                        fontFamily: "'Outfit', sans-serif",
                                         letterSpacing: '-0.5px',
-                                        textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                                        textShadow: `0 2px 15px rgba(${sidebarColor}, 0.5)`,
+                                        textTransform: 'uppercase'
                                     }}>PERSONAL</h1>
-                                    <span style={{
-                                        fontSize: '9px',
-                                        fontWeight: '950',
-                                        background: `rgb(${sidebarColor})`,
-                                        color: 'white',
-                                        padding: '2px 6px',
-                                        borderRadius: '6px',
-                                        letterSpacing: '0.5px',
-                                        boxShadow: `0 4px 8px rgba(${sidebarColor}, 0.3)`
-                                    }}>PRO</span>
+                                    <motion.span
+                                        animate={{ scale: [1, 1.1, 1] }}
+                                        transition={{ repeat: Infinity, duration: 2 }}
+                                        style={{
+                                            fontSize: '9px',
+                                            fontWeight: '950',
+                                            background: `linear-gradient(135deg, rgb(${sidebarColor}), rgba(${sidebarColor}, 0.7))`,
+                                            color: 'white',
+                                            padding: '2px 7px',
+                                            borderRadius: '6px',
+                                            letterSpacing: '1px',
+                                            boxShadow: `0 4px 12px rgba(${sidebarColor}, 0.4)`,
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            flexShrink: 0
+                                        }}>PRO</motion.span>
                                 </div>
                                 <p style={{
-                                    fontSize: '11px',
-                                    color: '#64748b',
-                                    margin: '2px 0 0 0',
+                                    fontSize: '10px',
+                                    color: 'rgba(255,255,255,0.3)',
+                                    margin: '1px 0 0 0',
                                     fontWeight: '700',
-                                    letterSpacing: '0.5px'
+                                    letterSpacing: '0.8px',
+                                    textTransform: 'uppercase',
+                                    whiteSpace: 'nowrap'
                                 }}>Management System</p>
                             </div>
                         </div>

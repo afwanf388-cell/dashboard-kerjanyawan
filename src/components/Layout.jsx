@@ -28,16 +28,29 @@ const Layout = () => {
     }, [isMobileOpen]);
 
     const [fontFamily, setFontFamily] = useState("'Inter', sans-serif");
+    const [themeColor, setThemeColor] = useState('59, 130, 246'); // Default Blue RGB
 
     useEffect(() => {
         if (user?.username) {
-            const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
-            if (saved) {
-                const settings = JSON.parse(saved);
-                if (settings.fontFamily) {
-                    setFontFamily(settings.fontFamily);
+            const updateSettings = () => {
+                const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    if (settings.fontFamily) {
+                        setFontFamily(settings.fontFamily);
+                    }
+                    if (settings.sidebarColor) {
+                        setThemeColor(settings.sidebarColor);
+                    }
                 }
-            }
+            };
+            updateSettings();
+            window.addEventListener('storage', updateSettings);
+            const interval = setInterval(updateSettings, 1000);
+            return () => {
+                window.removeEventListener('storage', updateSettings);
+                clearInterval(interval);
+            };
         }
     }, [user?.username]);
 
@@ -77,17 +90,41 @@ const Layout = () => {
                         position: 'fixed',
                         top: '16px',
                         left: '16px',
-                        zIndex: 1200, // Higher than Sidebar
-                        background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-                        border: 'none',
-                        padding: '12px',
-                        borderRadius: '12px',
+                        zIndex: 1200,
+                        width: '56px',
+                        height: '56px',
+                        background: isMobileOpen
+                            ? 'rgba(15, 23, 42, 0.6)'
+                            : `linear-gradient(135deg, rgb(${themeColor}), rgba(${themeColor}, 0.8))`,
+                        backdropFilter: 'blur(10px)',
+                        border: isMobileOpen
+                            ? '1px solid rgba(255,255,255,0.1)'
+                            : `1px solid rgba(${themeColor}, 0.3)`,
+                        borderRadius: '18px',
                         color: 'white',
-                        boxShadow: '0 4px 20px rgba(59, 130, 246, 0.4)',
-                        cursor: 'pointer'
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: isMobileOpen
+                            ? '0 10px 25px rgba(0,0,0,0.3)'
+                            : `0 10px 30px rgba(${themeColor}, 0.4), inset 0 0 15px rgba(255,255,255,0.2)`,
+                        cursor: 'pointer',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transform: isMobileOpen ? 'rotate(180deg)' : 'rotate(0deg)'
                     }}
                 >
-                    {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
+                    {isMobileOpen ? <X size={26} strokeWidth={2.5} /> : <Menu size={26} strokeWidth={2.5} />}
+                    {/* Pulsing Aura for Hamburger */}
+                    {!isMobileOpen && (
+                        <div style={{
+                            position: 'absolute',
+                            inset: '-4px',
+                            borderRadius: '22px',
+                            border: `2px solid rgba(${themeColor}, 0.4)`,
+                            filter: 'blur(4px)',
+                            animation: 'pulse 2s infinite'
+                        }} />
+                    )}
                 </button>
             )}
 
