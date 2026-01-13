@@ -312,8 +312,8 @@ const KesalahanStaf = () => {
             return 0;
         };
 
-        // AFWAN SPECIFIC ANALYTICS (Flexible matching)
-        const afwanThisPeriodMistakes = thisPeriodMistakes.filter(m => (m.staffName || '').toUpperCase().includes('AFWAN'));
+        // AFWAN FAUZI SPECIFIC ANALYTICS (Precise matching)
+        const afwanThisPeriodMistakes = thisPeriodMistakes.filter(m => (m.staffName || '').toUpperCase().includes('AFWAN FAUZI'));
         const afwanCount = afwanThisPeriodMistakes.length;
 
         const baseBonus = 30000000;
@@ -327,7 +327,7 @@ const KesalahanStaf = () => {
         });
         const topIssuesAfwan = Object.entries(afwanIssueCounts)
             .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count).slice(0, 4);
+            .sort((a, b) => b.count - a.count);
 
         // Core lists for table/bonus
         const staffList = Object.entries(staffSummary).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.count - a.count);
@@ -796,10 +796,10 @@ const KesalahanStaf = () => {
             (filters.staffName === '' || (m.staffName || '').toLowerCase().includes(filters.staffName.toLowerCase())) &&
             (filters.date === '' || m.date === filters.date)
         );
-    });
+    }).sort((a, b) => (a.staffName || '').localeCompare(b.staffName || ''));
 
-    // Urutkan berdasarkan yang terlama (ID ascending)
-    const displayedMistakes = [...filteredMistakes].sort((a, b) => a.id - b.id);
+    // Urutkan berdasarkan nama (A-Z)
+    const displayedMistakes = [...filteredMistakes];
 
     const getSeverityColor = (sev) => {
         switch (sev) {
@@ -1120,12 +1120,12 @@ const KesalahanStaf = () => {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-effect" style={{ padding: '24px', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(16, 185, 129, 0.05))' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                         <h4 style={{ fontSize: '16px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <ClipboardList size={18} color="#A855F7" /> Top Issues: AFWAN
+                            <ClipboardList size={18} color="#A855F7" /> Top Issues: AFWAN FAUZI
                         </h4>
                         <div style={{ padding: '4px 8px', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '8px', fontSize: '10px', color: '#A855F7', fontWeight: '800' }}>PERSONAL TRACKER</div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '200px', overflowY: 'auto', paddingRight: '6px' }}>
                         {performanceStats.topIssuesAfwan.length === 0 ? (
                             <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Belum ada data kesalahan untuk Afwan Fauzi.</div>
                         ) : (
@@ -1153,7 +1153,7 @@ const KesalahanStaf = () => {
 
                     <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <p style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', fontWeight: '600' }}>
-                            Tetap semangat min Afwan, evaluasi point di atas agar bonus tetap aman! 🔥
+                            Tetap semangat min Afwan Fauzi, evaluasi point di atas agar bonus tetap aman! 🔥
                         </p>
                     </div>
                 </motion.div>
