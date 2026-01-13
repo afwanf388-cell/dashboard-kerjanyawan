@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -842,452 +843,453 @@ const CatatanKerja = () => {
             </div>
 
             {/* PRO Modal Editor - Ultra Premium Re-Design */}
-            <AnimatePresence>
-                {isModalOpen && activeNote && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        style={{
-                            position: 'fixed',
-                            top: 0, left: 0, right: 0, bottom: 0,
-                            zIndex: 99999,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: isMobile ? '0' : '20px',
-                            background: 'rgba(0, 0, 0, 0.9)',
-                            backdropFilter: 'blur(20px)',
-                            overflow: 'hidden'
-                        }}
-                        onClick={closeModal}
-                    >
+            {createPortal(
+                <AnimatePresence>
+                    {isModalOpen && activeNote && (
                         <motion.div
-                            key={activeNote.id}
-                            initial={{ opacity: 0, scale: 0.95, y: 30 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            transition={{ duration: 0.2 }}
-                            onClick={e => e.stopPropagation()}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
                             style={{
-                                width: '100%',
-                                maxWidth: '1200px',
-                                height: isMobile ? '100%' : '85vh',
-                                background: '#111827',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: isMobile ? '0' : '24px',
-                                overflow: 'hidden',
+                                position: 'fixed',
+                                top: 0, left: 0, right: 0, bottom: 0,
+                                zIndex: 99999,
                                 display: 'flex',
-                                flexDirection: isMobile ? 'column' : 'row',
-                                boxShadow: '0 50px 100px rgba(0,0,0,0.8)',
-                                position: 'relative'
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: isMobile ? '0' : '20px',
+                                background: 'rgba(0, 0, 0, 0.9)',
+                                backdropFilter: 'blur(20px)',
+                                overflow: 'hidden'
                             }}
+                            onClick={closeModal}
                         >
-                            {/* Editor Sidebar (Meta Data) */}
-                            <div className="note-sidebar" style={{
-                                width: isMobile ? '100%' : '320px',
-                                minHeight: isMobile ? 'auto' : '100%', // Prevent collapse
-                                borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
-                                borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                                background: 'rgba(255,255,255,0.02)',
-                                padding: isMobile ? '20px' : '32px 24px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '20px',
-                                flexShrink: 0,
-                                overflowY: isMobile ? 'visible' : 'auto'
-                            }}>
-                                <div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                                        <div style={{
-                                            width: '40px', height: '40px', borderRadius: '12px',
-                                            background: activeNote?.color ? `${activeNote.color}20` : 'rgba(59,130,246,0.1)',
-                                            color: activeNote?.color || 'var(--primary)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            transition: 'all 0.3s ease'
-                                        }}>
-                                            <NotebookPen size={20} />
+                            <motion.div
+                                key={activeNote.id}
+                                initial={{ opacity: 0, scale: 0.95, y: 30 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                transition={{ duration: 0.2 }}
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                    width: '100%',
+                                    maxWidth: '1200px',
+                                    height: isMobile ? '100%' : '85vh',
+                                    background: '#111827',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: isMobile ? '0' : '24px',
+                                    overflow: 'hidden',
+                                    display: 'flex',
+                                    flexDirection: isMobile ? 'column' : 'row',
+                                    boxShadow: '0 50px 100px rgba(0,0,0,0.8)',
+                                    position: 'relative'
+                                }}
+                            >
+                                {/* Editor Sidebar (Meta Data) */}
+                                <div className="note-sidebar" style={{
+                                    width: isMobile ? '100%' : '320px',
+                                    minHeight: isMobile ? 'auto' : '100%', // Prevent collapse
+                                    borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                                    borderBottom: isMobile ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    padding: isMobile ? '20px' : '32px 24px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '20px',
+                                    flexShrink: 0,
+                                    overflowY: isMobile ? 'visible' : 'auto'
+                                }}>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                                            <div style={{
+                                                width: '40px', height: '40px', borderRadius: '12px',
+                                                background: activeNote?.color ? `${activeNote.color}20` : 'rgba(59,130,246,0.1)',
+                                                color: activeNote?.color || 'var(--primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                transition: 'all 0.3s ease'
+                                            }}>
+                                                <NotebookPen size={20} />
+                                            </div>
+                                            <h5 style={{ fontSize: '18px', fontWeight: '900', margin: 0, color: 'white', letterSpacing: '-0.5px' }}>Detail Catatan</h5>
                                         </div>
-                                        <h5 style={{ fontSize: '18px', fontWeight: '900', margin: 0, color: 'white', letterSpacing: '-0.5px' }}>Detail Catatan</h5>
-                                    </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>LAMPIRAN & BUKTI</label>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                <motion.button
-                                                    whileHover={{ scale: 1.02 }}
-                                                    onClick={scanForLinks}
-                                                    style={{
-                                                        padding: '12px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                        color: '#60a5fa', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                                                    }}
-                                                >
-                                                    <ScanLine size={16} /> Scan Link di Isi
-                                                </motion.button>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>LAMPIRAN & BUKTI</label>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.02 }}
+                                                        onClick={scanForLinks}
+                                                        style={{
+                                                            padding: '12px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                                                            color: '#60a5fa', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                                        }}
+                                                    >
+                                                        <ScanLine size={16} /> Scan Link di Isi
+                                                    </motion.button>
 
-                                                <div style={{
-                                                    maxHeight: '250px',
-                                                    overflowY: 'auto',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '8px',
-                                                    paddingRight: '4px'
-                                                }} className="editor-scrollbar">
-                                                    {(activeNote.attachments || []).length === 0 ? (
-                                                        <div style={{ padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px' }}>
-                                                            <Paperclip size={24} style={{ color: 'rgba(255,255,255,0.1)', marginBottom: '8px' }} />
-                                                            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', fontWeight: '600' }}>Belum ada lampiran</p>
-                                                        </div>
-                                                    ) : (
-                                                        activeNote.attachments.map(att => (
-                                                            <motion.div
-                                                                key={att.id}
-                                                                initial={{ scale: 0.9, opacity: 0 }}
-                                                                animate={{ scale: 1, opacity: 1 }}
-                                                                style={{
-                                                                    padding: '10px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
-                                                                    display: 'flex', flexDirection: 'column', gap: '10px'
-                                                                }}
-                                                            >
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: att.type === 'image' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: att.type === 'image' ? '#10b981' : '#3b82f6' }}>
-                                                                        {att.type === 'image' ? <ImageIcon size={16} /> : <Link2 size={16} />}
+                                                    <div style={{
+                                                        maxHeight: '250px',
+                                                        overflowY: 'auto',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '8px',
+                                                        paddingRight: '4px'
+                                                    }} className="editor-scrollbar">
+                                                        {(activeNote.attachments || []).length === 0 ? (
+                                                            <div style={{ padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px' }}>
+                                                                <Paperclip size={24} style={{ color: 'rgba(255,255,255,0.1)', marginBottom: '8px' }} />
+                                                                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', fontWeight: '600' }}>Belum ada lampiran</p>
+                                                            </div>
+                                                        ) : (
+                                                            activeNote.attachments.map(att => (
+                                                                <motion.div
+                                                                    key={att.id}
+                                                                    initial={{ scale: 0.9, opacity: 0 }}
+                                                                    animate={{ scale: 1, opacity: 1 }}
+                                                                    style={{
+                                                                        padding: '10px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+                                                                        display: 'flex', flexDirection: 'column', gap: '10px'
+                                                                    }}
+                                                                >
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: att.type === 'image' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: att.type === 'image' ? '#10b981' : '#3b82f6' }}>
+                                                                            {att.type === 'image' ? <ImageIcon size={16} /> : <Link2 size={16} />}
+                                                                        </div>
+                                                                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                                            <p style={{ fontSize: '11px', color: 'white', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{att.url}</p>
+                                                                            <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>{att.date}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const updated = activeNote.attachments.filter(a => a.id !== att.id);
+                                                                                handleUpdateNote('attachments', updated);
+                                                                            }}
+                                                                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                                                        >
+                                                                            <X size={14} />
+                                                                        </button>
                                                                     </div>
-                                                                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                                                                        <p style={{ fontSize: '11px', color: 'white', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{att.url}</p>
-                                                                        <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>{att.date}</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const updated = activeNote.attachments.filter(a => a.id !== att.id);
-                                                                            handleUpdateNote('attachments', updated);
-                                                                        }}
-                                                                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
-                                                                </div>
 
-                                                                {att.type === 'image' && (
-                                                                    <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                                        <img src={att.url} alt="preview" style={{ width: '100%', height: '80px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
-                                                                    </div>
-                                                                )}
+                                                                    {att.type === 'image' && (
+                                                                        <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                            <img src={att.url} alt="preview" style={{ width: '100%', height: '80px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+                                                                        </div>
+                                                                    )}
 
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                                                    <motion.a
-                                                                        href={att.url} target="_blank" rel="noopener noreferrer"
-                                                                        whileHover={{ background: 'rgba(255,255,255,0.08)' }}
-                                                                        style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', fontSize: '9px', fontWeight: '800', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                                                                    >
-                                                                        <ExternalLink size={10} /> BUKA
-                                                                    </motion.a>
-                                                                    <motion.button
-                                                                        onClick={() => copyToClipboard(att.url)}
-                                                                        whileHover={{ background: 'rgba(255,255,255,0.08)' }}
-                                                                        style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', border: 'none', fontSize: '9px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
-                                                                    >
-                                                                        <Copy size={10} /> SALIN
-                                                                    </motion.button>
-                                                                </div>
-                                                            </motion.div>
-                                                        ))
-                                                    )}
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                                        <motion.a
+                                                                            href={att.url} target="_blank" rel="noopener noreferrer"
+                                                                            whileHover={{ background: 'rgba(255,255,255,0.08)' }}
+                                                                            style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', fontSize: '9px', fontWeight: '800', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                                                        >
+                                                                            <ExternalLink size={10} /> BUKA
+                                                                        </motion.a>
+                                                                        <motion.button
+                                                                            onClick={() => copyToClipboard(att.url)}
+                                                                            whileHover={{ background: 'rgba(255,255,255,0.08)' }}
+                                                                            style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', border: 'none', fontSize: '9px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                                                        >
+                                                                            <Copy size={10} /> SALIN
+                                                                        </motion.button>
+                                                                    </div>
+                                                                </motion.div>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KONTROL CEPAT</label>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
+                                                        onClick={() => handleUpdateNote('isPinned', !activeNote.isPinned)}
+                                                        style={{ flex: 1, padding: '10px', borderRadius: '12px', background: activeNote.isPinned ? `${activeNote.color}20` : 'rgba(255,255,255,0.03)', border: `1px solid ${activeNote.isPinned ? activeNote.color : 'rgba(255,255,255,0.05)'}`, color: activeNote.isPinned ? activeNote.color : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <Pin size={14} fill={activeNote.isPinned ? activeNote.color : 'transparent'} /> {activeNote.isPinned ? 'Pinned' : 'Pin'}
+                                                    </motion.button>
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
+                                                        onClick={() => copyToClipboard(`${activeNote.title}\n\n${activeNote.content}`)}
+                                                        style={{ flex: 1, padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <Copy size={14} /> Salin
+                                                    </motion.button>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>PRIORITAS</label>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                                    {['Low', 'Medium', 'High'].map(p => (
+                                                        <button
+                                                            key={p}
+                                                            onClick={() => handleUpdateNote('priority', p)}
+                                                            style={{
+                                                                padding: '8px', borderRadius: '8px', fontSize: '10px', fontWeight: '900',
+                                                                background: activeNote.priority === p ? (p === 'High' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.1)') : 'rgba(255,255,255,0.02)',
+                                                                border: `1px solid ${activeNote.priority === p ? (p === 'High' ? '#ef4444' : 'white') : 'rgba(255,255,255,0.05)'}`,
+                                                                color: activeNote.priority === p ? 'white' : '#64748b',
+                                                                cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase'
+                                                            }}
+                                                        >
+                                                            {p}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KATEGORI</label>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                                                    {CATEGORIES.map(cat => (
+                                                        <button
+                                                            key={cat.label}
+                                                            onClick={() => handleUpdateNote('category', cat.label)}
+                                                            style={{
+                                                                padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+                                                                background: activeNote.category === cat.label ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)',
+                                                                border: `1px solid ${activeNote.category === cat.label ? 'white' : 'transparent'}`,
+                                                                color: activeNote.category === cat.label ? 'white' : '#64748b',
+                                                                cursor: 'pointer', transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            <cat.icon size={12} />
+                                                            <span style={{ fontSize: '11px', fontWeight: '700' }}>{cat.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* TEMPLATES */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>SMART TEMPLATES</label>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {TEMPLATES.map(tmp => (
+                                                        <button
+                                                            key={tmp.name}
+                                                            onClick={() => applyTemplate(tmp)}
+                                                            style={{
+                                                                padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+                                                                color: 'white', fontSize: '12px', fontWeight: '700', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
+                                                            }}
+                                                        >
+                                                            <FileText size={14} color={activeNote.color} />
+                                                            {tmp.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>WARNA TEMA</label>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {NOTE_COLORS.map(color => (
+                                                        <motion.div
+                                                            key={color}
+                                                            whileHover={{ scale: 1.2 }}
+                                                            whileTap={{ scale: 0.9 }}
+                                                            onClick={() => handleUpdateNote('color', color)}
+                                                            style={{
+                                                                width: '24px', height: '24px', borderRadius: '50%',
+                                                                background: color, cursor: 'pointer',
+                                                                border: activeNote?.color === color ? '3px solid white' : '2px solid transparent',
+                                                                boxShadow: activeNote?.color === color ? `0 0 10px ${color}` : 'none',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        />
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KONTROL CEPAT</label>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <motion.button
-                                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
-                                                    onClick={() => handleUpdateNote('isPinned', !activeNote.isPinned)}
-                                                    style={{ flex: 1, padding: '10px', borderRadius: '12px', background: activeNote.isPinned ? `${activeNote.color}20` : 'rgba(255,255,255,0.03)', border: `1px solid ${activeNote.isPinned ? activeNote.color : 'rgba(255,255,255,0.05)'}`, color: activeNote.isPinned ? activeNote.color : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
-                                                >
-                                                    <Pin size={14} fill={activeNote.isPinned ? activeNote.color : 'transparent'} /> {activeNote.isPinned ? 'Pinned' : 'Pin'}
-                                                </motion.button>
-                                                <motion.button
-                                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
-                                                    onClick={() => copyToClipboard(`${activeNote.title}\n\n${activeNote.content}`)}
-                                                    style={{ flex: 1, padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
-                                                >
-                                                    <Copy size={14} /> Salin
-                                                </motion.button>
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>PRIORITAS</label>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                                                {['Low', 'Medium', 'High'].map(p => (
-                                                    <button
-                                                        key={p}
-                                                        onClick={() => handleUpdateNote('priority', p)}
-                                                        style={{
-                                                            padding: '8px', borderRadius: '8px', fontSize: '10px', fontWeight: '900',
-                                                            background: activeNote.priority === p ? (p === 'High' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.1)') : 'rgba(255,255,255,0.02)',
-                                                            border: `1px solid ${activeNote.priority === p ? (p === 'High' ? '#ef4444' : 'white') : 'rgba(255,255,255,0.05)'}`,
-                                                            color: activeNote.priority === p ? 'white' : '#64748b',
-                                                            cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase'
-                                                        }}
-                                                    >
-                                                        {p}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KATEGORI</label>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                                                {CATEGORIES.map(cat => (
-                                                    <button
-                                                        key={cat.label}
-                                                        onClick={() => handleUpdateNote('category', cat.label)}
-                                                        style={{
-                                                            padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px',
-                                                            background: activeNote.category === cat.label ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)',
-                                                            border: `1px solid ${activeNote.category === cat.label ? 'white' : 'transparent'}`,
-                                                            color: activeNote.category === cat.label ? 'white' : '#64748b',
-                                                            cursor: 'pointer', transition: 'all 0.2s'
-                                                        }}
-                                                    >
-                                                        <cat.icon size={12} />
-                                                        <span style={{ fontSize: '11px', fontWeight: '700' }}>{cat.label}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* TEMPLATES */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>SMART TEMPLATES</label>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                {TEMPLATES.map(tmp => (
-                                                    <button
-                                                        key={tmp.name}
-                                                        onClick={() => applyTemplate(tmp)}
-                                                        style={{
-                                                            padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
-                                                            color: 'white', fontSize: '12px', fontWeight: '700', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
-                                                        }}
-                                                    >
-                                                        <FileText size={14} color={activeNote.color} />
-                                                        {tmp.name}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>WARNA TEMA</label>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                                {NOTE_COLORS.map(color => (
-                                                    <motion.div
-                                                        key={color}
-                                                        whileHover={{ scale: 1.2 }}
-                                                        whileTap={{ scale: 0.9 }}
-                                                        onClick={() => handleUpdateNote('color', color)}
-                                                        style={{
-                                                            width: '24px', height: '24px', borderRadius: '50%',
-                                                            background: color, cursor: 'pointer',
-                                                            border: activeNote?.color === color ? '3px solid white' : '2px solid transparent',
-                                                            boxShadow: activeNote?.color === color ? `0 0 10px ${color}` : 'none',
-                                                            transition: 'all 0.2s'
-                                                        }}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <motion.button
-                                        whileHover={{ background: 'rgba(239, 68, 68, 0.1)', scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        onClick={() => deleteNote(activeNote?.id)}
-                                        style={{
-                                            padding: '14px', borderRadius: '16px',
-                                            background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
-                                            border: '1px solid rgba(239, 68, 68, 0.1)', fontWeight: '800',
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
-                                        }}>
-                                        <Trash2 size={18} /> Hapus Catatan
-                                    </motion.button>
-                                </div>
-                            </div>
-
-                            {/* Main Editor Area */}
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent' }}>
-                                {/* Toolbar / Top Bar */}
-                                <div style={{
-                                    padding: isMobile ? '16px 20px' : '24px 32px',
-                                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                    background: 'rgba(15, 23, 42, 0.3)',
-                                    paddingTop: isMobile ? 'env(safe-area-inset-top, 16px)' : '24px'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
-                                                <CheckCircle2 size={12} color="#10b981" />
-                                            </motion.div>
-                                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase' }}>{saveStatus}</span>
-                                        </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                         <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => {
-                                                syncToCloud(activeNote);
-                                                setSaveStatus('Tersimpan Manual');
-                                                setTimeout(() => closeModal(), 500);
-                                            }}
+                                            whileHover={{ background: 'rgba(239, 68, 68, 0.1)', scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => deleteNote(activeNote?.id)}
                                             style={{
-                                                padding: '10px 24px', borderRadius: '12px',
-                                                background: activeNote?.color || 'var(--primary)',
-                                                color: 'white', border: 'none', fontWeight: 'bold', fontSize: '13px',
-                                                display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-                                                boxShadow: `0 4px 15px ${activeNote?.color || '#3b82f6'}40`
-                                            }}
-                                        >
-                                            <Save size={16} /> Simpan
-                                        </motion.button>
-
-                                        <motion.button
-                                            whileHover={{ rotate: 90, background: 'rgba(255,255,255,0.1)' }}
-                                            onClick={closeModal}
-                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '10px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}>
-                                            <X size={20} />
+                                                padding: '14px', borderRadius: '16px',
+                                                background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
+                                                border: '1px solid rgba(239, 68, 68, 0.1)', fontWeight: '800',
+                                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                                            }}>
+                                            <Trash2 size={18} /> Hapus Catatan
                                         </motion.button>
                                     </div>
                                 </div>
 
-                                {/* Flexible Canvas */}
-                                <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '0px 60px' }} className="editor-scrollbar">
-                                    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        {/* Title Area - Auto Resizing Textarea */}
-                                        <textarea
-                                            ref={titleRef}
-                                            rows="1"
-                                            value={activeNote?.title || ''}
-                                            onChange={e => {
-                                                handleUpdateNote('title', e.target.value);
-                                                e.target.style.height = 'auto';
-                                                e.target.style.height = e.target.scrollHeight + 'px';
-                                            }}
-                                            placeholder="Judul Catatan..."
-                                            style={{
-                                                background: 'transparent', border: 'none',
-                                                fontSize: isMobile ? '28px' : 'clamp(32px, 5vw, 42px)',
-                                                fontWeight: '900',
-                                                color: activeNote?.color || 'white',
-                                                textShadow: `0 0 30px ${activeNote?.color}40`,
-                                                outline: 'none', width: '100%', resize: 'none',
-                                                lineHeight: '1.3', letterSpacing: '-1px',
-                                                overflow: 'hidden', wordBreak: 'break-word',
-                                                transition: 'color 0.3s ease'
-                                            }}
-                                        />
-
-                                        {/* Content Area - Seamless Integration */}
-                                        <div style={{
-                                            position: 'relative',
-                                            width: '100%',
-                                            padding: '0'
-                                        }}>
-                                            {/* Productivity Toolbar */}
-                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <button onClick={() => handleUpdateNote('content', activeNote.content + '\n• ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Layers size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>List</span>
-                                                </button>
-                                                <button onClick={() => handleUpdateNote('content', activeNote.content + '\n[ ] ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <CheckSquare size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>To-do</span>
-                                                </button>
-                                                <button onClick={() => handleUpdateNote('content', activeNote.content + `\n--- ${new Date().toLocaleTimeString()} ---\n`)} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Clock size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>Time</span>
-                                                </button>
+                                {/* Main Editor Area */}
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent' }}>
+                                    {/* Toolbar / Top Bar */}
+                                    <div style={{
+                                        padding: isMobile ? '16px 20px' : '24px 32px',
+                                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        background: 'rgba(15, 23, 42, 0.3)',
+                                        paddingTop: isMobile ? 'env(safe-area-inset-top, 16px)' : '24px'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ padding: '6px 12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+                                                    <CheckCircle2 size={12} color="#10b981" />
+                                                </motion.div>
+                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981', textTransform: 'uppercase' }}>{saveStatus}</span>
                                             </div>
-
-                                            <textarea
-                                                value={activeNote?.content || ''}
-                                                onChange={e => handleUpdateNote('content', e.target.value)}
-                                                placeholder="Mulailah mengetik ide brilianmu di sini..."
-                                                style={{
-                                                    width: '100%',
-                                                    minHeight: isMobile ? '400px' : '500px',
-                                                    background: 'transparent', border: 'none',
-                                                    fontSize: isMobile ? '16px' : '18px',
-                                                    color: 'rgba(255,255,255,0.85)',
-                                                    outline: 'none', resize: 'none', lineHeight: '1.6',
-                                                    paddingBottom: '100px',
-                                                    fontFamily: themeFont
-                                                }}
-                                            />
                                         </div>
-                                    </div>
-                                </div>
 
-                                {/* Mobile Bottom Action Bar */}
-                                <div className="note-mobile-footer" style={{
-                                    padding: '16px 20px',
-                                    borderTop: '1px solid rgba(255,255,255,0.08)',
-                                    background: '#0b1224',
-                                    zIndex: 10
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800' }}>KARAKTER</span>
-                                            <span style={{ fontSize: '14px', fontWeight: '900', color: 'white' }}>{getNoteStats(activeNote?.content).chars}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '10px', flex: 1, justifyContent: 'flex-end' }}>
-                                            <button
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <motion.button
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
                                                 onClick={() => {
                                                     syncToCloud(activeNote);
                                                     setSaveStatus('Tersimpan Manual');
                                                     setTimeout(() => closeModal(), 500);
                                                 }}
                                                 style={{
-                                                    padding: '12px 20px',
+                                                    padding: '10px 24px', borderRadius: '12px',
                                                     background: activeNote?.color || 'var(--primary)',
-                                                    border: 'none',
-                                                    borderRadius: '14px',
-                                                    color: 'white',
-                                                    fontWeight: '800',
-                                                    fontSize: '13px',
-                                                    flex: 1,
-                                                    maxWidth: '120px',
-                                                    boxShadow: `0 4px 15px ${(activeNote?.color || '#3b82f6')}40`
+                                                    color: 'white', border: 'none', fontWeight: 'bold', fontSize: '13px',
+                                                    display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                                    boxShadow: `0 4px 15px ${activeNote?.color || '#3b82f6'}40`
                                                 }}
                                             >
-                                                Simpan
-                                            </button>
-                                            <button
-                                                onClick={() => deleteNote(activeNote?.id)}
+                                                <Save size={16} /> Simpan
+                                            </motion.button>
+
+                                            <motion.button
+                                                whileHover={{ rotate: 90, background: 'rgba(255,255,255,0.1)' }}
+                                                onClick={closeModal}
+                                                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: 'white', padding: '10px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}>
+                                                <X size={20} />
+                                            </motion.button>
+                                        </div>
+                                    </div>
+
+                                    {/* Flexible Canvas */}
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px' : '0px 60px' }} className="editor-scrollbar">
+                                        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {/* Title Area - Auto Resizing Textarea */}
+                                            <textarea
+                                                ref={titleRef}
+                                                rows="1"
+                                                value={activeNote?.title || ''}
+                                                onChange={e => {
+                                                    handleUpdateNote('title', e.target.value);
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                                placeholder="Judul Catatan..."
                                                 style={{
-                                                    padding: '12px 16px',
-                                                    background: 'rgba(239, 68, 68, 0.1)',
-                                                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                                                    borderRadius: '14px',
-                                                    color: '#ef4444',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
+                                                    background: 'transparent', border: 'none',
+                                                    fontSize: isMobile ? '28px' : 'clamp(32px, 5vw, 42px)',
+                                                    fontWeight: '900',
+                                                    color: activeNote?.color || 'white',
+                                                    textShadow: `0 0 30px ${activeNote?.color}40`,
+                                                    outline: 'none', width: '100%', resize: 'none',
+                                                    lineHeight: '1.3', letterSpacing: '-1px',
+                                                    overflow: 'hidden', wordBreak: 'break-word',
+                                                    transition: 'color 0.3s ease'
                                                 }}
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            />
+
+                                            {/* Content Area - Seamless Integration */}
+                                            <div style={{
+                                                position: 'relative',
+                                                width: '100%',
+                                                padding: '0'
+                                            }}>
+                                                {/* Productivity Toolbar */}
+                                                <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <button onClick={() => handleUpdateNote('content', activeNote.content + '\n• ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <Layers size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>List</span>
+                                                    </button>
+                                                    <button onClick={() => handleUpdateNote('content', activeNote.content + '\n[ ] ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <CheckSquare size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>To-do</span>
+                                                    </button>
+                                                    <button onClick={() => handleUpdateNote('content', activeNote.content + `\n--- ${new Date().toLocaleTimeString()} ---\n`)} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <Clock size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>Time</span>
+                                                    </button>
+                                                </div>
+
+                                                <textarea
+                                                    value={activeNote?.content || ''}
+                                                    onChange={e => handleUpdateNote('content', e.target.value)}
+                                                    placeholder="Mulailah mengetik ide brilianmu di sini..."
+                                                    style={{
+                                                        width: '100%',
+                                                        minHeight: isMobile ? '400px' : '500px',
+                                                        background: 'transparent', border: 'none',
+                                                        fontSize: isMobile ? '16px' : '18px',
+                                                        color: 'rgba(255,255,255,0.85)',
+                                                        outline: 'none', resize: 'none', lineHeight: '1.6',
+                                                        paddingBottom: '100px',
+                                                        fontFamily: themeFont
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Mobile Bottom Action Bar */}
+                                    <div className="note-mobile-footer" style={{
+                                        padding: '16px 20px',
+                                        borderTop: '1px solid rgba(255,255,255,0.08)',
+                                        background: '#0b1224',
+                                        zIndex: 10
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '800' }}>KARAKTER</span>
+                                                <span style={{ fontSize: '14px', fontWeight: '900', color: 'white' }}>{getNoteStats(activeNote?.content).chars}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '10px', flex: 1, justifyContent: 'flex-end' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        syncToCloud(activeNote);
+                                                        setSaveStatus('Tersimpan Manual');
+                                                        setTimeout(() => closeModal(), 500);
+                                                    }}
+                                                    style={{
+                                                        padding: '12px 20px',
+                                                        background: activeNote?.color || 'var(--primary)',
+                                                        border: 'none',
+                                                        borderRadius: '14px',
+                                                        color: 'white',
+                                                        fontWeight: '800',
+                                                        fontSize: '13px',
+                                                        flex: 1,
+                                                        maxWidth: '120px',
+                                                        boxShadow: `0 4px 15px ${(activeNote?.color || '#3b82f6')}40`
+                                                    }}
+                                                >
+                                                    Simpan
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteNote(activeNote?.id)}
+                                                    style={{
+                                                        padding: '12px 16px',
+                                                        background: 'rgba(239, 68, 68, 0.1)',
+                                                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                        borderRadius: '14px',
+                                                        color: '#ef4444',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <style>{`
+                                <style>{`
                                 .note-sidebar { display: flex !important; }
                                 .note-mobile-footer { display: none !important; }
                                 
@@ -1308,10 +1310,12 @@ const CatatanKerja = () => {
                                     border-radius: 10px;
                                 }
                             `}</style>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
 
             <style>{`
                 @keyframes pulse {
