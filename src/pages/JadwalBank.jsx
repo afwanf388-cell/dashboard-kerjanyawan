@@ -4,24 +4,43 @@ import {
     Clock, RefreshCw, CheckCircle2, XCircle, AlertCircle,
     Landmark, Search, Wallet, Smartphone, ShieldCheck,
     ChevronRight, ArrowUpRight, TrendingUp, TrendingDown,
-    Activity, Globe, Zap, Trophy, Grid
+    Activity, Globe, Zap, Trophy, Grid, Coins
 } from 'lucide-react';
 
+import bcaLogo from '../assets/bank-logos/bca.png';
+import mandiriLogo from '../assets/bank-logos/mandiri.png';
+import bniLogo from '../assets/bank-logos/bni.png';
+import briLogo from '../assets/bank-logos/bri.png';
+import bsiLogo from '../assets/bank-logos/bsi.png';
+import maybankLogo from '../assets/bank-logos/maybank.png';
+import cimbLogo from '../assets/bank-logos/cimb.png';
+import danamonLogo from '../assets/bank-logos/danamon.png';
+import seabankLogo from '../assets/bank-logos/seabank.png';
+import jagoLogo from '../assets/bank-logos/jago.png';
+import danaLogo from '../assets/bank-logos/dana.png';
+import ovoLogo from '../assets/bank-logos/ovo.png';
+import gopayLogo from '../assets/bank-logos/gopay.png';
+import LinkajaLogo from '../assets/bank-logos/linkaja.png';
+import qrisLogo from '../assets/bank-logos/qris.png';
+import usdtLogo from '../assets/bank-logos/usdt.png';
+
 const BANK_DATA = [
-    { id: 'bca', name: 'Bank BCA', type: 'bank', schedule: '00:20 - 22:00', offline: '22:00 - 00:20', color: '59, 130, 246', logo: 'BCA' },
-    { id: 'mandiri', name: 'Bank Mandiri', type: 'bank', schedule: '03:00 - 23:00', offline: '23:00 - 03:00', color: '245, 158, 11', logo: 'MANDIRI' },
-    { id: 'bri', name: 'Bank BRI', type: 'bank', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'BRI' },
-    { id: 'bni', name: 'Bank BNI', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'BNI' },
-    { id: 'bsi', name: 'Bank BSI', type: 'bank', schedule: '01:00 - 22:00', offline: '22:00 - 01:00', color: '20, 184, 166', logo: 'BSI' },
-    { id: 'cimb', name: 'Bank CIMB', type: 'bank', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'CIMB' },
-    { id: 'danamon', name: 'Bank Danamon', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'DANAMON' },
-    { id: 'seabank', name: 'SeaBank', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'SEABANK' },
-    { id: 'maybank', name: 'Maybank', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'MAYBANK' },
-    { id: 'jago', name: 'Bank Jago', type: 'bank', schedule: '24 Jam', offline: null, color: '236, 72, 153', logo: 'JAGO' },
-    { id: 'dana', name: 'DANA', type: 'wallet', schedule: '24 Jam', offline: null, color: '59, 130, 246', logo: 'DANA' },
-    { id: 'ovo', name: 'OVO', type: 'wallet', schedule: '24 Jam', offline: null, color: '139, 92, 246', logo: 'OVO' },
-    { id: 'gopay', name: 'GoPay', type: 'wallet', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'GOPAY' },
-    { id: 'linkaja', name: 'LinkAja', type: 'wallet', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'LINKAJA' },
+    { id: 'qris', name: 'QRIS', type: 'Payment Gateway', schedule: '24 Jam', offline: null, color: '234, 179, 8', logo: 'QRIS', status: 'ONLINE', isPopular: true, logoImage: qrisLogo },
+    { id: 'usdt', name: 'USDT (TRC20)', type: 'Cryptocurrency', schedule: '24 Jam', offline: null, color: '34, 197, 94', logo: 'USDT', status: 'ONLINE', logoImage: usdtLogo },
+    { id: 'bca', name: 'Bank BCA', type: 'bank', schedule: '00:20 - 22:00', offline: '22:00 - 00:20', color: '59, 130, 246', logo: 'BCA', status: 'OFFLINE', logoImage: bcaLogo },
+    { id: 'mandiri', name: 'Bank Mandiri', type: 'bank', schedule: '03:00 - 23:00', offline: '23:00 - 03:00', color: '245, 158, 11', logo: 'MANDIRI', status: 'OFFLINE', logoImage: mandiriLogo },
+    { id: 'bri', name: 'Bank BRI', type: 'bank', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'BRI', status: 'TROUBLE', logoImage: briLogo },
+    { id: 'bni', name: 'Bank BNI', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'BNI', status: 'TROUBLE', logoImage: bniLogo },
+    { id: 'bsi', name: 'Bank BSI', type: 'bank', schedule: '01:00 - 22:00', offline: '22:00 - 01:00', color: '20, 184, 166', logo: 'BSI', status: 'OFFLINE', logoImage: bsiLogo },
+    { id: 'cimb', name: 'Bank CIMB', type: 'bank', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'CIMB', status: 'ONLINE', logoImage: cimbLogo },
+    { id: 'danamon', name: 'Bank Danamon', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'DANAMON', status: 'ONLINE', logoImage: danamonLogo },
+    { id: 'seabank', name: 'SeaBank', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'SEABANK', status: 'ONLINE', logoImage: seabankLogo },
+    { id: 'maybank', name: 'Maybank', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'MAYBANK', status: 'ONLINE', logoImage: maybankLogo },
+    { id: 'jago', name: 'Bank Jago', type: 'bank', schedule: '24 Jam', offline: null, color: '236, 72, 153', logo: 'JAGO', status: 'ONLINE', logoImage: jagoLogo },
+    { id: 'dana', name: 'DANA', type: 'wallet', schedule: '24 Jam', offline: null, color: '59, 130, 246', logo: 'DANA', status: 'ONLINE', logoImage: danaLogo },
+    { id: 'ovo', name: 'OVO', type: 'wallet', schedule: '24 Jam', offline: null, color: '139, 92, 246', logo: 'OVO', status: 'ONLINE', logoImage: ovoLogo },
+    { id: 'gopay', name: 'GoPay', type: 'wallet', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'GOPAY', status: 'ONLINE', logoImage: gopayLogo },
+    { id: 'linkaja', name: 'LinkAja', type: 'wallet', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'LINKAJA', status: 'ONLINE', logoImage: LinkajaLogo },
 ];
 
 const GlassCard = ({ children, style, className }) => (
@@ -108,8 +127,11 @@ const JadwalBank = () => {
         return () => clearInterval(timer);
     }, []);
 
-    const isOnline = (bank) => {
-        if (bank.schedule === '24 Jam') return true;
+    const getBankStatus = (bank) => {
+        // First check if it's explicitly marked as trouble (this would come from sync)
+        if (bank.status === 'TROUBLE') return 'TROUBLE';
+
+        if (bank.schedule === '24 Jam') return 'ONLINE';
         const now = new Date();
         const hour = now.getHours();
         const min = now.getMinutes();
@@ -121,21 +143,24 @@ const JadwalBank = () => {
             const startTotalMin = startH * 60 + startM;
             const endTotalMin = endH * 60 + endM;
             if (startTotalMin < endTotalMin) {
-                return currentTotalMin >= startTotalMin && currentTotalMin < endTotalMin;
+                return (currentTotalMin >= startTotalMin && currentTotalMin < endTotalMin) ? 'ONLINE' : 'OFFLINE';
             } else {
-                return currentTotalMin >= startTotalMin || currentTotalMin < endTotalMin;
+                return (currentTotalMin >= startTotalMin || currentTotalMin < endTotalMin) ? 'ONLINE' : 'OFFLINE';
             }
-        } catch (e) { return true; }
+        } catch (e) { return 'ONLINE'; }
     };
 
     const filteredBanks = banks.filter(bank => {
         const matchesSearch = bank.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesTab = activeTab === 'ALL' || (activeTab === 'BANK' && bank.type.toLowerCase().includes('bank')) || (activeTab === 'WALLET' && bank.type.toLowerCase().includes('wallet'));
+        const matchesTab = activeTab === 'ALL' ||
+            (activeTab === 'BANK' && (bank.type.toLowerCase().includes('bank') || bank.type.toLowerCase().includes('payment') || bank.type.toLowerCase().includes('crypto'))) ||
+            (activeTab === 'WALLET' && bank.type.toLowerCase().includes('wallet'));
         return matchesSearch && matchesTab;
     });
 
-    const onlineCount = banks.filter(b => isOnline(b)).length;
-    const offlineCount = banks.length - onlineCount;
+    const onlineCount = banks.filter(b => getBankStatus(b) === 'ONLINE').length;
+    const troubleCount = banks.filter(b => getBankStatus(b) === 'TROUBLE').length;
+    const offlineCount = banks.filter(b => getBankStatus(b) === 'OFFLINE').length;
 
     return (
         <div style={{ color: 'white', padding: '20px 0' }}>
@@ -158,14 +183,18 @@ const JadwalBank = () => {
                         </p>
                     </div>
                     <div style={{ width: '1px', height: '30px', background: 'rgba(255,255,255,0.1)' }} />
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '15px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
-                            <span style={{ fontSize: '12px', fontWeight: '700' }}>{onlineCount} ONLINE</span>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px rgba(16, 185, 129, 0.6)' }} />
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>{onlineCount} ONLINE</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }} />
-                            <span style={{ fontSize: '12px', fontWeight: '700' }}>{offlineCount} OFFLINE</span>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fbbf24', boxShadow: '0 0 10px rgba(251, 191, 36, 0.6)' }} />
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#fbbf24' }}>{troubleCount} GANGGUAN</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px rgba(239, 68, 68, 0.6)' }} />
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#ef4444' }}>{offlineCount} OFFLINE</span>
                         </div>
                     </div>
                 </GlassCard>
@@ -267,7 +296,11 @@ const JadwalBank = () => {
             }}>
                 <AnimatePresence>
                     {filteredBanks.map((bank, index) => {
-                        const online = isOnline(bank);
+                        const status = getBankStatus(bank);
+                        const statusColor = status === 'ONLINE' ? '#10b981' : (status === 'TROUBLE' ? '#fbbf24' : '#ef4444');
+                        const statusBg = status === 'ONLINE' ? 'rgba(16, 185, 129, 0.1)' : (status === 'TROUBLE' ? 'rgba(251, 191, 36, 0.1)' : 'rgba(239, 68, 68, 0.1)');
+                        const statusBorder = status === 'ONLINE' ? 'rgba(16, 185, 129, 0.2)' : (status === 'TROUBLE' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(239, 68, 68, 0.2)');
+
                         return (
                             <motion.div
                                 key={bank.id}
@@ -280,40 +313,74 @@ const JadwalBank = () => {
                                 <GlassCard style={{
                                     padding: '0',
                                     overflow: 'hidden',
-                                    border: online ? `1px solid rgba(${bank.color}, 0.2)` : '1px solid rgba(239, 68, 68, 0.2)',
+                                    border: `1px solid ${statusBorder}`,
                                 }}>
                                     <div style={{
                                         position: 'absolute', top: 0, left: 0, width: '100%', height: '4px',
-                                        background: online ? `rgb(${bank.color})` : '#ef4444',
-                                        boxShadow: online ? `0 0 15px rgba(${bank.color}, 0.5)` : '0 0 15px rgba(239, 68, 68, 0.5)'
+                                        background: statusColor,
+                                        boxShadow: `0 0 15px ${statusColor}80`
                                     }} />
 
                                     <div style={{ padding: '24px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                                             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                                                 <div style={{
-                                                    width: '56px', height: '56px',
-                                                    borderRadius: '16px',
-                                                    background: `rgba(${bank.color}, 0.1)`,
+                                                    width: '70px', height: '70px',
+                                                    borderRadius: '22px',
+                                                    background: `linear-gradient(135deg, rgba(${bank.color}, 0.15), rgba(${bank.color}, 0.05))`,
+                                                    backdropFilter: 'blur(12px)',
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    border: `1px solid rgba(${bank.color}, 0.2)`
+                                                    border: `1px solid rgba(${bank.color}, 0.3)`,
+                                                    boxShadow: `0 8px 25px -5px rgba(${bank.color}, 0.25), inset 0 0 15px rgba(${bank.color}, 0.05)`,
+                                                    position: 'relative',
+                                                    overflow: 'hidden'
                                                 }}>
-                                                    {bank.type.toLowerCase().includes('bank') ? <Landmark size={28} color={`rgb(${bank.color})`} /> : <Smartphone size={28} color={`rgb(${bank.color})`} />}
+                                                    {bank.logoImage ? (
+                                                        <img src={bank.logoImage} alt={bank.name}
+                                                            style={{
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                objectFit: bank.id === 'linkaja' ? 'cover' : 'contain',
+                                                                padding: bank.id === 'linkaja' ? '0' : '8px',
+                                                                filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'
+                                                            }}
+                                                        />
+                                                    ) : bank.logo === 'QRIS' ? <span style={{ fontSize: '22px', fontWeight: '900', color: `rgb(${bank.color})`, letterSpacing: '-1px' }}>QRIS</span> :
+                                                        bank.logo === 'USDT' ? <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><Coins size={30} color={`rgb(${bank.color})`} /><span style={{ fontSize: '10px', fontWeight: '900', color: `rgb(${bank.color})`, marginTop: '2px' }}>TRC20</span></div> :
+                                                            (bank.type.toLowerCase().includes('bank') ? <Landmark size={32} color={`rgb(${bank.color})`} /> : <Smartphone size={32} color={`rgb(${bank.color})`} />)}
                                                 </div>
                                                 <div>
-                                                    <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>{bank.name}</h3>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>{bank.name}</h3>
+                                                        {bank.isPopular && (
+                                                            <div style={{
+                                                                background: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+                                                                padding: '2px 8px',
+                                                                borderRadius: '6px',
+                                                                display: 'flex', alignItems: 'center', gap: '4px',
+                                                                boxShadow: '0 2px 10px rgba(245, 158, 11, 0.4)'
+                                                            }}>
+                                                                <Trophy size={10} color="white" />
+                                                                <span style={{ fontSize: '9px', fontWeight: '900', color: 'white', letterSpacing: '0.5px' }}>POPULER</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                     <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginTop: '2px' }}>{bank.type}</p>
                                                 </div>
                                             </div>
                                             <div style={{
-                                                padding: '6px 12px',
+                                                padding: '6px 14px',
                                                 borderRadius: '20px',
-                                                background: online ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                                border: online ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-                                                display: 'flex', alignItems: 'center', gap: '6px'
+                                                background: statusBg,
+                                                border: `1px solid ${statusBorder}`,
+                                                display: 'flex', alignItems: 'center', gap: '8px'
                                             }}>
-                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: online ? '#10b981' : '#ef4444' }} />
-                                                <span style={{ fontSize: '11px', fontWeight: '900', color: online ? '#10b981' : '#ef4444' }}>{online ? 'ONLINE' : 'OFFLINE'}</span>
+                                                <motion.div
+                                                    animate={status === 'TROUBLE' ? { opacity: [0.5, 1, 0.5] } : {}}
+                                                    transition={{ repeat: Infinity, duration: 1 }}
+                                                    style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor, boxShadow: `0 0 10px ${statusColor}` }}
+                                                />
+                                                <span style={{ fontSize: '11px', fontWeight: '950', color: statusColor, letterSpacing: '0.5px' }}>{status}</span>
                                             </div>
                                         </div>
 

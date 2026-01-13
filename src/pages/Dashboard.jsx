@@ -407,6 +407,47 @@ const AdvancedClock = ({ fontFamily }) => {
 };
 
 // --- MAIN DASHBOARD ---
+const DASHBOARD_BANK_DATA = [
+    { id: 'qris', name: 'QRIS', type: 'Payment Gateway', schedule: '24 Jam', offline: null, color: '234, 179, 8', logo: 'QRIS', status: 'ONLINE', isPopular: true },
+    { id: 'usdt', name: 'USDT (TRC20)', type: 'Cryptocurrency', schedule: '24 Jam', offline: null, color: '34, 197, 94', logo: 'USDT', status: 'ONLINE' },
+    { id: 'bca', name: 'Bank BCA', type: 'bank', schedule: '00:20 - 22:00', offline: '22:00 - 00:20', color: '59, 130, 246', logo: 'BCA', status: 'OFFLINE' },
+    { id: 'mandiri', name: 'Bank Mandiri', type: 'bank', schedule: '03:00 - 23:00', offline: '23:00 - 03:00', color: '245, 158, 11', logo: 'MANDIRI', status: 'OFFLINE' },
+    { id: 'bri', name: 'Bank BRI', type: 'bank', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'BRI', status: 'TROUBLE' },
+    { id: 'bni', name: 'Bank BNI', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'BNI', status: 'TROUBLE' },
+    { id: 'bsi', name: 'Bank BSI', type: 'bank', schedule: '01:00 - 22:00', offline: '22:00 - 01:00', color: '20, 184, 166', logo: 'BSI', status: 'OFFLINE' },
+    { id: 'cimb', name: 'Bank CIMB', type: 'bank', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'CIMB', status: 'ONLINE' },
+    { id: 'danamon', name: 'Bank Danamon', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'DANAMON', status: 'ONLINE' },
+    { id: 'seabank', name: 'SeaBank', type: 'bank', schedule: '24 Jam', offline: null, color: '249, 115, 22', logo: 'SEABANK', status: 'ONLINE' },
+    { id: 'maybank', name: 'Maybank', type: 'bank', schedule: '24 Jam', offline: null, color: '245, 158, 11', logo: 'MAYBANK', status: 'ONLINE' },
+    { id: 'jago', name: 'Bank Jago', type: 'bank', schedule: '24 Jam', offline: null, color: '236, 72, 153', logo: 'JAGO', status: 'ONLINE' },
+    { id: 'dana', name: 'DANA', type: 'wallet', schedule: '24 Jam', offline: null, color: '59, 130, 246', logo: 'DANA', status: 'ONLINE' },
+    { id: 'ovo', name: 'OVO', type: 'wallet', schedule: '24 Jam', offline: null, color: '139, 92, 246', logo: 'OVO', status: 'ONLINE' },
+    { id: 'gopay', name: 'GoPay', type: 'wallet', schedule: '24 Jam', offline: null, color: '16, 185, 129', logo: 'GOPAY', status: 'ONLINE' },
+    { id: 'linkaja', name: 'LinkAja', type: 'wallet', schedule: '24 Jam', offline: null, color: '239, 68, 68', logo: 'LINKAJA', status: 'ONLINE' },
+];
+
+const getDashboardBankStatus = (bank) => {
+    if (bank.status === 'TROUBLE') return 'TROUBLE';
+    if (bank.status === 'OFFLINE') return 'OFFLINE'; // Explicit override
+    if (bank.schedule === '24 Jam') return 'ONLINE';
+
+    const now = new Date();
+    const currentTotalMin = now.getHours() * 60 + now.getMinutes();
+    try {
+        const [startStr, endStr] = bank.schedule.split(' - ');
+        if (!startStr || !endStr) return 'ONLINE';
+        const [startH, startM] = startStr.split(':').map(Number);
+        const [endH, endM] = endStr.split(':').map(Number);
+        const startTotalMin = startH * 60 + startM;
+        const endTotalMin = endH * 60 + endM;
+
+        if (startTotalMin < endTotalMin) {
+            return (currentTotalMin >= startTotalMin && currentTotalMin < endTotalMin) ? 'ONLINE' : 'OFFLINE';
+        } else {
+            return (currentTotalMin >= startTotalMin || currentTotalMin < endTotalMin) ? 'ONLINE' : 'OFFLINE';
+        }
+    } catch (e) { return 'ONLINE'; }
+};
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -420,7 +461,8 @@ const Dashboard = () => {
         income: 0,
         expense: 0,
         latestChat: 'System Synchronized',
-        recentActivities: []
+        recentActivities: [],
+        bankStats: { online: 0, trouble: 0, offline: 0 }
     });
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [activitySearch, setActivitySearch] = useState('');
@@ -561,6 +603,16 @@ const Dashboard = () => {
                     }))
                 ].sort((a, b) => parseDateScore(b.rawDate) - parseDateScore(a.rawDate)).slice(0, 20);
 
+                // Use hardcoded data for dashboard to ensure instant consistency with Jadwal Bank page
+                const bankCounts = { online: 0, trouble: 0, offline: 0 };
+
+                DASHBOARD_BANK_DATA.forEach(bank => {
+                    const status = getDashboardBankStatus(bank);
+                    if (status === 'ONLINE') bankCounts.online++;
+                    else if (status === 'TROUBLE') bankCounts.trouble++;
+                    else bankCounts.offline++;
+                });
+
                 setStats({
                     notes: localNotes.length,
                     mistakes: localMistakes.length,
@@ -570,7 +622,8 @@ const Dashboard = () => {
                     income: totalGaji + totalBonus + totalThr + totalEmasValue,
                     expense: totalPengeluaran + totalPinjaman,
                     latestChat: 'System Synchronized',
-                    recentActivities: activities
+                    recentActivities: activities,
+                    bankStats: bankCounts
                 });
             } catch (e) { console.error(e); }
         };
@@ -676,15 +729,41 @@ const Dashboard = () => {
                         />
                     )}
                     {dashboardSettings.showBank && (
-                        <MetricCard
-                            title="Jadwal Bank"
-                            value="LIVE"
-                            badge="CEK STATUS"
-                            badgeColor="59, 130, 246"
-                            icon={Landmark}
-                            color="59, 130, 246"
-                            onClick={() => navigate('/jadwal-bank')}
-                        />
+                        <GlassCard onClick={() => navigate('/jadwal-bank')} style={{ minHeight: '200px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'linear-gradient(135deg, rgba(2, 6, 23, 0.9), rgba(15, 23, 42, 0.9))', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{
+                                    width: '48px', height: '48px', borderRadius: '16px',
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                                    boxShadow: '0 0 20px rgba(59, 130, 246, 0.1)'
+                                }}>
+                                    <Landmark size={24} color="#60a5fa" />
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <motion.div animate={{ opacity: [0.2, 1, 0.2], scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 10px #22c55e' }} />
+                                    <motion.div animate={{ opacity: [0.2, 1, 0.2], scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2, delay: 0.6 }} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#eab308', boxShadow: '0 0 10px #eab308' }} />
+                                    <motion.div animate={{ opacity: [0.2, 1, 0.2], scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2, delay: 1.2 }} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444' }} />
+                                </div>
+                            </div>
+                            <div style={{ marginTop: '30px' }}>
+                                <p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Monitoring Bank</p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <p style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: '900', color: 'white', textShadow: '0 0 20px rgba(34, 197, 94, 0.5)' }}>{stats.bankStats?.online || 0}</p>
+                                        <p style={{ margin: 0, fontSize: '9px', fontWeight: '900', color: '#22c55e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ONLINE</p>
+                                    </div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <p style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: '900', color: 'white', textShadow: '0 0 20px rgba(234, 179, 8, 0.5)' }}>{stats.bankStats?.trouble || 0}</p>
+                                        <p style={{ margin: 0, fontSize: '9px', fontWeight: '900', color: '#eab308', textTransform: 'uppercase', letterSpacing: '0.5px' }}>TROUBLE</p>
+                                    </div>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <p style={{ margin: '0 0 4px 0', fontSize: '24px', fontWeight: '900', color: 'white', textShadow: '0 0 20px rgba(239, 68, 68, 0.5)' }}>{stats.bankStats?.offline || 0}</p>
+                                        <p style={{ margin: 0, fontSize: '9px', fontWeight: '900', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OFFLINE</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </GlassCard>
                     )}
                 </div>
 
