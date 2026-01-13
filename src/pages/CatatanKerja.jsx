@@ -282,13 +282,60 @@ const CatatanKerja = () => {
 
                 if (fetchError) throw fetchError;
 
-                if (cloudData && Array.isArray(cloudData)) {
-                    // Filter out any potential nulls and ensure color exists
-                    const validData = cloudData.filter(n => n && typeof n === 'object').map(n => ({
+                if (cloudData) {
+                    // 1. Normalize Cloud Data to match App State (camelCase)
+                    const normalizedCloud = cloudData.map(n => ({
                         ...n,
-                        color: typeof n.color === 'string' ? n.color : '#3b82f6'
+                        id: n.id,
+                        title: n.title,
+                        content: n.content,
+                        date: n.date,
+                        color: typeof n.color === 'string' ? n.color : '#3b82f6',
+                        category: n.category || 'General',
+                        priority: n.priority || 'Medium',
+                        attachments: n.attachments || [],
+                        // Map snake_case to camelCase
+                        isPinned: n.is_pinned,
+                        lastUpdated: n.last_updated || new Date().toISOString()
                     }));
-                    setNotes(validData);
+
+                    setNotes(prevLocal => {
+                        // 2. Map for fast lookup
+                        const cloudMap = new Map(normalizedCloud.map(n => [n.id, n]));
+
+                        // 3. Start with Normalized Cloud Data
+                        const mergedStore = [...normalizedCloud];
+
+                        // 4. Recovery: Check for notes in Local that are NOT in Cloud (Offline Created)
+                        // OR Local notes that are NEWER than Cloud (Offline Edits)
+                        if (Array.isArray(prevLocal)) {
+                            prevLocal.forEach(localNote => {
+                                const cloudNote = cloudMap.get(localNote.id);
+
+                                if (!cloudNote) {
+                                    // Note exists locally but not in Cloud -> Keep it locally
+                                    mergedStore.push(localNote);
+                                } else {
+                                    // Note exists in both. Compare Timestamps.
+                                    const localTime = new Date(localNote.lastUpdated || 0).getTime();
+                                    const cloudTime = new Date(cloudNote.lastUpdated || 0).getTime();
+
+                                    if (localTime > cloudTime) {
+                                        // Local is newer! Overwrite the cloud entry in the store with local.
+                                        const index = mergedStore.findIndex(n => n.id === cloudNote.id);
+                                        if (index !== -1) {
+                                            mergedStore[index] = localNote;
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        // 5. Deduplicate by ID and Sort
+                        const uniqueNotes = Array.from(new Map(mergedStore.map(n => [n.id, n])).values());
+                        return uniqueNotes.sort((a, b) => (a.id || 0) - (b.id || 0));
+                    });
+
                     setSaveStatus('Awan Terhubung');
                 }
             } catch (err) {
@@ -299,16 +346,31 @@ const CatatanKerja = () => {
 
         syncWithCloud();
 
-        // Realtime
+        // Realtime Subscription
         const channel = supabase
             .channel(`notes_rt_${user.username}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${user.username}` },
                 (payload) => {
-                    const updatedNote = payload.new;
                     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                        const raw = payload.new;
+                        // Normalize incoming RT data
+                        const updatedNote = {
+                            ...raw,
+                            color: typeof raw.color === 'string' ? raw.color : '#3b82f6',
+                            isPinned: raw.is_pinned,
+                            lastUpdated: raw.last_updated
+                        };
+
                         setNotes(prev => {
                             const exists = prev.find(n => n.id === updatedNote.id);
-                            if (exists) return prev.map(n => n.id === updatedNote.id ? updatedNote : n);
+                            // If local is newer, ignore RT update (prevent overwrite while typing)
+                            if (exists) {
+                                const localTime = new Date(exists.lastUpdated || 0).getTime();
+                                const remoteTime = new Date(updatedNote.lastUpdated || 0).getTime();
+                                if (localTime > remoteTime) return prev; // Ignore older RT
+
+                                return prev.map(n => n.id === updatedNote.id ? updatedNote : n);
+                            }
                             return [...prev, updatedNote];
                         });
                     } else if (payload.eventType === 'DELETE') {
