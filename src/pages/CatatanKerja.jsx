@@ -8,7 +8,7 @@ import {
     Edit3, Info, Calendar, Hash, Type, Clipboard,
     ChevronRight, Sparkles, CheckCircle2, AlertCircle, Palette,
     Pin, PinOff, Tag, Layers, Zap, Copy, FileText, CheckSquare,
-    Link2, ImageIcon, ExternalLink, Paperclip, ScanLine
+    Link2, ImageIcon, ExternalLink, Paperclip, ScanLine, ArrowUp, ArrowDown, Mouse
 } from 'lucide-react';
 
 const NOTE_COLORS = [
@@ -211,6 +211,16 @@ const CatatanKerja = () => {
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
     const [themeColor, setThemeColor] = useState('59, 130, 246'); // Default Blue RGB
     const [themeFont, setThemeFont] = useState("'Inter', sans-serif"); // Default Font
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
+    // Scroll Detector
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowScrollTop(window.scrollY > 300);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     // --- Dynamic Theme Sync ---
     useEffect(() => {
@@ -1346,6 +1356,102 @@ const CatatanKerja = () => {
                     }
                 }
             `}</style>
+            {/* Smart Scroll Control System */}
+            <AnimatePresence>
+                {/* 1. Custom Scrollbar Styling */}
+                <style>{`
+                    /* PC Scrollbar */
+                    ::-webkit-scrollbar {
+                        width: 10px;
+                    }
+                    ::-webkit-scrollbar-track {
+                        background: rgba(15, 23, 42, 0.6);
+                        border-left: 1px solid rgba(255,255,255,0.05);
+                    }
+                    ::-webkit-scrollbar-thumb {
+                        background: linear-gradient(to bottom, rgba(${themeColor}, 0.5), rgba(${themeColor}, 0.8));
+                        border-radius: 5px;
+                        border: 2px solid rgba(15, 23, 42, 1);
+                    }
+                    ::-webkit-scrollbar-thumb:hover {
+                        background: rgb(${themeColor});
+                    }
+                `}</style>
+
+                {/* 2. Floating Action Pill */}
+                {showScrollTop && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 50 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        style={{
+                            position: 'fixed',
+                            bottom: '30px',
+                            right: '30px',
+                            zIndex: 90,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            alignItems: 'center'
+                        }}
+                    >
+                        {/* Progress Ring / Top Indicator */}
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            style={{
+                                width: '48px', height: '48px', borderRadius: '16px',
+                                background: 'rgba(15, 23, 42, 0.8)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: `rgb(${themeColor})`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                boxShadow: '0 8px 20px rgba(0,0,0,0.3)'
+                            }}
+                        >
+                            <ArrowUp size={20} strokeWidth={3} />
+                        </motion.button>
+
+                        {/* Mid Decoration - Scroll Mouse */}
+                        <div style={{
+                            width: '32px', height: '54px', borderRadius: '20px',
+                            background: `linear-gradient(180deg, rgba(${themeColor}, 0.2) 0%, rgba(${themeColor}, 0) 100%)`,
+                            border: `1px solid rgba(${themeColor}, 0.3)`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '4px 0'
+                        }}>
+                            <motion.div
+                                animate={{ y: [0, 8, 0] }}
+                                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                                style={{ width: '4px', height: '8px', borderRadius: '4px', background: `rgb(${themeColor})` }}
+                            />
+                        </div>
+
+                        {/* Bottom Action */}
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                            style={{
+                                width: '48px', height: '48px', borderRadius: '16px',
+                                background: 'rgba(15, 23, 42, 0.8)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: 'rgba(255,255,255,0.6)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                boxShadow: '0 8px 20px rgba(0,0,0,0.3)'
+                            }}
+                        >
+                            <ArrowDown size={20} strokeWidth={3} />
+                        </motion.button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 };
