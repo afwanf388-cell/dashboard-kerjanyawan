@@ -179,7 +179,23 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
         { name: 'Modern Sans', id: "'Plus Jakarta Sans', sans-serif" },
         { name: 'Futuristic', id: "'Syncopate', sans-serif" },
         { name: 'High-Tech', id: "'Orbitron', sans-serif" },
-        { name: 'System Pro', id: "'Inter', sans-serif" }
+        { name: 'System Pro', id: "'Inter', sans-serif" },
+        { name: 'Neo-Sharp', id: "'Space Grotesk', sans-serif" },
+        { name: 'Clean Geometric', id: "'Outfit', sans-serif" },
+        { name: 'Ultra Bold', id: "'Unbounded', sans-serif" }
+    ];
+
+    const colors = [
+        { name: 'Blue', color: '59, 130, 246' },
+        { name: 'Purple', color: '139, 92, 246' },
+        { name: 'Pink', color: '236, 72, 153' },
+        { name: 'Emerald', color: '16, 185, 129' },
+        { name: 'Orange', color: '249, 115, 22' },
+        { name: 'Gold', color: '234, 179, 8' },
+        { name: 'Crimson', color: '225, 29, 72' },
+        { name: 'Indigo', color: '99, 102, 241' },
+        { name: 'Cyan', color: '6, 182, 212' },
+        { name: 'Rose', color: '244, 63, 94' },
     ];
 
     return (
@@ -225,8 +241,45 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
                         <div>
+                            <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Aksen & Sidebar (Theme)</p>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(5, 1fr)',
+                                gap: '10px',
+                                marginBottom: '20px',
+                                maxHeight: '100px',
+                                overflowY: 'auto',
+                                padding: '4px'
+                            }} className="custom-scrollbar">
+                                {colors.map(c => (
+                                    <button
+                                        key={c.color}
+                                        onClick={() => setSettings(prev => ({ ...prev, sidebarColor: c.color }))}
+                                        style={{
+                                            height: '40px',
+                                            borderRadius: '10px',
+                                            background: `rgb(${c.color})`,
+                                            border: settings.sidebarColor === c.color ? '3px solid white' : 'none',
+                                            cursor: 'pointer',
+                                            boxShadow: settings.sidebarColor === c.color ? `0 0 15px rgba(${c.color}, 0.5)` : 'none',
+                                            transition: 'all 0.2s',
+                                            position: 'relative'
+                                        }}
+                                        title={c.name}
+                                    >
+                                        {settings.sidebarColor === c.color && (
+                                            <div style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'white', borderRadius: '50%', width: '14px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: `rgb(${c.color})` }} />
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
                             <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Gaya Desain (Fonts)</p>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px' }}>
                                 {fonts.map(font => (
                                     <button
                                         key={font.id}
@@ -384,7 +437,8 @@ const Dashboard = () => {
             showFinance: true,
             showChat: true,
             showBank: true,
-            fontFamily: "'DynaPuff', system-ui"
+            fontFamily: "'DynaPuff', system-ui",
+            sidebarColor: '59, 130, 246'
         };
         const saved = localStorage.getItem(`dashboard_settings_${user?.username}`);
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;

@@ -5,7 +5,9 @@ import { supabase } from '../lib/supabase';
 import {
     Plus, Trash2, Save, Search, Clock, NotebookPen, X,
     Edit3, Info, Calendar, Hash, Type, Clipboard,
-    ChevronRight, Sparkles, CheckCircle2, AlertCircle, Palette
+    ChevronRight, Sparkles, CheckCircle2, AlertCircle, Palette,
+    Pin, PinOff, Tag, Layers, Zap, Copy, FileText, CheckSquare,
+    Link2, ImageIcon, ExternalLink, Paperclip, ScanLine
 } from 'lucide-react';
 
 const NOTE_COLORS = [
@@ -21,6 +23,26 @@ const NOTE_COLORS = [
     '#f43f5e', // Rose
 ];
 
+const CATEGORIES = [
+    { label: 'General', icon: Layers, color: '#94a3b8' },
+    { label: 'Urgent', icon: AlertCircle, color: '#ef4444' },
+    { label: 'Project', icon: Zap, color: '#8b5cf6' },
+    { label: 'Personal', icon: Sparkles, color: '#ec4899' },
+];
+
+const TEMPLATES = [
+    {
+        name: 'Report BEDA',
+        title: 'BEDA - [NO REKENING]',
+        content: 'Mohon dibantu untuk melampirkan tampilan Profile E-Wallet akun xxx anda sebagai bentuk verifikasi ya bosku, karena kami cek nama rekening yang terdaftar ada perbedaan penulisan nama rekeningnya ya bosku.'
+    },
+    {
+        name: 'Akun Terlock',
+        title: 'AKUN TERLOCK REK (BEDA NAMA)',
+        content: 'Untuk akun anda terlock otomatis oleh sistem dikarenakan rekening anda terbaca berbeda namanya ya bosku, untuk perihal tersebut mohon di informasikan nama rekening yang sesuai pada rekening tersebut ya bosku.'
+    },
+];
+
 const CatatanKerja = () => {
     const { user } = useAuth();
     const [notes, setNotes] = useState([]);
@@ -30,6 +52,30 @@ const CatatanKerja = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    const [themeColor, setThemeColor] = useState('59, 130, 246'); // Default Blue RGB
+
+    // --- Dynamic Theme Sync ---
+    useEffect(() => {
+        if (user?.username) {
+            const updateTheme = () => {
+                const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
+                if (saved) {
+                    const settings = JSON.parse(saved);
+                    if (settings.sidebarColor) {
+                        setThemeColor(settings.sidebarColor);
+                    }
+                }
+            };
+            updateTheme();
+            window.addEventListener('storage', updateTheme);
+            const interval = setInterval(updateTheme, 1000);
+            return () => {
+                window.removeEventListener('storage', updateTheme);
+                clearInterval(interval);
+            };
+        }
+    }, [user?.username]);
+    const [activeTab, setActiveTab] = useState('All');
 
     // Initial load from localStorage ONLY
     useEffect(() => {
@@ -140,7 +186,11 @@ const CatatanKerja = () => {
             content: note.content || '',
             date: note.date || new Date().toLocaleDateString('id-ID'),
             color: (typeof note.color === 'string' && note.color.startsWith('#')) ? note.color : '#3b82f6',
-            lastUpdated: note.lastUpdated || note.last_updated || new Date().toLocaleString('id-ID')
+            lastUpdated: note.lastUpdated || note.last_updated || new Date().toLocaleString('id-ID'),
+            isPinned: !!note.isPinned,
+            category: note.category || 'General',
+            priority: note.priority || 'Medium',
+            attachments: Array.isArray(note.attachments) ? note.attachments : []
         };
 
         console.log("Opening Safe Note:", safeNote); // Debugging
@@ -163,7 +213,11 @@ const CatatanKerja = () => {
             content: note.content,
             date: note.date,
             color: note.color || '#3b82f6',
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
+            is_pinned: !!note.isPinned,
+            category: note.category || 'General',
+            priority: note.priority || 'Medium',
+            attachments: Array.isArray(note.attachments) ? note.attachments : []
         });
         if (!error) setSaveStatus('Tersimpan');
         else setSaveStatus('Gagal Sync');
@@ -193,12 +247,66 @@ const CatatanKerja = () => {
             content: '',
             date: new Date().toLocaleDateString('id-ID'),
             color: '#3b82f6',
-            lastUpdated: new Date().toLocaleString('id-ID')
+            lastUpdated: new Date().toLocaleString('id-ID'),
+            isPinned: false,
+            category: activeTab === 'All' ? 'General' : activeTab,
+            priority: 'Medium',
+            attachments: []
         };
-        setNotes(prev => [newNote, ...(Array.isArray(prev) ? prev : [])]);
+        setNotes(prev => [...(Array.isArray(prev) ? prev : []), newNote]);
         setActiveNote(newNote);
         setIsModalOpen(true);
         syncToCloud(newNote);
+    };
+
+    const togglePin = (id, e) => {
+        if (e) e.stopPropagation();
+        setNotes(prev => prev.map(n => {
+            if (n.id === id) {
+                const updated = { ...n, isPinned: !n.isPinned };
+                syncToCloud(updated);
+                if (activeNote?.id === id) setActiveNote(updated);
+                return updated;
+            }
+            return n;
+        }));
+    };
+
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        setSaveStatus('Disalin!');
+        setTimeout(() => setSaveStatus('Awan Terhubung'), 2000);
+    };
+
+    const applyTemplate = (template) => {
+        handleUpdateNote('title', template.title);
+        handleUpdateNote('content', template.content);
+        setSaveStatus('Template Digunakan');
+    };
+
+    const scanForLinks = () => {
+        if (!activeNote?.content) return;
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const matches = activeNote.content.match(urlRegex) || [];
+        const existingUrls = (activeNote.attachments || []).map(a => a.url);
+
+        const newAttachments = matches
+            .filter(url => !existingUrls.includes(url))
+            .map(url => ({
+                id: Date.now() + Math.random(),
+                url,
+                type: url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? 'image' : 'link',
+                date: new Date().toLocaleDateString('id-ID')
+            }));
+
+        if (newAttachments.length > 0) {
+            const updated = {
+                ...activeNote,
+                attachments: [...(activeNote.attachments || []), ...newAttachments]
+            };
+            handleUpdateNote('attachments', updated.attachments);
+            setSaveStatus(`Ditemukan ${newAttachments.length} Link!`);
+        }
     };
 
     const deleteNote = async (id, e) => {
@@ -232,7 +340,13 @@ const CatatanKerja = () => {
         const searchSafe = (search || '').toLowerCase();
         const titleSafe = String(n.title || '').toLowerCase();
         const contentSafe = String(n.content || '').toLowerCase();
-        return titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
+        const matchesSearch = titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
+        const matchesCategory = activeTab === 'All' || n.category === activeTab;
+        return matchesSearch && matchesCategory;
+    }).sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return (a.id || 0) - (b.id || 0);
     }) : [];
 
     const getNoteStats = (content) => {
@@ -258,70 +372,192 @@ const CatatanKerja = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)', gap: '24px' }}>
-            {/* Header Section */}
-            <div className="glass-effect notes-header" style={{ padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', borderRadius: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+            {/* Header Section - Ultra Premium Design */}
+            <div className="glass-effect notes-header" style={{
+                padding: '32px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '24px',
+                borderRadius: '30px',
+                background: 'rgba(15, 23, 42, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                position: 'relative',
+                overflow: 'hidden'
+            }}>
+                {/* Decorative background glow */}
+                <div style={{ position: 'absolute', top: '-50%', left: '-10%', width: '300px', height: '300px', background: 'var(--primary)', filter: 'blur(150px)', opacity: 0.1, pointerEvents: 'none' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', position: 'relative', zIndex: 1 }}>
                     <motion.div
-                        whileHover={{ rotate: 15, scale: 1.1 }}
+                        whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
                         style={{
-                            width: '56px', height: '56px', borderRadius: '16px',
-                            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                            width: '64px', height: '64px', borderRadius: '20px',
+                            background: `linear-gradient(135deg, rgb(${themeColor}), rgba(${themeColor}, 0.7))`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 8px 20px rgba(59, 130, 246, 0.4)',
-                            flexShrink: 0
+                            boxShadow: `0 12px 30px rgba(${themeColor}, 0.5), inset 0 0 15px rgba(255,255,255,0.3)`,
+                            position: 'relative'
                         }}>
-                        <NotebookPen size={28} color="white" />
+                        <div style={{ position: 'absolute', inset: '-4px', borderRadius: '24px', border: `2px solid rgba(${themeColor}, 0.3)`, filter: 'blur(2px)' }} />
+                        <NotebookPen size={32} color="white" />
                     </motion.div>
                     <div>
-                        <h1 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: '800', color: 'white', margin: 0, letterSpacing: '-0.5px' }}>Catatan Kerja</h1>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Sparkles size={14} color="var(--primary)" /> {Array.isArray(notes) ? notes.length : 0} Ide & Tugas
-                        </p>
+                        <h1 style={{
+                            fontSize: 'clamp(24px, 5vw, 34px)',
+                            fontWeight: '900',
+                            color: 'white',
+                            margin: 0,
+                            letterSpacing: '-1px',
+                            fontFamily: "'Outfit', sans-serif"
+                        }}>
+                            Catatan <span style={{ color: `rgb(${themeColor})`, textShadow: `0 0 20px rgba(${themeColor}, 0.5)` }}>Kerja</span>
+                        </h1>
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+                                {Array.isArray(notes) ? notes.length : 0} Ide & Tugas
+                            </p>
+                            <div style={{ width: '1px', height: '14px', background: 'rgba(255,255,255,0.1)' }} />
+                            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', margin: 0, fontWeight: '700' }}>
+                                v3.0 Digital Brain
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="notes-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px', width: isMobile ? '100%' : 'auto' }}>
+                <div className="notes-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px', width: isMobile ? '100%' : 'auto', position: 'relative', zIndex: 1 }}>
                     <div style={{ position: 'relative', flex: 1 }}>
-                        <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <Search size={18} style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)' }} />
                         <input
                             type="text"
-                            placeholder="Cari..."
+                            placeholder="Cari ide brilianmu..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             style={{
                                 width: '100%',
-                                minWidth: isMobile ? '0' : '250px',
-                                padding: '12px 16px 12px 48px',
-                                fontSize: '14px',
-                                background: 'rgba(0,0,0,0.3)',
-                                border: '1px solid var(--glass-border)',
-                                borderRadius: '14px',
+                                minWidth: isMobile ? '0' : '300px',
+                                padding: '16px 20px 16px 52px',
+                                fontSize: '15px',
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '18px',
                                 color: 'white',
-                                transition: 'all 0.3s ease',
-                                outline: 'none'
+                                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                outline: 'none',
+                                fontWeight: '600',
+                                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.background = 'rgba(255,255,255,0.05)';
+                                e.target.style.borderColor = `rgba(${themeColor}, 0.4)`;
+                                e.target.style.boxShadow = `0 0 20px rgba(${themeColor}, 0.15), inset 0 2px 4px rgba(0,0,0,0.2)`;
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.background = 'rgba(255,255,255,0.03)';
+                                e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+                                e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.2)';
                             }}
                         />
                     </div>
                     <motion.button
-                        whileHover={{ scale: 1.05, boxShadow: '0 10px 25px rgba(59, 130, 246, 0.4)' }}
+                        whileHover={{ scale: 1.05, y: -2 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={addNewNote}
                         style={{
-                            padding: '12px 20px',
-                            borderRadius: '14px',
-                            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                            padding: '16px 28px',
+                            borderRadius: '18px',
+                            background: `linear-gradient(135deg, rgb(${themeColor}) 0%, rgba(${themeColor}, 0.8) 100%)`,
                             color: 'white',
                             border: 'none',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '10px',
-                            fontWeight: '700',
+                            gap: '12px',
+                            fontWeight: '800',
+                            fontSize: '15px',
                             cursor: 'pointer',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            boxShadow: `0 10px 25px rgba(${themeColor}, 0.3), 0 0 0 1px rgba(255,255,255,0.1) inset`,
+                            letterSpacing: '0.5px'
                         }}>
-                        <Plus size={20} /> <span className="hide-mobile">Baru</span>
+                        <Plus size={22} strokeWidth={3} /> <span className="hide-mobile">BARU</span>
                     </motion.button>
                 </div>
+            </div>
+
+            {/* Premium Category Tabs - Floating Island Style */}
+            <div style={{
+                display: 'flex',
+                gap: '8px',
+                padding: '8px',
+                background: 'rgba(15, 23, 42, 0.6)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '24px',
+                border: '1px solid rgba(255,255,255,0.05)',
+                width: 'fit-content',
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+            }} className="no-scrollbar">
+                {['All', ...CATEGORIES.map(c => c.label)].map(tab => {
+                    const CategoryIcon = tab === 'All' ? Layers : CATEGORIES.find(c => c.label === tab)?.icon || Hash;
+                    const isActive = activeTab === tab;
+                    const tabColor = tab === 'All' ? `rgb(${themeColor})` : (CATEGORIES.find(c => c.label === tab)?.color || `rgb(${themeColor})`);
+                    const isThemedTab = tab === 'All';
+                    const effectiveColor = isThemedTab ? `rgb(${themeColor})` : tabColor;
+                    const effectiveRgb = isThemedTab ? themeColor : (isActive ? effectiveColor : '255,255,255');
+
+                    return (
+                        <motion.button
+                            key={tab}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setActiveTab(tab)}
+                            style={{
+                                padding: '12px 24px',
+                                borderRadius: '18px',
+                                background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                color: isActive ? 'white' : 'rgba(255,255,255,0.4)',
+                                border: isActive ? `1px solid rgba(${isThemedTab ? themeColor : '255,255,255'}, 0.3)` : '1px solid transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                fontWeight: '800',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                whiteSpace: 'nowrap',
+                                position: 'relative'
+                            }}
+                        >
+                            {isActive && (
+                                <motion.div
+                                    layoutId="tab-glow"
+                                    style={{
+                                        position: 'absolute', inset: 0, borderRadius: '18px',
+                                        boxShadow: `0 0 20px rgba(${isThemedTab ? themeColor : '255,255,255'}, 0.2)`, pointerEvents: 'none'
+                                    }}
+                                />
+                            )}
+                            <CategoryIcon size={18} color={isActive ? effectiveColor : 'currentColor'} />
+                            {tab}
+                            {/* Counter Chip - More Sophisticated */}
+                            <span style={{
+                                padding: '4px 10px',
+                                borderRadius: '10px',
+                                background: isActive ? `rgba(${isThemedTab ? themeColor : '255,255,255'}, 0.1)` : 'rgba(255,255,255,0.03)',
+                                color: isActive ? effectiveColor : 'white',
+                                fontSize: '11px',
+                                fontWeight: '900',
+                                marginLeft: '6px',
+                                border: '1px solid rgba(255,255,255,0.05)'
+                            }}>
+                                {tab === 'All' ? (Array.isArray(notes) ? notes.length : 0) : (Array.isArray(notes) ? notes.filter(n => n.category === tab).length : 0)}
+                            </span>
+                        </motion.button>
+                    );
+                })}
             </div>
 
             {/* Masonry-style Grid Cards Area */}
@@ -359,15 +595,15 @@ const CatatanKerja = () => {
                                 borderRadius: '28px',
                                 padding: '32px',
                                 cursor: 'pointer',
-                                border: '1px solid rgba(255,255,255,0.05)',
-                                height: 'auto', // Now dynamic based on content
+                                border: note.isPinned ? `2px solid ${note.color}` : '1px solid rgba(255,255,255,0.05)',
+                                height: 'auto',
                                 minHeight: '180px',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 position: 'relative',
                                 overflow: 'hidden',
                                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                                boxShadow: note.isPinned ? `0 15px 40px ${note.color}30` : '0 10px 30px rgba(0,0,0,0.2)'
                             }}
                         >
                             {/* Visual Accent */}
@@ -375,6 +611,26 @@ const CatatanKerja = () => {
                                 position: 'absolute', top: 0, left: 0, width: '100%', height: '6px',
                                 background: note.color || getCardGradient(index)
                             }} />
+
+                            {/* Status Badges */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                {note.isPinned && (
+                                    <div style={{ padding: '4px 8px', borderRadius: '8px', background: `${note.color}20`, color: note.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Pin size={10} fill={note.color} />
+                                        <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>Pinned</span>
+                                    </div>
+                                )}
+                                <div style={{ padding: '4px 8px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Tag size={10} />
+                                    <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>{note.category || 'General'}</span>
+                                </div>
+                                {note.priority === 'High' && (
+                                    <div style={{ padding: '4px 8px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite' }} />
+                                        <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }}>Urgent</span>
+                                    </div>
+                                )}
+                            </div>
 
                             <h4 style={{
                                 fontSize: '19px', fontWeight: '900', color: note.color || 'white', marginBottom: '16px',
@@ -387,7 +643,7 @@ const CatatanKerja = () => {
                             <p style={{
                                 fontSize: '15px', color: 'rgba(255,255,255,0.6)', lineHeight: '1.7',
                                 wordBreak: 'break-word', marginBottom: '24px',
-                                whiteSpace: 'pre-wrap' // Preserve line breaks for clean look
+                                whiteSpace: 'pre-wrap'
                             }}>
                                 {note.content ? (note.content.length > 250 ? note.content.substring(0, 250) + '...' : note.content) : 'Kosong...'}
                             </p>
@@ -400,6 +656,16 @@ const CatatanKerja = () => {
                                     <span>{note.date}</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
+                                    <motion.button
+                                        whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.1)' }}
+                                        onClick={(e) => togglePin(note.id, e)}
+                                        style={{
+                                            width: '38px', height: '38px', background: 'rgba(255,255,255,0.05)', color: note.isPinned ? note.color : '#94a3b8',
+                                            border: 'none', borderRadius: '12px', cursor: 'pointer', display: 'flex',
+                                            alignItems: 'center', justifyContent: 'center'
+                                        }}>
+                                        {note.isPinned ? <Pin size={16} fill={note.color} /> : <Pin size={16} />}
+                                    </motion.button>
                                     <motion.button
                                         whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.2)' }}
                                         onClick={(e) => deleteNote(note.id, e)}
@@ -489,30 +755,177 @@ const CatatanKerja = () => {
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>TERAKHIR DIUBAH</label>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600' }}>
-                                                <Clock size={14} style={{ color: activeNote?.color || 'var(--primary)' }} /> {activeNote?.lastUpdated || activeNote?.last_updated || new Date().toLocaleString('id-ID')}
+                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>LAMPIRAN & BUKTI</label>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.02 }}
+                                                    onClick={scanForLinks}
+                                                    style={{
+                                                        padding: '12px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)',
+                                                        color: '#60a5fa', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                                    }}
+                                                >
+                                                    <ScanLine size={16} /> Scan Link di Isi
+                                                </motion.button>
+
+                                                <div style={{
+                                                    maxHeight: '250px',
+                                                    overflowY: 'auto',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '8px',
+                                                    paddingRight: '4px'
+                                                }} className="editor-scrollbar">
+                                                    {(activeNote.attachments || []).length === 0 ? (
+                                                        <div style={{ padding: '20px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px' }}>
+                                                            <Paperclip size={24} style={{ color: 'rgba(255,255,255,0.1)', marginBottom: '8px' }} />
+                                                            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', fontWeight: '600' }}>Belum ada lampiran</p>
+                                                        </div>
+                                                    ) : (
+                                                        activeNote.attachments.map(att => (
+                                                            <motion.div
+                                                                key={att.id}
+                                                                initial={{ scale: 0.9, opacity: 0 }}
+                                                                animate={{ scale: 1, opacity: 1 }}
+                                                                style={{
+                                                                    padding: '10px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+                                                                    display: 'flex', flexDirection: 'column', gap: '10px'
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: att.type === 'image' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: att.type === 'image' ? '#10b981' : '#3b82f6' }}>
+                                                                        {att.type === 'image' ? <ImageIcon size={16} /> : <Link2 size={16} />}
+                                                                    </div>
+                                                                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                                        <p style={{ fontSize: '11px', color: 'white', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{att.url}</p>
+                                                                        <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '600' }}>{att.date}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const updated = activeNote.attachments.filter(a => a.id !== att.id);
+                                                                            handleUpdateNote('attachments', updated);
+                                                                        }}
+                                                                        style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </div>
+
+                                                                {att.type === 'image' && (
+                                                                    <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                        <img src={att.url} alt="preview" style={{ width: '100%', height: '80px', objectFit: 'cover' }} onError={(e) => e.target.style.display = 'none'} />
+                                                                    </div>
+                                                                )}
+
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                                    <motion.a
+                                                                        href={att.url} target="_blank" rel="noopener noreferrer"
+                                                                        whileHover={{ background: 'rgba(255,255,255,0.08)' }}
+                                                                        style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', fontSize: '9px', fontWeight: '800', textDecoration: 'none', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <ExternalLink size={10} /> BUKA
+                                                                    </motion.a>
+                                                                    <motion.button
+                                                                        onClick={() => copyToClipboard(att.url)}
+                                                                        whileHover={{ background: 'rgba(255,255,255,0.08)' }}
+                                                                        style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', color: '#94a3b8', border: 'none', fontSize: '9px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                                                    >
+                                                                        <Copy size={10} /> SALIN
+                                                                    </motion.button>
+                                                                </div>
+                                                            </motion.div>
+                                                        ))
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>STATISTIK</label>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                                <div style={{ padding: '12px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>KARAKTER</p>
-                                                    <p style={{ fontSize: '18px', fontWeight: '900', color: 'white' }}>{getNoteStats(activeNote?.content).chars}</p>
-                                                </div>
-                                                <div style={{ padding: '12px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px' }}>KATA</p>
-                                                    <p style={{ fontSize: '18px', fontWeight: '900', color: 'white' }}>{getNoteStats(activeNote?.content).words}</p>
-                                                </div>
+                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KONTROL CEPAT</label>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
+                                                    onClick={() => handleUpdateNote('isPinned', !activeNote.isPinned)}
+                                                    style={{ flex: 1, padding: '10px', borderRadius: '12px', background: activeNote.isPinned ? `${activeNote.color}20` : 'rgba(255,255,255,0.03)', border: `1px solid ${activeNote.isPinned ? activeNote.color : 'rgba(255,255,255,0.05)'}`, color: activeNote.isPinned ? activeNote.color : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                                >
+                                                    <Pin size={14} fill={activeNote.isPinned ? activeNote.color : 'transparent'} /> {activeNote.isPinned ? 'Pinned' : 'Pin'}
+                                                </motion.button>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
+                                                    onClick={() => copyToClipboard(`${activeNote.title}\n\n${activeNote.content}`)}
+                                                    style={{ flex: 1, padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}
+                                                >
+                                                    <Copy size={14} /> Salin
+                                                </motion.button>
                                             </div>
                                         </div>
 
-                                        {/* COLOR PICKER */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>PRIORITAS</label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                                {['Low', 'Medium', 'High'].map(p => (
+                                                    <button
+                                                        key={p}
+                                                        onClick={() => handleUpdateNote('priority', p)}
+                                                        style={{
+                                                            padding: '8px', borderRadius: '8px', fontSize: '10px', fontWeight: '900',
+                                                            background: activeNote.priority === p ? (p === 'High' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.1)') : 'rgba(255,255,255,0.02)',
+                                                            border: `1px solid ${activeNote.priority === p ? (p === 'High' ? '#ef4444' : 'white') : 'rgba(255,255,255,0.05)'}`,
+                                                            color: activeNote.priority === p ? 'white' : '#64748b',
+                                                            cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase'
+                                                        }}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>KATEGORI</label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                                                {CATEGORIES.map(cat => (
+                                                    <button
+                                                        key={cat.label}
+                                                        onClick={() => handleUpdateNote('category', cat.label)}
+                                                        style={{
+                                                            padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+                                                            background: activeNote.category === cat.label ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.02)',
+                                                            border: `1px solid ${activeNote.category === cat.label ? 'white' : 'transparent'}`,
+                                                            color: activeNote.category === cat.label ? 'white' : '#64748b',
+                                                            cursor: 'pointer', transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <cat.icon size={12} />
+                                                        <span style={{ fontSize: '11px', fontWeight: '700' }}>{cat.label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* TEMPLATES */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>SMART TEMPLATES</label>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {TEMPLATES.map(tmp => (
+                                                    <button
+                                                        key={tmp.name}
+                                                        onClick={() => applyTemplate(tmp)}
+                                                        style={{
+                                                            padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+                                                            color: 'white', fontSize: '12px', fontWeight: '700', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'
+                                                        }}
+                                                    >
+                                                        <FileText size={14} color={activeNote.color} />
+                                                        {tmp.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             <label style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>WARNA TEMA</label>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                                 {NOTE_COLORS.map(color => (
                                                     <motion.div
                                                         key={color}
@@ -520,10 +933,10 @@ const CatatanKerja = () => {
                                                         whileTap={{ scale: 0.9 }}
                                                         onClick={() => handleUpdateNote('color', color)}
                                                         style={{
-                                                            width: '32px', height: '32px', borderRadius: '50%',
+                                                            width: '24px', height: '24px', borderRadius: '50%',
                                                             background: color, cursor: 'pointer',
                                                             border: activeNote?.color === color ? '3px solid white' : '2px solid transparent',
-                                                            boxShadow: activeNote?.color === color ? `0 0 15px ${color}` : 'none',
+                                                            boxShadow: activeNote?.color === color ? `0 0 10px ${color}` : 'none',
                                                             transition: 'all 0.2s'
                                                         }}
                                                     />
@@ -630,6 +1043,19 @@ const CatatanKerja = () => {
                                             width: '100%',
                                             padding: '0'
                                         }}>
+                                            {/* Productivity Toolbar */}
+                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <button onClick={() => handleUpdateNote('content', activeNote.content + '\n• ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Layers size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>List</span>
+                                                </button>
+                                                <button onClick={() => handleUpdateNote('content', activeNote.content + '\n[ ] ')} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <CheckSquare size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>To-do</span>
+                                                </button>
+                                                <button onClick={() => handleUpdateNote('content', activeNote.content + `\n--- ${new Date().toLocaleTimeString()} ---\n`)} style={{ padding: '6px 12px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Clock size={14} /> <span style={{ fontSize: '12px', fontWeight: '700' }}>Time</span>
+                                                </button>
+                                            </div>
+
                                             <textarea
                                                 value={activeNote?.content || ''}
                                                 onChange={e => handleUpdateNote('content', e.target.value)}
@@ -641,7 +1067,7 @@ const CatatanKerja = () => {
                                                     fontSize: isMobile ? '16px' : '18px',
                                                     color: 'rgba(255,255,255,0.85)',
                                                     outline: 'none', resize: 'none', lineHeight: '1.6',
-                                                    paddingBottom: '100px' // Ruang ekstra di bawah agar nyaman mengetik
+                                                    paddingBottom: '100px'
                                                 }}
                                             />
                                         </div>
@@ -729,6 +1155,12 @@ const CatatanKerja = () => {
             </AnimatePresence>
 
             <style>{`
+                @keyframes pulse {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.5); opacity: 0.5; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+
                 @media (max-width: 768px) {
                     .notes-header {
                         padding: 16px 20px !important;
