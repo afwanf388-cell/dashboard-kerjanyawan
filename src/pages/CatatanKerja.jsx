@@ -43,7 +43,163 @@ const TEMPLATES = [
     },
 ];
 
+const NoteCard = React.memo(({ note, index, themeColor, themeFont, openNoteModal, togglePin, deleteNote }) => (
+    <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: Math.min(index * 0.05, 0.5), type: 'spring', stiffness: 300, damping: 25 }}
+        whileHover={{ y: -10, scale: 1.02 }}
+        onClick={() => openNoteModal(note)}
+        style={{
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '32px',
+            padding: '28px',
+            cursor: 'pointer',
+            border: `1px solid ${note.isPinned ? `${note.color}60` : 'rgba(255,255,255,0.08)'}`,
+            position: 'relative',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '380px',
+            transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            boxShadow: note.isPinned
+                ? `0 20px 50px -10px ${note.color}40, 0 0 0 1px ${note.color}30`
+                : '0 15px 35px -10px rgba(0,0,0,0.5)',
+        }}
+    >
+        {/* Decorative Accent & Glow */}
+        <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '8px',
+            background: note.color || '#3b82f6',
+            borderRadius: '32px 32px 0 0',
+            opacity: 0.8
+        }} />
+
+        {note.isPinned && (
+            <div style={{
+                position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px',
+                background: note.color, filter: 'blur(60px)', opacity: 0.15, pointerEvents: 'none'
+            }} />
+        )}
+
+        {/* Header: Title & Badges */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {note.isPinned && (
+                        <div style={{
+                            padding: '5px 10px', borderRadius: '10px', background: `${note.color}20`,
+                            color: note.color, display: 'flex', alignItems: 'center', gap: '5px',
+                            border: `1px solid ${note.color}40`
+                        }}>
+                            <Pin size={10} fill={note.color} />
+                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PINNED</span>
+                        </div>
+                    )}
+                    <div style={{
+                        padding: '5px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)',
+                        color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '5px',
+                        border: '1px solid rgba(255,255,255,0.1)'
+                    }}>
+                        <Tag size={10} />
+                        <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{note.category || 'GENERAL'}</span>
+                    </div>
+                </div>
+                {note.priority === 'High' && (
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444', animation: 'pulse 1.5s infinite' }} />
+                )}
+            </div>
+
+            <h4 style={{
+                fontSize: '18px', fontWeight: '900', color: note.color || 'white',
+                margin: 0, lineHeight: '1.4',
+                fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.3px',
+                textShadow: `0 0 20px ${note.color}40`,
+                wordBreak: 'break-word'
+            }}>
+                {note.title || 'Catatan Baru'}
+            </h4>
+        </div>
+
+        {/* Content Body - SCROLLABLE & CLICKABLE */}
+        <div
+            className="custom-card-scroll"
+            style={{
+                flex: 1,
+                overflowY: 'auto',
+                paddingRight: '12px',
+                margin: '10px 0',
+                position: 'relative',
+                cursor: 'pointer',
+                maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)'
+            }}
+        >
+            <p style={{
+                fontSize: '15px', color: 'rgba(255,255,255,0.45)', lineHeight: '1.7',
+                margin: 0, whiteSpace: 'pre-wrap',
+                fontFamily: themeFont
+            }}>
+                {note.content || 'Mulailah menulis isi catatanmu di sini...'}
+            </p>
+        </div>
+
+        {/* Footer: Date & Actions */}
+        <div style={{
+            marginTop: '24px', paddingTop: '20px',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                    width: '32px', height: '32px', borderRadius: '10px',
+                    background: `rgba(${themeColor}, 0.1)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: `rgb(${themeColor})`
+                }}>
+                    <Calendar size={14} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '11px', color: 'white', fontWeight: '800' }}>{note.date}</span>
+                    <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '700' }}>DIAMBIL</span>
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <motion.button
+                    whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.08)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => { e.stopPropagation(); togglePin(note.id, e); }}
+                    style={{
+                        width: '42px', height: '42px', borderRadius: '14px',
+                        background: note.isPinned ? `${note.color}15` : 'rgba(255,255,255,0.03)',
+                        color: note.isPinned ? note.color : 'rgba(255,255,255,0.3)',
+                        border: `1px solid ${note.isPinned ? `${note.color}40` : 'rgba(255,255,255,0.05)'}`,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                    <Pin size={16} fill={note.isPinned ? note.color : 'transparent'} />
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.15)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id, e); }}
+                    style={{
+                        width: '42px', height: '42px', borderRadius: '14px',
+                        background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                    <Trash2 size={16} />
+                </motion.button>
+            </div>
+        </div>
+    </motion.div>
+));
+
 const CatatanKerja = () => {
+    // ... rest of the component ...
     const { user } = useAuth();
     const [notes, setNotes] = useState([]);
     const [activeNote, setActiveNote] = useState(null);
@@ -609,159 +765,16 @@ const CatatanKerja = () => {
                     </motion.div>
                 ) : (
                     filteredNotes.map((note, index) => (
-                        <motion.div
+                        <NoteCard
                             key={note.id || index}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
-                            whileHover={{ y: -10, scale: 1.02 }}
-                            onClick={() => openNoteModal(note)}
-                            style={{
-                                background: 'rgba(15, 23, 42, 0.7)',
-                                backdropFilter: 'blur(20px)',
-                                borderRadius: '32px',
-                                padding: '28px',
-                                cursor: 'pointer',
-                                border: `1px solid ${note.isPinned ? `${note.color}60` : 'rgba(255,255,255,0.08)'}`,
-                                position: 'relative',
-                                overflow: 'hidden',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                height: '380px', // Uniform height for "rapi" look
-                                transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                                boxShadow: note.isPinned
-                                    ? `0 20px 50px -10px ${note.color}40, 0 0 0 1px ${note.color}30`
-                                    : '0 15px 35px -10px rgba(0,0,0,0.5)',
-                            }}
-                        >
-                            {/* Decorative Accent & Glow */}
-                            <div style={{
-                                position: 'absolute', top: 0, left: 0, width: '100%', height: '8px',
-                                background: note.color || '#3b82f6',
-                                borderRadius: '32px 32px 0 0',
-                                opacity: 0.8
-                            }} />
-
-                            {note.isPinned && (
-                                <div style={{
-                                    position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px',
-                                    background: note.color, filter: 'blur(60px)', opacity: 0.15, pointerEvents: 'none'
-                                }} />
-                            )}
-
-                            {/* Header: Title & Badges */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                        {note.isPinned && (
-                                            <div style={{
-                                                padding: '5px 10px', borderRadius: '10px', background: `${note.color}20`,
-                                                color: note.color, display: 'flex', alignItems: 'center', gap: '5px',
-                                                border: `1px solid ${note.color}40`
-                                            }}>
-                                                <Pin size={10} fill={note.color} />
-                                                <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PINNED</span>
-                                            </div>
-                                        )}
-                                        <div style={{
-                                            padding: '5px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)',
-                                            color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '5px',
-                                            border: '1px solid rgba(255,255,255,0.1)'
-                                        }}>
-                                            <Tag size={10} />
-                                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{note.category || 'GENERAL'}</span>
-                                        </div>
-                                    </div>
-                                    {note.priority === 'High' && (
-                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444', animation: 'pulse 1.5s infinite' }} />
-                                    )}
-                                </div>
-
-                                <h4 style={{
-                                    fontSize: '18px', fontWeight: '900', color: note.color || 'white',
-                                    margin: 0, lineHeight: '1.4',
-                                    fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.3px',
-                                    textShadow: `0 0 20px ${note.color}40`,
-                                    wordBreak: 'break-word'
-                                }}>
-                                    {note.title || 'Catatan Baru'}
-                                </h4>
-                            </div>
-
-                            {/* Content Body - SCROLLABLE & CLICKABLE */}
-                            <div
-                                className="custom-card-scroll"
-                                style={{
-                                    flex: 1,
-                                    overflowY: 'auto',
-                                    paddingRight: '12px',
-                                    margin: '10px 0',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)', // Subtle fade only at the very bottom
-                                    WebkitMaskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)'
-                                }}
-                            >
-                                <p style={{
-                                    fontSize: '15px', color: 'rgba(255,255,255,0.45)', lineHeight: '1.7',
-                                    margin: 0, whiteSpace: 'pre-wrap',
-                                    fontFamily: themeFont
-                                }}>
-                                    {note.content || 'Mulailah menulis isi catatanmu di sini...'}
-                                </p>
-                            </div>
-
-                            {/* Footer: Date & Actions */}
-                            <div style={{
-                                marginTop: '24px', paddingTop: '20px',
-                                borderTop: '1px solid rgba(255,255,255,0.06)',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{
-                                        width: '32px', height: '32px', borderRadius: '10px',
-                                        background: `rgba(${themeColor}, 0.1)`,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: `rgb(${themeColor})`
-                                    }}>
-                                        <Calendar size={14} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '11px', color: 'white', fontWeight: '800' }}>{note.date}</span>
-                                        <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '700' }}>DIAMBIL</span>
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <motion.button
-                                        whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.08)' }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={(e) => { e.stopPropagation(); togglePin(note.id, e); }}
-                                        style={{
-                                            width: '42px', height: '42px', borderRadius: '14px',
-                                            background: note.isPinned ? `${note.color}15` : 'rgba(255,255,255,0.03)',
-                                            color: note.isPinned ? note.color : 'rgba(255,255,255,0.3)',
-                                            border: `1px solid ${note.isPinned ? `${note.color}40` : 'rgba(255,255,255,0.05)'}`,
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                        }}>
-                                        <Pin size={16} fill={note.isPinned ? note.color : 'transparent'} />
-                                    </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.15)' }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={(e) => { e.stopPropagation(); deleteNote(note.id, e); }}
-                                        style={{
-                                            width: '42px', height: '42px', borderRadius: '14px',
-                                            background: 'rgba(239, 68, 68, 0.05)',
-                                            color: '#ef4444',
-                                            border: '1px solid rgba(239, 68, 68, 0.15)',
-                                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                        }}>
-                                        <Trash2 size={16} />
-                                    </motion.button>
-                                </div>
-                            </div>
-                        </motion.div>
+                            note={note}
+                            index={index}
+                            themeColor={themeColor}
+                            themeFont={themeFont}
+                            openNoteModal={openNoteModal}
+                            togglePin={togglePin}
+                            deleteNote={deleteNote}
+                        />
                     ))
                 )}
             </div>

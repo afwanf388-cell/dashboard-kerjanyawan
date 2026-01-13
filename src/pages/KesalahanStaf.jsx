@@ -791,12 +791,12 @@ const KesalahanStaf = () => {
     };
 
 
-    const filteredMistakes = mistakes.filter(m => {
+    const filteredMistakes = useMemo(() => mistakes.filter(m => {
         return (
             (filters.staffName === '' || (m.staffName || '').toLowerCase().includes(filters.staffName.toLowerCase())) &&
             (filters.date === '' || m.date === filters.date)
         );
-    }).sort((a, b) => (a.staffName || '').localeCompare(b.staffName || ''));
+    }).sort((a, b) => (a.staffName || '').localeCompare(b.staffName || '')), [mistakes, filters]);
 
     // Urutkan berdasarkan nama (A-Z)
     const displayedMistakes = [...filteredMistakes];
