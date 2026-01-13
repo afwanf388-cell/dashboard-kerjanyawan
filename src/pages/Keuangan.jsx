@@ -470,7 +470,7 @@ const Keuangan = () => {
                 }
                 .keuangan-container {
                     padding: ${isMobile ? '16px' : '40px'};
-                    min-height: 100vh; color: var(--text-main); font-family: 'Inter', sans-serif;
+                    min-height: 100vh; color: var(--text-main);
                     background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 60%);
                 }
                 .glass-card {
@@ -762,8 +762,8 @@ const Keuangan = () => {
                                 <label className="form-label">Harga Per Gram (IDR)</label>
                                 <input
                                     className="form-input"
-                                    value={formatRupiah(tempPrice).replace('Rp', '')}
-                                    onChange={e => setTempPrice(e.target.value)}
+                                    value={tempPrice ? Number(tempPrice.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''}
+                                    onChange={e => setTempPrice(e.target.value.replace(/\D/g, ''))}
                                     placeholder="Contoh: 1.450.000"
                                     autoFocus
                                 />
@@ -811,15 +811,15 @@ const Keuangan = () => {
                                 <div className="batch-grid">
                                     <div className="form-group">
                                         <label className="form-label">💼 Gaji Pokok <span style={{ color: '#60a5fa' }}>IDR</span></label>
-                                        <input className="form-input" placeholder="0" value={formData.gaji ? formatRupiah(formData.gaji).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'gaji')} />
+                                        <input className="form-input" placeholder="0" value={formData.gaji ? Number(formData.gaji.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''} onChange={e => handleInputChange(e, 'gaji')} />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">🎁 Bonus <span style={{ color: '#c084fc' }}>IDR</span></label>
-                                        <input className="form-input" placeholder="0" value={formData.bonus ? formatRupiah(formData.bonus).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'bonus')} />
+                                        <input className="form-input" placeholder="0" value={formData.bonus ? Number(formData.bonus.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''} onChange={e => handleInputChange(e, 'bonus')} />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">🕌 THR <span style={{ color: '#34d399' }}>IDR</span></label>
-                                        <input className="form-input" placeholder="0" value={formData.thr ? formatRupiah(formData.thr).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'thr')} />
+                                        <input className="form-input" placeholder="0" value={formData.thr ? Number(formData.thr.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''} onChange={e => handleInputChange(e, 'thr')} />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">🥇 Beli Emas (3.3gr = 1 Mayam) <span style={{ color: '#facc15' }}>GRAM</span></label>
@@ -827,11 +827,11 @@ const Keuangan = () => {
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">📉 Ambil Pinjaman <span style={{ color: '#f87171' }}>IDR</span></label>
-                                        <input className="form-input" placeholder="0" value={formData.pinjaman ? formatRupiah(formData.pinjaman).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'pinjaman')} style={{ borderColor: '#ef4444', color: '#fca5a5' }} />
+                                        <input className="form-input" placeholder="0" value={formData.pinjaman ? Number(formData.pinjaman.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''} onChange={e => handleInputChange(e, 'pinjaman')} style={{ borderColor: '#ef4444', color: '#fca5a5' }} />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">🛒 Uang Keluar (Belanja) <span style={{ color: '#f97316' }}>IDR</span></label>
-                                        <input className="form-input" placeholder="0" value={formData.pengeluaran ? formatRupiah(formData.pengeluaran).replace('Rp', '') : ''} onChange={e => handleInputChange(e, 'pengeluaran')} style={{ borderColor: '#f97316', color: '#fdba74' }} />
+                                        <input className="form-input" placeholder="0" value={formData.pengeluaran ? Number(formData.pengeluaran.toString().replace(/\D/g, '')).toLocaleString('id-ID') : ''} onChange={e => handleInputChange(e, 'pengeluaran')} style={{ borderColor: '#f97316', color: '#fdba74' }} />
                                     </div>
                                 </div>
 

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutDashboard, Key, NotebookPen, UserX,
     CalendarCheck, BookOpen, Wallet, MessageSquare,
-    LogOut, ChevronLeft, Shield, User, Camera, Check, X, Mail, Image as ImageIcon, Trash2, Calculator, Trophy
+    LogOut, ChevronLeft, Shield, User, Camera, Check, X, Mail, Image as ImageIcon, Trash2, Calculator, Trophy, Landmark
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,6 +26,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
         { name: 'Kesalahan Staf', icon: <UserX size={20} />, path: '/kesalahan-staf' },
         { name: 'Jadwal Result', icon: <CalendarCheck size={20} />, path: '/jadwal' },
         { name: 'Pemahaman Bola', icon: <BookOpen size={20} />, path: '/bola' },
+        { name: 'Jadwal Bank', icon: <Landmark size={20} />, path: '/jadwal-bank' },
         { name: 'Kalkulator Togel', icon: <Calculator size={20} />, path: '/kalkulator-togel' },
         { name: 'Kalkulator Bola', icon: <Trophy size={20} />, path: '/kalkulator-bola' },
         { name: 'Keuangan', icon: <Wallet size={20} />, path: '/keuangan' },

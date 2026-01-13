@@ -148,6 +148,11 @@ const TogelCalculator = () => {
     const [showPoolsModal, setShowPoolsModal] = useState(false);
     const [inputs, setInputs] = useState({});
     const [results, setResults] = useState({});
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredPools = POOLS.filter(pool =>
+        pool.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     // Get dynamic game data based on selected pool
     const gameData = getGameData(selectedPool);
@@ -253,21 +258,22 @@ const TogelCalculator = () => {
                 </div>
 
                 <motion.button
-                    whileHover={{ scale: 1.05 }}
+                    whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(14, 165, 233, 0.3)' }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowPoolsModal(true)}
                     style={{
                         padding: '12px 24px',
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(37, 99, 235, 0.1))',
+                        border: '1px solid rgba(14, 165, 233, 0.3)',
                         borderRadius: '16px',
                         color: 'white', cursor: 'pointer',
                         display: 'flex', alignItems: 'center', gap: '10px',
-                        backdropFilter: 'blur(10px)'
+                        backdropFilter: 'blur(10px)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
                     }}
                 >
-                    <SlidersHorizontal size={20} color="#0ea5e9" />
-                    <span style={{ fontSize: '14px', fontWeight: '700' }}>Ganti Pasaran</span>
+                    <SlidersHorizontal size={18} color="#0ea5e9" className="animate-pulse" />
+                    <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '0.5px' }}>Ganti Pasaran</span>
                 </motion.button>
             </div>
 
@@ -275,56 +281,177 @@ const TogelCalculator = () => {
             <AnimatePresence>
                 {showPoolsModal && (
                     <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         style={{
-                            position: 'fixed', inset: 0, zIndex: 9999,
-                            background: 'rgba(5, 10, 20, 0.9)', backdropFilter: 'blur(12px)',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px'
+                            position: 'fixed',
+                            inset: 0,
+                            zIndex: 99999,
+                            background: 'rgba(2, 6, 23, 0.85)',
+                            backdropFilter: 'blur(24px)',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'flex-start', // Force to top
+                            padding: '40px 16px' // Breather from very top
                         }}
+                        onClick={() => setShowPoolsModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 50 }}
+                            initial={{ scale: 0.95, y: -50, opacity: 0 }} // Slide down from top
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.95, y: -50, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            onClick={(e) => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: '800px', maxHeight: '85vh',
-                                background: '#0f172a', borderRadius: '32px',
-                                border: '1px solid rgba(14, 165, 233, 0.2)',
-                                overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                                boxShadow: '0 0 100px rgba(14, 165, 233, 0.1)'
+                                width: '100%',
+                                maxWidth: '850px',
+                                maxHeight: '85dvh',
+                                background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
+                                borderRadius: '32px',
+                                border: '1px solid rgba(14, 165, 233, 0.3)',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                boxShadow: '0 40px 80px -20px rgba(0, 0, 0, 0.7), 0 0 40px rgba(14, 165, 233, 0.15)',
+                                position: 'relative'
                             }}
                         >
+                            {/* Deep Background Accents at Top */}
                             <div style={{
-                                padding: '30px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                background: 'linear-gradient(90deg, #0f172a, #1e293b)'
+                                position: 'absolute', top: 0, left: 0, right: 0, height: '120px',
+                                background: 'linear-gradient(180deg, rgba(14, 165, 233, 0.1), transparent)',
+                                pointerEvents: 'none'
+                            }} />
+
+                            <div style={{
+                                padding: '24px 32px',
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'rgba(15, 23, 42, 0.3)',
+                                position: 'relative',
+                                zIndex: 1
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <div style={{ padding: '10px', background: 'rgba(14, 165, 233, 0.1)', borderRadius: '12px' }}>
-                                        <Globe size={24} color="#0ea5e9" />
+                                    <div style={{
+                                        width: '44px', height: '44px',
+                                        background: 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                                        borderRadius: '12px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        boxShadow: '0 8px 16px rgba(14, 165, 233, 0.3)'
+                                    }}>
+                                        <Globe size={24} color="white" />
                                     </div>
-                                    <h3 style={{ fontSize: '24px', fontWeight: '800', color: 'white' }}>PILIH PASARAN</h3>
+                                    <div>
+                                        <h3 style={{ fontSize: '20px', fontWeight: '900', color: 'white', margin: 0, letterSpacing: '0.5px' }}>PILIH PASARAN</h3>
+                                        <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0', textTransform: 'uppercase', fontWeight: '800' }}>{POOLS.length} LIVE MARKETS</p>
+                                    </div>
                                 </div>
-                                <button onClick={() => setShowPoolsModal(false)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
-                                    <X size={28} />
-                                </button>
+                                <motion.button
+                                    whileHover={{ scale: 1.1, rotate: 90 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => { setShowPoolsModal(false); setSearchTerm(''); }}
+                                    style={{
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        width: '36px', height: '36px', borderRadius: '10px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}
+                                >
+                                    <X size={20} />
+                                </motion.button>
                             </div>
-                            <div style={{ overflowY: 'auto', padding: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-                                {POOLS.map(pool => (
-                                    <motion.button
-                                        key={pool} onClick={() => { setSelectedPool(pool); setShowPoolsModal(false); }}
-                                        whileHover={{ scale: 1.03, backgroundColor: 'rgba(14, 165, 233, 0.1)', borderColor: '#0ea5e9' }}
-                                        whileTap={{ scale: 0.98 }}
+
+                            {/* Sophisticated Search Bar */}
+                            <div style={{ padding: '24px 32px 16px', position: 'relative', zIndex: 1 }}>
+                                <div style={{ position: 'relative' }}>
+                                    <Hash style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#0ea5e9' }} size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama pasaran..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
                                         style={{
-                                            padding: '20px', borderRadius: '16px',
-                                            border: selectedPool === pool ? '2px solid #0ea5e9' : '1px solid rgba(255,255,255,0.05)',
-                                            background: selectedPool === pool ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b',
-                                            color: 'white', fontWeight: selectedPool === pool ? '800' : '600',
-                                            cursor: 'pointer', textAlign: 'left', position: 'relative', overflow: 'hidden', transition: 'all 0.2s'
+                                            width: '100%',
+                                            padding: '14px 20px 14px 48px',
+                                            background: '#0f172a',
+                                            border: '1px solid rgba(14, 165, 233, 0.2)',
+                                            borderRadius: '16px',
+                                            color: 'white',
+                                            fontSize: '15px',
+                                            fontWeight: '600',
+                                            outline: 'none',
+                                            transition: 'all 0.3s',
+                                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)',
+                                            letterSpacing: '0.5px'
                                         }}
-                                    >
-                                        <span style={{ position: 'relative', zIndex: 1, fontSize: '13px' }}>{pool}</span>
-                                        {selectedPool === pool && <div style={{ position: 'absolute', top: -10, right: -10, width: 40, height: 40, background: 'rgba(255,255,255,0.2)', borderRadius: '50%', filter: 'blur(20px)' }} />}
-                                    </motion.button>
-                                ))}
+                                        onFocus={(e) => {
+                                            e.target.style.borderColor = '#0ea5e9';
+                                            e.target.style.boxShadow = '0 0 20px rgba(14, 165, 233, 0.2), inset 0 2px 4px rgba(0,0,0,0.4)';
+                                        }}
+                                        onBlur={(e) => {
+                                            e.target.style.borderColor = 'rgba(14, 165, 233, 0.2)';
+                                            e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.4)';
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{
+                                overflowY: 'auto',
+                                padding: '16px 32px 32px',
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                                gap: '10px',
+                                flex: 1,
+                                scrollbarWidth: 'thin',
+                                scrollbarColor: 'rgba(14, 165, 233, 0.2) transparent'
+                            }}>
+                                {filteredPools.length > 0 ? (
+                                    filteredPools.map(pool => (
+                                        <motion.button
+                                            key={pool}
+                                            onClick={() => { setSelectedPool(pool); setShowPoolsModal(false); setSearchTerm(''); }}
+                                            whileHover={{ scale: 1.02, backgroundColor: 'rgba(14, 165, 233, 0.1)', borderColor: '#0ea5e9' }}
+                                            whileTap={{ scale: 0.98 }}
+                                            style={{
+                                                padding: '16px',
+                                                borderRadius: '14px',
+                                                border: selectedPool === pool ? '2px solid #0ea5e9' : '1px solid rgba(255,255,255,0.05)',
+                                                background: selectedPool === pool ? 'linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(30, 41, 59, 0.5))' : 'rgba(255,255,255,0.02)',
+                                                color: 'white',
+                                                fontWeight: selectedPool === pool ? '900' : '600',
+                                                cursor: 'pointer',
+                                                textAlign: 'left',
+                                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px'
+                                            }}
+                                        >
+                                            <div style={{
+                                                width: '8px', height: '8px', borderRadius: '50%',
+                                                background: selectedPool === pool ? '#0ea5e9' : 'rgba(255,255,255,0.1)',
+                                                boxShadow: selectedPool === pool ? '0 0 8px #0ea5e9' : 'none',
+                                                flexShrink: 0
+                                            }} />
+                                            <span style={{ fontSize: '11px', letterSpacing: '0.2px', flex: 1, textTransform: 'uppercase' }}>{pool}</span>
+                                            {selectedPool === pool && (
+                                                <Target size={12} color="#0ea5e9" />
+                                            )}
+                                        </motion.button>
+                                    ))
+                                ) : (
+                                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '48px 20px' }}>
+                                        <Globe size={40} color="#94a3b8" style={{ opacity: 0.2, marginBottom: '12px' }} />
+                                        <p style={{ fontSize: '15px', fontWeight: 'bold', color: '#94a3b8', margin: 0 }}>Pasaran Tidak Ditemukan</p>
+                                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Coba gunakan kata kunci lain</p>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

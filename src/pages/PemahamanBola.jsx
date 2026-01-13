@@ -450,7 +450,7 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
                             </div>
                         </div>
 
-                        <div style={{ fontSize: '17px', lineHeight: '1.9', color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap', fontFamily: 'Inter, sans-serif' }}>
+                        <div style={{ fontSize: '17px', lineHeight: '1.9', color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
                             {selectedArticle.content}
                         </div>
                     </div>

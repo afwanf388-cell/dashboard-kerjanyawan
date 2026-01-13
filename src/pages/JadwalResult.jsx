@@ -356,9 +356,9 @@ const JadwalResult = () => {
             {/* ENHANCED SEARCH & ACTION BAR */}
             <div className="search-action-bar" style={{
                 maxWidth: '1000px', margin: '0 auto 60px', display: 'grid',
-                gridTemplateColumns: '1fr auto auto', gap: '20px', position: 'relative', zIndex: 1
+                gridTemplateColumns: '1fr auto auto', gap: '20px', position: 'relative', zIndex: 100
             }}>
-                <div style={{ position: 'relative', group: 'true' }}>
+                <div style={{ position: 'relative' }}>
                     <Search size={22} style={{ position: 'absolute', left: '25px', top: '50%', transform: 'translateY(-50%)', color: '#f1c40f', opacity: 0.7 }} />
                     <input
                         type="text" placeholder="Search Markets (Ex: HK, Macau, Sydney)..."
@@ -369,18 +369,20 @@ const JadwalResult = () => {
                             paddingLeft: '70px', color: 'white', fontSize: '18px', outline: 'none',
                             transition: 'all 0.3s ease', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)'
                         }}
-                        onFocus={(e) => e.target.style.borderColor = '#f1c40f'}
-                        onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                     />
                 </div>
                 <motion.button
                     whileHover={{ scale: 1.02, backgroundColor: '#f1c40f' }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowModal(true)}
+                    onClick={() => {
+                        console.log("Opening Add Modal...");
+                        setShowModal(true);
+                    }}
                     style={{
-                        height: '70px', padding: '0 35px', background: 'rgba(241, 196, 15, 0.9)',
+                        height: '70px', padding: '0 35px', background: '#f1c40f',
                         color: '#000', border: 'none', borderRadius: '22px', fontWeight: '1000',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px'
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px',
+                        boxShadow: '0 10px 20px rgba(241, 196, 15, 0.2)'
                     }}
                 >
                     <Plus size={24} strokeWidth={3} /> ADD JADWAL
@@ -509,14 +511,25 @@ const JadwalResult = () => {
             {/* ULTRA-PREMIUM MODAL */}
             <AnimatePresence>
                 {showModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(20px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.9)',
+                        backdropFilter: 'blur(20px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'flex-start', // Move to top
+                        justifyContent: 'center',
+                        padding: '60px 20px 20px 20px', // Top padding
+                        overflowY: 'auto'
+                    }}>
                         <motion.div
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
+                            initial={{ scale: 0.9, opacity: 0, y: -20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
                             style={{
                                 width: '100%', maxWidth: '500px', background: '#080808',
-                                border: '1px solid rgba(241, 196, 15, 0.4)', borderRadius: '40px',
-                                padding: '40px', boxShadow: '0 0 100px rgba(241, 196, 15, 0.1)'
+                                border: '1px solid rgba(241, 196, 15, 0.3)', borderRadius: '40px',
+                                padding: '40px', boxShadow: '0 30px 60px rgba(0,0,0,0.8)'
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -533,14 +546,14 @@ const JadwalResult = () => {
                                     <label style={{ fontSize: '10px', fontWeight: '900', color: 'rgba(255,255,255,0.3)', marginLeft: '15px' }}>OPERATIONAL WINDOW</label>
                                     <input placeholder="Ex: Senin s/d Minggu" required value={formData.days} onChange={e => setFormData({ ...formData, days: e.target.value })} style={{ height: '60px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '18px', padding: '0 20px', color: 'white', fontSize: '16px' }} />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '900', color: 'rgba(239, 68, 68, 0.5)', marginLeft: '15px' }}>CLOSE TIME</label>
-                                        <input placeholder="22:45 WIB" required value={formData.closeTime} onChange={e => setFormData({ ...formData, closeTime: e.target.value })} style={{ height: '60px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '18px', padding: '0 20px', color: 'white', fontSize: '16px' }} />
+                                        <label style={{ fontSize: '10px', fontWeight: '900', color: '#ef4444', marginLeft: '15px' }}>CLOSE TIME</label>
+                                        <input placeholder="22:45 WIB" required value={formData.closeTime} onChange={e => setFormData({ ...formData, closeTime: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', height: '60px', background: 'rgba(15,23,42,0.4)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '18px', padding: '0 20px', color: 'white', fontSize: '15px', outline: 'none' }} />
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '900', color: 'rgba(16, 185, 129, 0.5)', marginLeft: '15px' }}>RESULT TIME</label>
-                                        <input placeholder="23:00 WIB" required value={formData.openTime} onChange={e => setFormData({ ...formData, openTime: e.target.value })} style={{ height: '60px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '18px', padding: '0 20px', color: 'white', fontSize: '16px' }} />
+                                        <label style={{ fontSize: '10px', fontWeight: '900', color: '#10b981', marginLeft: '15px' }}>RESULT TIME</label>
+                                        <input placeholder="23:00 WIB" required value={formData.openTime} onChange={e => setFormData({ ...formData, openTime: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', height: '60px', background: 'rgba(15,23,42,0.4)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '18px', padding: '0 20px', color: 'white', fontSize: '15px', outline: 'none' }} />
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

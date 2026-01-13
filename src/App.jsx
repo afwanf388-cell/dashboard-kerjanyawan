@@ -15,6 +15,7 @@ const Keuangan = React.lazy(() => import('./pages/Keuangan'));
 const GlobalChat = React.lazy(() => import('./pages/GlobalChat'));
 const KalkulatorTogel = React.lazy(() => import('./pages/KalkulatorTogel'));
 const KalkulatorBola = React.lazy(() => import('./pages/KalkulatorBola'));
+const JadwalBank = React.lazy(() => import('./pages/JadwalBank'));
 
 // Simple Loading Spinner
 const LoadingFallback = () => (
@@ -51,6 +52,7 @@ function App() {
               <Route path="/chat" element={<GlobalChat />} />
               <Route path="/kalkulator-togel" element={<KalkulatorTogel />} />
               <Route path="/kalkulator-bola" element={<KalkulatorBola />} />
+              <Route path="/jadwal-bank" element={<JadwalBank />} />
             </Route>
           </Routes>
         </Suspense>

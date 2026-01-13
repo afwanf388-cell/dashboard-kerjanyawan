@@ -512,8 +512,7 @@ const GlobalChat = () => {
             border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
             boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
             position: 'relative',
-            zIndex: 10,
-            fontFamily: "'Outfit', sans-serif"
+            zIndex: 10
         }}>
 
             {/* SIDEBAR */}

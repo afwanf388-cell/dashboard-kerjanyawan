@@ -58,7 +58,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 html {
@@ -645,8 +644,11 @@ html {
   -webkit-backdrop-filter: blur(8px) !important;
   overflow-y: auto !important;
   padding: 16px !important;
+  padding-top: 60px !important;
+  /* Move to top */
   display: flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;
+  /* Move to top */
   justify-content: center !important;
 }
 

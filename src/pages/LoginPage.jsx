@@ -108,7 +108,7 @@ const LoginPage = () => {
             display: 'flex',
             background: '#0a0a0f',
             color: 'white',
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'DynaPuff', system-ui",
             flexDirection: isMobile ? 'column' : 'row'
         }}>
             {/* Left Side: Branding */}

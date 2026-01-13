@@ -27,6 +27,20 @@ const Layout = () => {
         };
     }, [isMobileOpen]);
 
+    const [fontFamily, setFontFamily] = useState("'Inter', sans-serif");
+
+    useEffect(() => {
+        if (user?.username) {
+            const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.fontFamily) {
+                    setFontFamily(settings.fontFamily);
+                }
+            }
+        }
+    }, [user?.username]);
+
     if (!user) {
         return <Navigate to="/login" replace />;
     }
@@ -41,6 +55,7 @@ const Layout = () => {
             style={{
                 display: 'flex',
                 minHeight: '100vh',
+                fontFamily: fontFamily,
                 backgroundColor: '#020617',
                 backgroundImage: user?.bgImage
                     ? `linear-gradient(rgba(2, 6, 23, 0.35), rgba(2, 6, 23, 0.35)), url(${user.bgImage})`
@@ -50,7 +65,8 @@ const Layout = () => {
                 backgroundAttachment: 'fixed',
                 boxShadow: 'inset 0 0 100px rgba(0,0,0,0.3)',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                fontFamily: fontFamily
             }}
         >
             {/* MOBILE TOGGLE BUTTON */}
