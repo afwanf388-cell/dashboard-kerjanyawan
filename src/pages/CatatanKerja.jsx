@@ -226,15 +226,19 @@ const CatatanKerja = () => {
     useEffect(() => {
         if (user?.username) {
             const updateTheme = () => {
-                const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
-                if (saved) {
-                    const settings = JSON.parse(saved);
-                    if (settings.sidebarColor) {
-                        setThemeColor(settings.sidebarColor);
+                try {
+                    const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
+                    if (saved) {
+                        const settings = JSON.parse(saved);
+                        if (settings.sidebarColor) {
+                            setThemeColor(settings.sidebarColor);
+                        }
+                        if (settings.fontFamily) {
+                            setThemeFont(settings.fontFamily);
+                        }
                     }
-                    if (settings.fontFamily) {
-                        setThemeFont(settings.fontFamily);
-                    }
+                } catch (e) {
+                    console.error("Theme sync error:", e);
                 }
             };
             updateTheme();
@@ -319,7 +323,7 @@ const CatatanKerja = () => {
             }
         }
 
-        setNotes(prev => [...newFileNodes, ...prev]);
+        setNotes(prev => [...newFileNodes, ...(Array.isArray(prev) ? prev : [])]);
         setSaveStatus('Cloud Connected');
     };
 
@@ -331,12 +335,49 @@ const CatatanKerja = () => {
     });
 
     const downloadFile = (note) => {
-        const link = document.createElement("a");
-        link.href = note.content; // Base64 string
-        link.download = note.title; // Filename
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        try {
+            if (!note.content) {
+                alert("Konten file tidak ditemukan!");
+                return;
+            }
+
+            // check if content is a data URL
+            if (note.content.startsWith('data:')) {
+                const parts = note.content.split(',');
+                const mime = parts[0].match(/:(.*?);/)[1];
+                const bstr = atob(parts[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                const blob = new Blob([u8arr], { type: mime });
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = note.title;
+                document.body.appendChild(link);
+                link.click();
+
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            } else {
+                // Fallback for raw base64 or other formats
+                const link = document.createElement("a");
+                link.href = note.content;
+                link.download = note.title;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        } catch (error) {
+            console.error("Download failed:", error);
+            alert("Gagal mengunduh file. Data mungkin korup atau terlalu besar.");
+        }
     };
 
     const getFileIcon = (filename) => {
@@ -498,7 +539,14 @@ const CatatanKerja = () => {
     // Auto-save to localStorage
     useEffect(() => {
         if (!user?.username || !isInitialLoaded) return;
-        localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
+        try {
+            localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
+        } catch (e) {
+            console.error("Quota exceeded or localStorage error:", e);
+            if (e.name === 'QuotaExceededError') {
+                setSaveStatus('Memory Penuh!');
+            }
+        }
     }, [notes, user?.username, isInitialLoaded]);
 
     // Auto-resize title when modal opens or note changes
@@ -1939,9 +1987,11 @@ const CatatanKerja = () => {
                         gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                         gap: '24px'
                     }}>
-                        <AnimatePresence>
+                        <AnimatePresence mode="popLayout">
                             {filteredNotes.map((file, index) => {
-                                const ext = file.title?.split('.').pop()?.toLowerCase() || '';
+                                if (!file) return null;
+                                const filename = file.title || 'unnamed_file';
+                                const ext = filename.split('.').pop()?.toLowerCase() || '';
                                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
                                 const isPK = ext === 'pk';
                                 const isPDF = ext === 'pdf';
