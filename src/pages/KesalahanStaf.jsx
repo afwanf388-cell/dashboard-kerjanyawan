@@ -249,14 +249,10 @@ const KesalahanStaf = () => {
         const currentPeriod = getPeriodInfo();
         const currentYear = currentPeriod.year;
 
-        // Clean name utility (keeps full name, strips trailing IDs/Codes)
+        // Clean name utility (keeps full name, no truncation)
         const cleanName = (name) => {
             if (!name) return 'Anonymous';
-            return name
-                .replace(/\s[\/\-\(].*$/, '') // Remove trailing slashes/parentheses
-                .replace(/\s[A-Z\d]{5,}.*$/i, '') // Remove long alphanumeric codes
-                .trim()
-                .toUpperCase();
+            return name.trim().toUpperCase();
         };
 
         const thisPeriodAll = mistakes.filter(m => {
@@ -377,8 +373,250 @@ const KesalahanStaf = () => {
     // --- SMART IMPORT LOGIC ---
 
 
+    // --- WORKER CODE FOR NON-BLOCKING PROCESSING ---
+    const workerCode = `
+    self.onmessage = (e) => {
+        const { rawData, isCsv } = e.data;
+        
+        try {
+            const head = rawData.slice(0, 1000);
+            const commaCount = (head.match(/,/g) || []).length;
+            const semiCount = (head.match(/;/g) || []).length;
+            const separator = semiCount > commaCount ? ';' : ',';
+
+            const parseFullCsv = (text, sep) => {
+                const rows = [];
+                let currentRow = [];
+                let currentCell = '';
+                let inQuote = false;
+
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    const nextChar = text[i + 1];
+
+                    if (char === '"') {
+                        if (inQuote && nextChar === '"') { 
+                            currentCell += '"'; i++;
+                        } else {
+                            inQuote = !inQuote;
+                        }
+                    } else if (char === sep && !inQuote) {
+                        currentRow.push(currentCell.trim());
+                        currentCell = '';
+                    } else if ((char === '\\r' || char === '\\n') && !inQuote) {
+                        if (currentCell || currentRow.length > 0) {
+                            currentRow.push(currentCell.trim());
+                            rows.push(currentRow);
+                            currentRow = [];
+                            currentCell = '';
+                        }
+                        if (char === '\\r' && nextChar === '\\n') i++;
+                    } else {
+                        currentCell += char;
+                    }
+                }
+                if (currentCell || currentRow.length > 0) {
+                    currentRow.push(currentCell.trim());
+                    rows.push(currentRow);
+                }
+                return rows;
+            };
+
+            const allRows = isCsv ? parseFullCsv(rawData, separator) : rawData.split('\\n').map(l => l.split('\\t'));
+
+            let contextDate = null;
+            for (const row of allRows) {
+                for (const cell of row) {
+                    const text = (cell || '').trim();
+                    const dMatch = text.match(/(\\d{1,2})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{4})/);
+                    if (dMatch && !text.includes('http')) {
+                        contextDate = { y: dMatch[3], m: dMatch[2].padStart(2, '0') };
+                        break;
+                    }
+                }
+                if (contextDate) break;
+            }
+
+            if (!contextDate) {
+                const now = new Date();
+                contextDate = { y: now.getFullYear(), m: String(now.getMonth() + 1).padStart(2, '0') };
+            }
+
+            let currentDate = \`\${contextDate.y}-\${contextDate.m}-01\`;
+            const newMistakes = [];
+            const contentOccurrences = {};
+
+            allRows.forEach((rowData) => {
+                for (let cell of rowData) {
+                    const text = (cell || '').trim();
+                    const dMatch = text.match(/(\\d{1,2})[\\/\\-\\.](\\d{1,2})[\\/\\-\\.](\\d{4})/);
+                    if (dMatch && !text.includes('http')) {
+                        currentDate = \`\${dMatch[3]}-\${dMatch[2].padStart(2, '0')}-\${dMatch[1].padStart(2, '0')}\`;
+                        break;
+                    }
+                }
+
+                if (!currentDate) return;
+
+                const rawName = (rowData[0] || '').trim().replace(/^"|"$/g, '');
+                const rawLink = (rowData[1] || '').trim().replace(/^"|"$/g, '');
+                const rawDesc = (rowData[2] || '').trim().replace(/^"|"$/g, '');
+
+                const lowerName = rawName.toLowerCase();
+                if (!rawName || lowerName === 'nama' || lowerName.includes('jumlah') || lowerName.includes('tanggal')) return;
+                if (rawName.match(/^\\d{1,2}[\\/\\-\\.]\\d{1,2}[\\/\\-\\.]\\d{4}$/)) return;
+                if (rawName.length < 3) return;
+
+                let severity = 'Medium';
+                const lowerDesc = rawDesc.toLowerCase();
+                if (lowerDesc.includes('fatal') || lowerDesc.includes('tidak respon')) severity = 'High';
+                else if (lowerDesc.includes('note') || lowerDesc.includes('salah informasi')) severity = 'Low';
+
+                const contentKey = \`\${rawName}-\${currentDate}-\${rawDesc}-\${rawLink}\`.toLowerCase().replace(/\\s+/g, '');
+                contentOccurrences[contentKey] = (contentOccurrences[contentKey] || 0) + 1;
+
+                const stableIdString = \`\${contentKey}-\${contentOccurrences[contentKey]}\`;
+                let hash = 0;
+                for (let i = 0; i < stableIdString.length; i++) {
+                    hash = ((hash << 5) - hash) + stableIdString.charCodeAt(i);
+                    hash |= 0;
+                }
+                const stableId = Math.abs(hash);
+
+                newMistakes.push({
+                    id: stableId,
+                    staffName: rawName,
+                    date: currentDate,
+                    evidenceLink: rawLink,
+                    description: rawDesc || '-',
+                    severity: severity,
+                    importedAt: new Date().toISOString()
+                });
+            });
+
+            self.postMessage({ success: true, data: newMistakes });
+        } catch (e) {
+            self.postMessage({ success: false, error: e.message });
+        }
+    };
+    `;
+
+    const processImportData = async (rawData, isCsv = false, isBackground = false) => {
+        if (!rawData.trim()) return;
+
+        if (!isBackground) setSyncStatus('Processing via Worker...');
+
+        // Create Worker Blob
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        const worker = new Worker(workerUrl);
+
+        worker.onmessage = async (e) => {
+            const { success, data, error } = e.data;
+
+            if (success) {
+                if (data.length > 0) {
+                    setMistakes(data);
+
+                    if (supabase && user) {
+                        const userId = user.username || user.email;
+                        if (!isBackground) setSyncStatus('Syncing processed data...');
+
+                        const bulkPayload = data.map(item => ({
+                            id: item.id,
+                            user_id: userId,
+                            staff_name: item.staffName,
+                            date: item.date,
+                            evidence_link: item.evidenceLink || '',
+                            description: item.description,
+                            severity: item.severity,
+                            last_updated: new Date().toISOString()
+                        }));
+
+                        const { error: dbError } = await supabase.from('staff_mistakes').upsert(bulkPayload, { onConflict: 'id' });
+                        if (!dbError) setSyncStatus('Cloud Connected');
+                        else console.error("Bulk sync error:", dbError);
+                    }
+
+                    setShowImportModal(false);
+                    const now = new Date().toLocaleTimeString();
+                    setLastSyncTime(now);
+                    if (user?.username) {
+                        localStorage.setItem(`staff_last_sync_${user.username}`, now);
+                    }
+                    if (!isBackground) {
+                        setTimeout(() => {
+                            alert(`✅ Sukses! ${data.length} data laporan berhasil ditarik.`);
+                        }, 200);
+                    }
+                } else {
+                    if (!isBackground) alert('⚠️ Sheet terbaca tapi kolom Nama/Keterangan kosong. Pastikan data ada di kolom A, B, C.');
+                }
+            } else {
+                console.error('Worker Error:', error);
+                if (!isBackground) alert('❌ Gagal memproses data (Worker): ' + error);
+            }
+
+            // Cleanup
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+        };
+
+        worker.postMessage({ rawData, isCsv });
+    };
+
+    const handleImportFromUrl = async (isBackground = false) => {
+        if (!user?.username) return;
+        const urlToUse = isBackground ? localStorage.getItem(`staff_sheet_url_${user.username}`) : sheetUrl;
+
+        if (!urlToUse) {
+            if (!isBackground) alert('Masukkan Link Google Sheet terlebih dahulu!');
+            return;
+        }
+
+        let fetchUrl = urlToUse.trim();
+
+        if (fetchUrl.includes('docs.google.com/spreadsheets')) {
+            if (fetchUrl.includes('/pubhtml')) {
+                fetchUrl = fetchUrl.replace('/pubhtml', '/pub?output=csv');
+            } else if (fetchUrl.includes('/pub')) {
+                if (!fetchUrl.includes('output=csv')) {
+                    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'output=csv';
+                }
+            } else if (fetchUrl.includes('/edit')) {
+                fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
+            }
+        }
+
+        if (!isBackground && user?.username) {
+            localStorage.setItem(`staff_sheet_url_${user.username}`, urlToUse);
+            localStorage.setItem(`staff_auto_sync_${user.username}`, String(isAutoSync));
+        }
+
+        if (!isBackground) setIsLoadingSheet(true);
+
+        try {
+            // Retrieve content in main thread, then pass to worker
+            const response = await fetch(fetchUrl);
+            if (!response.ok) throw new Error('Gagal akses URL: ' + response.status);
+
+            const textData = await response.text();
+
+            if (textData.trim().startsWith('<!DOCTYPE html') || textData.includes('<html')) {
+                throw new Error('Link yang dimasukkan bukan link DATA (CSV). Pastikan pilih "Comma-separated values (.csv)" saat Publish to Web.');
+            }
+
+            await processImportData(textData, true, isBackground);
+        } catch (error) {
+            console.error('Fetch error:', error);
+            setSyncStatus('Sync Error');
+            if (!isBackground) alert('❌ ' + error.message);
+        } finally {
+            if (!isBackground) setIsLoadingSheet(false);
+        }
+    };
+
     // --- OPTIMIZED ROW COMPONENT ---
-    // --- OPTIMIZED CARD COMPONENT (Updated to Grid Card) ---
     const MistakeRow = React.memo(({ mistake, index, onDelete, severityColor, isInitialLoad }) => (
         <motion.div
             initial={isInitialLoad ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.9, y: 20 }}
@@ -394,7 +632,7 @@ const KesalahanStaf = () => {
                 background: 'rgba(255,255,255,0.03)',
                 position: 'relative',
                 overflow: 'hidden',
-                height: '100%' // Biar tinggi kartu sama dalam satu baris
+                height: '100%'
             }}
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -456,256 +694,6 @@ const KesalahanStaf = () => {
             </div>
         </motion.div>
     ));
-
-    const processImportData = async (rawData, isCsv = false, isBackground = false) => {
-        if (!rawData.trim()) return;
-
-        console.log("Importing strictly from A, B, C...");
-        try {
-            const head = rawData.slice(0, 1000);
-            const commaCount = (head.match(/,/g) || []).length;
-            const semiCount = (head.match(/;/g) || []).length;
-            const separator = semiCount > commaCount ? ';' : ',';
-
-            // --- ROBUST CSV SPLITTER (Handles newlines in quotes) ---
-            const parseFullCsv = (text, sep) => {
-                const rows = [];
-                let currentRow = [];
-                let currentCell = '';
-                let inQuote = false;
-
-                for (let i = 0; i < text.length; i++) {
-                    const char = text[i];
-                    const nextChar = text[i + 1];
-
-                    if (char === '"') {
-                        if (inQuote && nextChar === '"') { // Escaped quote
-                            currentCell += '"'; i++;
-                        } else {
-                            inQuote = !inQuote;
-                        }
-                    } else if (char === sep && !inQuote) {
-                        currentRow.push(currentCell.trim());
-                        currentCell = '';
-                    } else if ((char === '\r' || char === '\n') && !inQuote) {
-                        if (currentCell || currentRow.length > 0) {
-                            currentRow.push(currentCell.trim());
-                            rows.push(currentRow);
-                            currentRow = [];
-                            currentCell = '';
-                        }
-                        if (char === '\r' && nextChar === '\n') i++;
-                    } else {
-                        currentCell += char;
-                    }
-                }
-                if (currentCell || currentRow.length > 0) {
-                    currentRow.push(currentCell.trim());
-                    rows.push(currentRow);
-                }
-                return rows;
-            };
-
-            const allRows = isCsv ? parseFullCsv(rawData, separator) : rawData.split('\n').map(l => l.split('\t'));
-
-            // Pre-scan for context date (Year & Month)
-            let contextDate = null;
-            for (const row of allRows) {
-                for (const cell of row) {
-                    const text = (cell || '').trim();
-                    const dMatch = text.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-                    if (dMatch && !text.includes('http')) {
-                        contextDate = { y: dMatch[3], m: dMatch[2].padStart(2, '0') };
-                        break;
-                    }
-                }
-                if (contextDate) break;
-            }
-
-            // Default to current month/year if no date found anywhere
-            if (!contextDate) {
-                const now = new Date();
-                contextDate = { y: now.getFullYear(), m: String(now.getMonth() + 1).padStart(2, '0') };
-            }
-
-            // Start from Day 01 of that context month
-            let currentDate = `${contextDate.y}-${contextDate.m}-01`;
-            const newMistakes = [];
-            const contentOccurrences = {}; // Tracking duplicates in the same batch
-
-            allRows.forEach((rowData, lineIndex) => {
-                // Update date if a new one is found in this row separator
-                for (let cell of rowData) {
-                    const text = (cell || '').trim();
-                    const dMatch = text.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
-                    if (dMatch && !text.includes('http')) {
-                        currentDate = `${dMatch[3]}-${dMatch[2].padStart(2, '0')}-${dMatch[1].padStart(2, '0')}`;
-                        break;
-                    }
-                }
-
-                if (!currentDate) return;
-
-                // --- 2. FORCED EXTRACTION (A=0, B=1, C=2) ---
-                const rawName = (rowData[0] || '').trim().replace(/^"|"$/g, '');
-                const rawLink = (rowData[1] || '').trim().replace(/^"|"$/g, '');
-                const rawDesc = (rowData[2] || '').trim().replace(/^"|"$/g, '');
-
-                // Validation: Skip if Name is empty, standalone date, or header junk
-                const lowerName = rawName.toLowerCase();
-                if (!rawName || lowerName === 'nama' || lowerName.includes('jumlah') || lowerName.includes('tanggal')) return;
-                if (rawName.match(/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/)) return;
-                if (rawName.length < 3) return;
-
-                let severity = 'Medium';
-                const lowerDesc = rawDesc.toLowerCase();
-                if (lowerDesc.includes('fatal') || lowerDesc.includes('tidak respon')) severity = 'High';
-                else if (lowerDesc.includes('note') || lowerDesc.includes('salah informasi')) severity = 'Low';
-
-                // Generate a TRULY STABLE ID based on content to prevent duplicates upon re-import
-                // We combine Name, Date, Description and Link. 
-                // We also use an occurrence counter to handle multiple TRULY IDENTICAL rows in the same sheet.
-                const contentKey = `${rawName}-${currentDate}-${rawDesc}-${rawLink}`.toLowerCase().replace(/\s+/g, '');
-                contentOccurrences[contentKey] = (contentOccurrences[contentKey] || 0) + 1;
-
-                const stableIdString = `${contentKey}-${contentOccurrences[contentKey]}`;
-                let hash = 0;
-                for (let i = 0; i < stableIdString.length; i++) {
-                    hash = ((hash << 5) - hash) + stableIdString.charCodeAt(i);
-                    hash |= 0;
-                }
-                const stableId = Math.abs(hash);
-
-                newMistakes.push({
-                    id: stableId,
-                    staffName: rawName,
-                    date: currentDate,
-                    evidenceLink: rawLink,
-                    description: rawDesc || '-',
-                    severity: severity,
-                    importedAt: new Date().toISOString()
-                });
-            });
-
-            if (newMistakes.length > 0) {
-                setMistakes(newMistakes);
-
-                if (supabase && user) {
-                    const userId = user.username || user.email;
-                    setSyncStatus('Saving Bulk...');
-
-                    const bulkPayload = newMistakes.map(item => ({
-                        id: item.id,
-                        user_id: userId,
-                        staff_name: item.staffName,
-                        date: item.date,
-                        evidence_link: item.evidenceLink || '',
-                        description: item.description,
-                        severity: item.severity,
-                        last_updated: new Date().toISOString()
-                    }));
-
-                    // Use upsert WITHOUT delete to prevent data 'jumping' to 0
-                    const { error } = await supabase.from('staff_mistakes').upsert(bulkPayload, { onConflict: 'id' });
-                    if (!error) setSyncStatus('Cloud Connected');
-                    else console.error("Bulk sync error:", error);
-                }
-
-                setShowImportModal(false);
-                const now = new Date().toLocaleTimeString();
-                setLastSyncTime(now);
-                if (user?.username) {
-                    localStorage.setItem(`staff_last_sync_${user.username}`, now);
-                }
-                if (!isBackground) {
-                    setTimeout(() => {
-                        alert(`✅ Sukses! ${newMistakes.length} data laporan berhasil ditarik.`);
-                    }, 200);
-                }
-            } else {
-                if (!isBackground) {
-                    alert('⚠️ Sheet terbaca tapi kolom Nama/Keterangan kosong. Pastikan data ada di kolom A, B, C.');
-                }
-            }
-        } catch (error) {
-            console.error('Import Error:', error);
-            if (!isBackground) alert('❌ Gagal memproses data: ' + error.message);
-        }
-    };
-
-    // Helper for robust CSV parsing
-    const parseCsvLine = (text, sep) => {
-        const result = [];
-        let cur = '';
-        let inQuote = false;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (char === '"') inQuote = !inQuote;
-            else if (char === sep && !inQuote) {
-                result.push(cur); cur = '';
-            } else cur += char;
-        }
-        result.push(cur);
-        return result;
-    };
-
-    const handleImportFromUrl = async (isBackground = false) => {
-        if (!user?.username) return;
-        const urlToUse = isBackground ? localStorage.getItem(`staff_sheet_url_${user.username}`) : sheetUrl;
-
-        if (!urlToUse) {
-            if (!isBackground) alert('Masukkan Link Google Sheet terlebih dahulu!');
-            return;
-        }
-
-        // --- SMART LINK CONVERSION ---
-        let fetchUrl = urlToUse.trim();
-
-        if (fetchUrl.includes('docs.google.com/spreadsheets')) {
-            if (fetchUrl.includes('/pubhtml')) {
-                // Convert Publish to Web (HTML) to CSV
-                fetchUrl = fetchUrl.replace('/pubhtml', '/pub?output=csv');
-            } else if (fetchUrl.includes('/pub')) {
-                // Ensure it has output=csv
-                if (!fetchUrl.includes('output=csv')) {
-                    fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + 'output=csv';
-                }
-            } else if (fetchUrl.includes('/edit')) {
-                // Convert normal Edit link to Export CSV
-                fetchUrl = fetchUrl.replace(/\/edit.*$/, '/export?format=csv');
-            }
-        }
-
-        if (!isBackground && user?.username) {
-            localStorage.setItem(`staff_sheet_url_${user.username}`, urlToUse);
-            localStorage.setItem(`staff_auto_sync_${user.username}`, String(isAutoSync)); // Ensure string
-        }
-
-        setIsLoadingSheet(true);
-        try {
-            const response = await fetch(fetchUrl);
-            if (!response.ok) throw new Error('Gagal akses URL: ' + response.status);
-
-            const textData = await response.text();
-
-            // Safety Check: If it starts with <!DOCTYPE html, user gave a wrong link
-            if (textData.trim().startsWith('<!DOCTYPE html') || textData.includes('<html')) {
-                throw new Error('Link yang dimasukkan bukan link DATA (CSV). Pastikan pilih "Comma-separated values (.csv)" saat Publish to Web.');
-            }
-
-            try {
-                await processImportData(textData, true, isBackground);
-            } catch (processError) {
-                console.error('Processing error:', processError);
-                if (!isBackground) alert('Error saat memproses data: ' + processError.message);
-            }
-        } catch (error) {
-            console.error('Fetch error:', error);
-            if (!isBackground) alert('❌ ' + error.message);
-        } finally {
-            setIsLoadingSheet(false);
-        }
-    };
 
     // NEW: Automatic Google Sheet Sync on Load
     // IMPORTANT: Only run if NOT in clear mode

@@ -46,15 +46,14 @@ const TEMPLATES = [
 
 const NoteCard = React.memo(({ note, index, themeColor, themeFont, openNoteModal, togglePin, deleteNote }) => (
     <motion.div
-        layout
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: Math.min(index * 0.05, 0.5), type: 'spring', stiffness: 300, damping: 25 }}
         whileHover={{ y: -10, scale: 1.02 }}
         onClick={() => openNoteModal(note)}
         style={{
-            background: 'rgba(15, 23, 42, 0.7)',
-            backdropFilter: 'blur(20px)',
+            background: 'rgba(15, 23, 42, 0.85)', // Increased opacity slightly for better contrast without blur
+            // backdropFilter: 'blur(20px)', // REMOVED CAUSE OF LAG (Macet)
             borderRadius: '32px',
             padding: '28px',
             cursor: 'pointer',
@@ -568,19 +567,21 @@ const CatatanKerja = () => {
         };
     }, [isModalOpen]);
 
-    const filteredNotes = Array.isArray(notes) ? notes.filter(n => {
-        if (!n || typeof n !== 'object') return false;
-        const searchSafe = (search || '').toLowerCase();
-        const titleSafe = String(n.title || '').toLowerCase();
-        const contentSafe = String(n.content || '').toLowerCase();
-        const matchesSearch = titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
-        const matchesCategory = activeTab === 'All' || n.category === activeTab;
-        return matchesSearch && matchesCategory;
-    }).sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return (a.id || 0) - (b.id || 0);
-    }) : [];
+    const filteredNotes = React.useMemo(() => {
+        return Array.isArray(notes) ? notes.filter(n => {
+            if (!n || typeof n !== 'object') return false;
+            const searchSafe = (search || '').toLowerCase();
+            const titleSafe = String(n.title || '').toLowerCase();
+            const contentSafe = String(n.content || '').toLowerCase();
+            const matchesSearch = titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
+            const matchesCategory = activeTab === 'All' || n.category === activeTab;
+            return matchesSearch && matchesCategory;
+        }).sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return (a.id || 0) - (b.id || 0);
+        }) : [];
+    }, [notes, search, activeTab]);
 
     const getNoteStats = (content) => {
         try {
@@ -1356,28 +1357,29 @@ const CatatanKerja = () => {
                     }
                 }
             `}</style>
-            {/* Smart Scroll Control System */}
-            <AnimatePresence>
-                {/* 1. Custom Scrollbar Styling */}
-                <style>{`
-                    /* PC Scrollbar */
-                    ::-webkit-scrollbar {
-                        width: 10px;
-                    }
-                    ::-webkit-scrollbar-track {
-                        background: rgba(15, 23, 42, 0.6);
-                        border-left: 1px solid rgba(255,255,255,0.05);
-                    }
-                    ::-webkit-scrollbar-thumb {
-                        background: linear-gradient(to bottom, rgba(${themeColor}, 0.5), rgba(${themeColor}, 0.8));
-                        border-radius: 5px;
-                        border: 2px solid rgba(15, 23, 42, 1);
-                    }
-                    ::-webkit-scrollbar-thumb:hover {
-                        background: rgb(${themeColor});
-                    }
-                `}</style>
 
+            {/* Smart Scroll Control System */}
+            {/* 1. Custom Scrollbar Styling - MOVED OUTSIDE AnimatePresence for stability */}
+            <style>{`
+                /* PC Scrollbar */
+                ::-webkit-scrollbar {
+                    width: 10px;
+                }
+                ::-webkit-scrollbar-track {
+                    background: rgba(15, 23, 42, 0.6);
+                    border-left: 1px solid rgba(255,255,255,0.05);
+                }
+                ::-webkit-scrollbar-thumb {
+                    background: linear-gradient(to bottom, rgba(${themeColor}, 0.5), rgba(${themeColor}, 0.8));
+                    border-radius: 5px;
+                    border: 2px solid rgba(15, 23, 42, 1);
+                }
+                ::-webkit-scrollbar-thumb:hover {
+                    background: rgb(${themeColor});
+                }
+            `}</style>
+
+            <AnimatePresence>
                 {/* 2. Floating Action Pill */}
                 {showScrollTop && (
                     <motion.div
