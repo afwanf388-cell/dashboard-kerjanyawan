@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Trash2, Search, Calendar, Clock, Globe,
     ExternalLink, X, TrendingUp, Filter, Info,
-    Timer, LayoutGrid, Cloud, CloudOff
+    Timer, LayoutGrid, Cloud, CloudOff, AlertCircle, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const DEFAULT_SCHEDULES = [
     { "id": 1001, "marketName": "HOKIDRAW", "closeTime": "RESULT 24X", "openTime": "1 JAM SEKALI", "days": "Senin s/d Minggu", "link": "https://hokidraw.com/" },
@@ -98,6 +100,10 @@ const JadwalResult = () => {
     const [formData, setFormData] = useState({
         marketName: '', days: 'Senin s/d Minggu', closeTime: '', openTime: '', link: '', status: 'active'
     });
+
+    // --- PREMIUM DELETE MODAL STATE ---
+    const [deleteModal, setDeleteModal] = useState(null); // { id, title, type: 'single' | 'restore' }
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // --- LIVE AUTO-SYNC LOGIC ---
     const fetchLiveSchedules = async () => {
@@ -273,11 +279,10 @@ const JadwalResult = () => {
     };
 
     const handleRestoreDefault = () => {
-        if (window.confirm('Restore all schedules from MASTER SOURCE? This will overwrite existing data.')) {
-            setSchedules(DEFAULT_SCHEDULES);
-            DEFAULT_SCHEDULES.forEach(s => syncToCloud(s));
-            alert('Default data restored!');
-        }
+        setDeleteModal({
+            type: 'restore',
+            title: 'DATA MASTER'
+        });
     };
 
     const handleSubmit = (e) => {
@@ -291,10 +296,36 @@ const JadwalResult = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm('Hapus jadwal ini?')) {
-            const deletedItem = schedules.find(s => s.id === id);
-            setSchedules(prev => prev.filter(s => s.id !== id));
-            if (deletedItem) syncToCloud(deletedItem, 'delete');
+        const target = schedules.find(s => s.id === id);
+        if (!target) return;
+
+        setDeleteModal({
+            id: target.id,
+            title: target.marketName || 'Pasaran Tanpa Nama',
+            type: 'single'
+        });
+    };
+
+    const confirmDeleteAction = async () => {
+        if (!deleteModal) return;
+        setIsDeleting(true);
+
+        try {
+            if (deleteModal.type === 'restore') {
+                setSchedules(DEFAULT_SCHEDULES);
+                const syncPromises = DEFAULT_SCHEDULES.map(s => syncToCloud(s));
+                await Promise.all(syncPromises);
+                alert('Default data restored!');
+            } else {
+                const deletedItem = schedules.find(s => s.id === deleteModal.id);
+                setSchedules(prev => prev.filter(s => s.id !== deleteModal.id));
+                if (deletedItem) await syncToCloud(deletedItem, 'delete');
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+        } finally {
+            setIsDeleting(false);
+            setDeleteModal(null);
         }
     };
 
@@ -617,6 +648,23 @@ const JadwalResult = () => {
                     }
                 }
             `}</style>
+            {/* Premium Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteModal && (
+                    <DeleteConfirmationModal
+                        isOpen={!!deleteModal}
+                        onClose={() => setDeleteModal(null)}
+                        onConfirm={confirmDeleteAction}
+                        target={deleteModal}
+                        isDeleting={isDeleting}
+                        customTitle={deleteModal.type === 'restore' ? 'Restore Data Master?' : 'Hapus Jadwal?'}
+                        customDescription={deleteModal.type === 'restore'
+                            ? 'Tindakan ini akan menimpa seluruh jadwal Anda saat ini dengan data master!'
+                            : <>Apakah Anda yakin ingin menghapus jadwal <span style={{ color: '#ef4444', fontWeight: '800' }}>"{deleteModal.title}"</span> secara permanen?</>
+                        }
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

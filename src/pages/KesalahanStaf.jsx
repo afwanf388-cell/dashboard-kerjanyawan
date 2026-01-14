@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Trash2, Search, Calendar, User, Link as LinkIcon,
     Filter, X, AlertTriangle, FileText, ExternalLink,
     UserX, ShieldAlert, ClipboardList, TrendingDown,
-    Award, BarChart3, PieChart, Users, Cloud, CloudOff, Import, Database, Sparkles, Link, Clipboard, Wallet, Coins, Check
+    Award, BarChart3, PieChart, Users, Cloud, CloudOff, Import, Database, Sparkles, Link, Clipboard, Wallet, Coins, Check, AlertCircle, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const KesalahanStaf = () => {
     const { user } = useAuth();
@@ -85,7 +87,11 @@ const KesalahanStaf = () => {
     }, [user?.username]);
     const [renderLimit, setRenderLimit] = useState(50);
     const [isInitialLoad, setIsInitialLoad] = useState(true); // Prevent animation flicker on load
-    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+    // --- PREMIUM DELETE MODAL STATE ---
+    const [deleteModal, setDeleteModal] = useState(null); // { id, title, type: 'single' | 'all' }
+    const [isDeleting, setIsDeleting] = useState(false);
+
     const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768);
 
     // Monitor screen size for responsive buttons
@@ -710,72 +716,61 @@ const KesalahanStaf = () => {
     }, [isInternalInitialLoaded, !!user?.username, !!sheetUrl, isClearMode]);
 
     const handleDelete = (id) => {
-        if (window.confirm('Hapus laporan kesalahan ini secara permanen?')) {
-            const deletedItem = mistakes.find(m => m.id === id);
-            setMistakes(prev => prev.filter(m => m.id !== id));
-            if (deletedItem) syncToCloud(deletedItem, 'delete');
+        const target = mistakes.find(m => m.id === id);
+        if (!target) return;
+
+        setDeleteModal({
+            id: target.id,
+            title: target.description?.substring(0, 30) + '...',
+            type: 'single'
+        });
+    };
+
+    const confirmDeleteAction = async () => {
+        if (!deleteModal) return;
+        setIsDeleting(true);
+
+        try {
+            if (deleteModal.type === 'all') {
+                await handleClearAllActual();
+            } else {
+                const deletedItem = mistakes.find(m => m.id === deleteModal.id);
+                setMistakes(prev => prev.filter(m => m.id !== deleteModal.id));
+                if (deletedItem) await syncToCloud(deletedItem, 'delete');
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+        } finally {
+            setIsDeleting(false);
+            setDeleteModal(null);
         }
     };
 
-    const handleClearAll = async () => {
-        setShowClearConfirm(false);
+    const handleClearAllActual = async () => {
         setSyncStatus('Deleting All...');
-
-        // CRITICAL: Set clear mode FIRST to prevent any auto-sync from running
-        // Using BOTH state and ref to cover all scenarios (state for React, ref for callbacks)
         clearModeRef.current = true;
         setIsClearMode(true);
         setIsAutoSync(false);
         setSheetUrl('');
 
-
-        // Delete ALL data from cloud (GLOBAL - since this feature is public)
         if (supabase) {
-            try {
-                // Hapus SEMUA data dari cloud menggunakan .gt('id', 0) untuk match semua ID positif
-                const { data: deletedData, error, count } = await supabase
-                    .from('staff_mistakes')
-                    .delete()
-                    .gt('id', 0) // Delete all rows with id > 0 (all valid IDs)
-                    .select(); // Return deleted rows for verification
-
-                if (error) {
-                    console.error('Error deleting from cloud:', error);
-                    alert('Gagal hapus dari cloud: ' + error.message);
-                    clearModeRef.current = false;
-                    setIsClearMode(false);
-                    return;
-                }
-
-                console.log(`[Clear All] Cloud data deleted successfully. Rows affected: ${deletedData?.length || 0}`);
-            } catch (e) {
-                console.error('Cloud delete exception:', e);
-                clearModeRef.current = false;
-                setIsClearMode(false);
-                return;
-            }
+            await supabase.from('staff_mistakes').delete().gt('id', 0);
         }
 
-        // Clear local storage for ALL users (if needed for this user)
         if (user?.username) {
             localStorage.removeItem(`app_mistakes_${user.username}`);
-            // IMPORTANT: Also remove sheet URL to prevent auto-sync from bringing data back
             localStorage.removeItem(`staff_sheet_url_${user.username}`);
             localStorage.removeItem(`staff_auto_sync_${user.username}`);
             localStorage.removeItem(`staff_last_sync_${user.username}`);
         }
 
-        // Legacy cleanup (Optional)
         localStorage.removeItem('app_mistakes');
         localStorage.removeItem('staff_sheet_url');
 
-        // Reset ALL states - data is now empty
         setMistakes([]);
         setLastSyncTime('-');
-        setSyncStatus('Data Cleared - Import Ulang Diperlukan');
-
-        console.log('[Clear All] All data cleared. Clear mode active to prevent re-sync.');
-        alert('✅ Semua data berhasil dihapus!\n\n⚠️ PENTING: Link Google Sheet juga dihapus. Jika ingin import ulang, masukkan kembali link sheet.');
+        setSyncStatus('Data Cleared');
+        alert('✅ Semua data berhasil dihapus!');
     };
 
 
@@ -906,7 +901,7 @@ const KesalahanStaf = () => {
                     <button
                         onClick={(e) => {
                             e.preventDefault();
-                            setShowClearConfirm(true);
+                            setDeleteModal({ type: 'all', title: 'SELURUH DATABASE' });
                         }}
                         style={{
                             padding: isMobileView ? '8px 10px' : '10px 16px',
@@ -1771,86 +1766,24 @@ const KesalahanStaf = () => {
                     }
                 }
             `}</style>
-            {/* CUSTOM CLEAR ALL CONFIRMATION MODAL (Reliable alternative to window.confirm) */}
+            {/* Premium Delete Confirmation Modal */}
             <AnimatePresence>
-                {showClearConfirm && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{
-                            position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.85)',
-                            backdropFilter: 'blur(20px)',
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            justifyContent: 'center',
-                            zIndex: 999999,
-                            padding: '100px 20px',
-                            overflowY: 'auto',
-                            WebkitOverflowScrolling: 'touch'
-                        }}
-                        onClick={() => setShowClearConfirm(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0, y: -20 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.95, opacity: 0, y: -20 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="glass-effect"
-                            style={{
-                                width: '100%',
-                                maxWidth: '400px',
-                                padding: '32px',
-                                textAlign: 'center',
-                                border: '1px solid rgba(255,255,255,0.1)',
-                                background: 'rgba(15, 23, 42, 0.95)',
-                                borderRadius: '24px',
-                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
-                            }}
-                        >
-                            <div style={{
-                                width: '64px', height: '64px', borderRadius: '20px',
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                margin: '0 auto 24px', color: '#ef4444'
-                            }}>
-                                <AlertTriangle size={32} />
-                            </div>
-                            <h3 style={{ fontSize: '22px', fontWeight: '800', color: 'white', marginBottom: '12px' }}>
-                                Hapus Semua Data?
-                            </h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.6', marginBottom: '32px' }}>
-                                Tindakan ini akan menghapus seluruh laporan kesalahan dari database cloud dan lokal secara <b>permanen</b>. Tidak bisa dibatalkan!
-                            </p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => setShowClearConfirm(false)}
-                                    style={{
-                                        padding: '14px', borderRadius: '12px',
-                                        background: 'rgba(255,255,255,0.05)', color: 'white',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        fontWeight: '700', fontSize: '14px', cursor: 'pointer'
-                                    }}
-                                >
-                                    BATAL
-                                </motion.button>
-                                <motion.button
-                                    whileHover={{ scale: 1.02, background: '#ef4444' }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={handleClearAll}
-                                    style={{
-                                        padding: '14px', borderRadius: '12px',
-                                        background: '#dc2626', color: 'white', border: 'none',
-                                        fontWeight: '800', fontSize: '14px', cursor: 'pointer'
-                                    }}
-                                >
-                                    YA, HAPUS
-                                </motion.button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
+                {deleteModal && (
+                    <DeleteConfirmationModal
+                        isOpen={!!deleteModal}
+                        onClose={() => setDeleteModal(null)}
+                        onConfirm={confirmDeleteAction}
+                        target={deleteModal}
+                        isDeleting={isDeleting}
+                        customTitle={deleteModal.type === 'all' ? 'Hapus Semua Data?' : 'Hapus Laporan?'}
+                        customDescription={deleteModal.type === 'all'
+                            ? 'Tindakan ini akan menghapus seluruh database cloud dan lokal secara permanen!'
+                            : <>Apakah Anda yakin ingin menghapus <span style={{ color: '#ef4444', fontWeight: '800' }}>"{deleteModal.title}"</span> secara permanen?</>
+                        }
+                    />
                 )}
             </AnimatePresence>
+
         </div >
     );
 };

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, BookOpen, Clock, Tag, ChevronRight, Search, Target, Activity, BarChart2, ShieldAlert, Award, Edit2, X, ArrowLeft, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Clock, Tag, ChevronRight, Search, Target, Activity, BarChart2, ShieldAlert, Award, Edit2, X, ArrowLeft, Cloud, CloudOff, AlertCircle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const PemahamanBola = () => {
     const { user } = useAuth();
@@ -15,6 +17,10 @@ const PemahamanBola = () => {
     const [editingId, setEditingId] = useState(null);
     const [syncStatus, setSyncStatus] = useState('Offline');
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+
+    // --- PREMIUM DELETE MODAL STATE ---
+    const [deleteModal, setDeleteModal] = useState(null); // { id, title }
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -274,11 +280,29 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
     };
 
     const handleDelete = (id) => {
-        if (window.confirm('Hapus artikel ini?')) {
-            const deletedItem = articles.find(a => a.id === id);
-            saveToLocal(articles.filter(a => a.id !== id));
-            if (deletedItem) syncToCloud(deletedItem, 'delete');
-            if (selectedArticle?.id === id) setSelectedArticle(null);
+        const target = articles.find(a => a.id === id);
+        if (!target) return;
+
+        setDeleteModal({
+            id: target.id,
+            title: target.title || 'Artikel Tanpa Judul'
+        });
+    };
+
+    const confirmDeleteAction = async () => {
+        if (!deleteModal) return;
+        setIsDeleting(true);
+
+        try {
+            const deletedItem = articles.find(a => a.id === deleteModal.id);
+            saveToLocal(articles.filter(a => a.id !== deleteModal.id));
+            if (deletedItem) await syncToCloud(deletedItem, 'delete');
+            if (selectedArticle?.id === deleteModal.id) setSelectedArticle(null);
+        } catch (error) {
+            console.error("Delete error:", error);
+        } finally {
+            setIsDeleting(false);
+            setDeleteModal(null);
         }
     };
 
@@ -563,6 +587,20 @@ Harus menang berapa? Contoh pasang Atalanta ngepur 3 SPAL, taruhan akan menang j
                     }
                 }
             `}</style>
+            {/* Premium Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteModal && (
+                    <DeleteConfirmationModal
+                        isOpen={!!deleteModal}
+                        onClose={() => setDeleteModal(null)}
+                        onConfirm={confirmDeleteAction}
+                        target={deleteModal}
+                        isDeleting={isDeleting}
+                        customTitle="Hapus Artikel?"
+                        customDescription={<>Apakah Anda yakin ingin menghapus artikel <span style={{ color: '#ef4444', fontWeight: '800' }}>"{deleteModal.title}"</span> secara permanen?</>}
+                    />
+                )}
+            </AnimatePresence>
         </div >
     );
 };

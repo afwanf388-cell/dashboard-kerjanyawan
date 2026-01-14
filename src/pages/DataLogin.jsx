@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Trash2, Edit2, Search, Key, Mail, User, FileText,
     Eye, EyeOff, Copy, Check, Shield, Lock, X, Globe,
-    Calendar, MoreVertical, ExternalLink, Cloud, CloudOff
+    Calendar, MoreVertical, ExternalLink, Cloud, CloudOff, AlertCircle, Zap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const DataLogin = () => {
     const { user } = useAuth();
@@ -56,6 +58,10 @@ const DataLogin = () => {
     const [copiedId, setCopiedId] = useState(null);
     const [activeDropdown, setActiveDropdown] = useState(null);
     const [syncStatus, setSyncStatus] = useState('Offline');
+
+    // --- PREMIUM DELETE MODAL STATE ---
+    const [deleteModal, setDeleteModal] = useState(null); // { id, title }
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Unified Initial Load & Sync Logic
     useEffect(() => {
@@ -201,14 +207,36 @@ const DataLogin = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm('Hapus data login ini secara permanen?')) {
-            const deletedItem = logins.find(l => l.id === id);
-            setLogins(prev => prev.filter(l => l.id !== id));
+        const target = logins.find(l => l.id === id);
+        if (!target) return;
+
+        setDeleteModal({
+            id: target.id,
+            title: target.title || 'Akun Tanpa Judul'
+        });
+        setActiveDropdown(null);
+    };
+
+    const confirmDeleteAction = async () => {
+        if (!deleteModal) return;
+        setIsDeleting(true);
+
+        try {
+            const deletedItem = logins.find(l => l.id === deleteModal.id);
+            setLogins(prev => prev.filter(l => l.id !== deleteModal.id));
 
             // Sync delete to Cloud
-            if (deletedItem) syncToCloud(deletedItem, 'delete');
+            if (deletedItem) await syncToCloud(deletedItem, 'delete');
+
+            setSyncStatus('Deleted');
+            setTimeout(() => setSyncStatus('Cloud Connected'), 2000);
+        } catch (error) {
+            console.error("Delete error:", error);
+            setSyncStatus('Delete Failed');
+        } finally {
+            setIsDeleting(false);
+            setDeleteModal(null);
         }
-        setActiveDropdown(null);
     };
 
     const handleEdit = (item) => {
@@ -658,6 +686,19 @@ const DataLogin = () => {
                     }
                 }
             `}</style>
+
+            {/* Premium Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteModal && (
+                    <DeleteConfirmationModal
+                        isOpen={!!deleteModal}
+                        onClose={() => setDeleteModal(null)}
+                        onConfirm={confirmDeleteAction}
+                        target={deleteModal}
+                        isDeleting={isDeleting}
+                    />
+                )}
+            </AnimatePresence>
         </div >
     );
 };

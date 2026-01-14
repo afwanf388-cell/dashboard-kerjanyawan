@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
     Plus, Wallet, TrendingUp, TrendingDown, Award, Banknote,
     Trash2, Search, Calendar, Coins, Landmark, Zap, X,
-    Save, Edit2, RotateCcw, RefreshCw, ShoppingCart
+    Save, Edit2, RotateCcw, RefreshCw, ShoppingCart, AlertCircle
 } from 'lucide-react';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 /* =========================
    UTIL
@@ -42,6 +44,10 @@ const Keuangan = () => {
         date: new Date().toISOString().split('T')[0]
     });
     const [editingIds, setEditingIds] = useState([]);
+
+    // --- PREMIUM DELETE MODAL STATE ---
+    const [deleteModal, setDeleteModal] = useState(null); // { items, title }
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -257,8 +263,25 @@ const Keuangan = () => {
         });
 
         if (newRecords.length === 0) {
-            if (editingIds.length > 0 && window.confirm("Semua nilai kosong. Hapus data bulan ini?")) {
-                // Allow delete
+            if (editingIds.length > 0) {
+                setDeleteModal({
+                    id: editingIds[0], // We can just use the first one as representative or handle multiple
+                    title: `Data Bulan ${formData.date}`,
+                    isBatchDelete: true,
+                    onConfirm: () => {
+                        const updated = transactions.filter(t => !editingIds.includes(t.id));
+                        setTransactions(updated);
+                        localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
+                        if (supabase) {
+                            editingIds.forEach(async (id) => {
+                                await supabase.from('finance_transactions').delete().eq('id', id);
+                            });
+                        }
+                        setDeleteModal(null);
+                        setShowForm(false);
+                    }
+                });
+                return;
             } else {
                 alert("Mohon isi minimal satu kategori!");
                 return;
@@ -298,13 +321,39 @@ const Keuangan = () => {
         }
     };
 
-    const handleDelete = async (items) => {
-        if (!window.confirm(`Hapus ${items.length} transaksi di bulan ini?`)) return;
-        const idsToDelete = items.map(i => i.id);
-        const updated = transactions.filter(t => !idsToDelete.includes(t.id));
-        setTransactions(updated);
-        localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
-        try { await supabase.from('financial_records').delete().in('id', idsToDelete); } catch (err) { }
+    const handleDelete = (items) => {
+        if (!items || items.length === 0) return;
+
+        const dateObj = new Date(items[0].date);
+        const monthName = dateObj.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
+        setDeleteModal({
+            items,
+            title: monthName
+        });
+    };
+
+    const confirmDeleteAction = async () => {
+        if (!deleteModal) return;
+        setIsDeleting(true);
+
+        try {
+            const { items } = deleteModal;
+            const idsToDelete = items.map(i => i.id);
+
+            const updated = transactions.filter(t => !idsToDelete.includes(t.id));
+            setTransactions(updated);
+            localStorage.setItem(`finance_trx_${user.username}`, JSON.stringify(updated));
+
+            if (supabase) {
+                await supabase.from('financial_records').delete().in('id', idsToDelete);
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+        } finally {
+            setIsDeleting(false);
+            setDeleteModal(null);
+        }
     };
 
     const handleCloseModal = () => {
@@ -843,9 +892,27 @@ const Keuangan = () => {
                     </div>
                 )}
             </AnimatePresence>
+            {/* Premium Delete Confirmation Modal */}
+            <AnimatePresence>
+                {deleteModal && (
+                    <DeleteConfirmationModal
+                        isOpen={!!deleteModal}
+                        onClose={() => setDeleteModal(null)}
+                        onConfirm={deleteModal.onConfirm || confirmDeleteAction}
+                        target={deleteModal}
+                        isDeleting={isDeleting}
+                        customTitle={deleteModal.isBatchDelete ? "Hapus Data Bulan Ini?" : "Hapus Transaksi?"}
+                        customDescription={deleteModal.isBatchDelete
+                            ? "Semua nilai kosong. Apakah Anda ingin menghapus seluruh rekapan data untuk bulan ini?"
+                            : <>Apakah Anda yakin ingin menghapus seluruh rekapan transaksi <span style={{ color: '#ef4444', fontWeight: '800' }}>"{deleteModal.title}"</span> secara permanen?</>
+                        }
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };
+
 
 const StatCard = ({ title, value, icon, color, sub, isDanger }) => (
     <div className="glass-card stat-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
