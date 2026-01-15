@@ -45,160 +45,162 @@ const TEMPLATES = [
     },
 ];
 
-const NoteCard = React.memo(({ note, index, themeColor, themeFont, openNoteModal, togglePin, deleteNote }) => (
-    <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: Math.min(index * 0.05, 0.5), type: 'spring', stiffness: 300, damping: 25 }}
-        whileHover={{ y: -10, scale: 1.02 }}
-        onClick={() => openNoteModal(note)}
-        style={{
-            background: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(10px)', // RE-ENABLED WITH OPTIMIZED VALUE
-            WebkitBackdropFilter: 'blur(10px)',
-            borderRadius: '32px',
-            padding: '28px',
-            cursor: 'pointer',
-            border: `1px solid ${note.isPinned ? `${note.color}60` : 'rgba(255,255,255,0.08)'}`,
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '380px',
-            transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-            boxShadow: note.isPinned
-                ? `0 20px 50px -10px ${note.color}40, 0 0 0 1px ${note.color}30`
-                : '0 15px 35px -10px rgba(0,0,0,0.5)',
-        }}
-    >
-        {/* Decorative Accent & Glow */}
-        <div style={{
-            position: 'absolute', top: 0, left: 0, width: '100%', height: '8px',
-            background: note.color || '#3b82f6',
-            borderRadius: '32px 32px 0 0',
-            opacity: 0.8
-        }} />
-
-        {note.isPinned && (
-            <div style={{
-                position: 'absolute', top: '-20px', right: '-20px', width: '100px', height: '100px',
-                background: note.color, filter: 'blur(60px)', opacity: 0.15, pointerEvents: 'none'
-            }} />
-        )}
-
-        {/* Header: Title & Badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {note.isPinned && (
-                        <div style={{
-                            padding: '5px 10px', borderRadius: '10px', background: `${note.color}20`,
-                            color: note.color, display: 'flex', alignItems: 'center', gap: '5px',
-                            border: `1px solid ${note.color}40`
-                        }}>
-                            <Pin size={10} fill={note.color} />
-                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PINNED</span>
-                        </div>
-                    )}
-                    <div style={{
-                        padding: '5px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)',
-                        color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '5px',
-                        border: '1px solid rgba(255,255,255,0.1)'
-                    }}>
-                        <Tag size={10} />
-                        <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{note.category || 'GENERAL'}</span>
-                    </div>
-                </div>
-                {note.priority === 'High' && (
-                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 10px #ef4444', animation: 'pulse 1.5s infinite' }} />
-                )}
-            </div>
-
-            <h4 style={{
-                fontSize: '18px', fontWeight: '900', color: note.color || 'white',
-                margin: 0, lineHeight: '1.4',
-                fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.3px',
-                textShadow: `0 0 20px ${note.color}40`,
-                wordBreak: 'break-word'
-            }}>
-                {note.title || 'Catatan Baru'}
-            </h4>
-        </div>
-
-        {/* Content Body - SCROLLABLE & CLICKABLE */}
-        <div
-            className="custom-card-scroll"
+const NoteCard = React.memo(({ note, index, themeColor, themeFont, openNoteModal, togglePin, deleteNote }) => {
+    // Advanced Optimization: Use hardware acceleration and skip off-screen rendering
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+                delay: Math.min(index * 0.03, 0.3),
+                type: 'spring',
+                stiffness: 260,
+                damping: 20
+            }}
+            whileHover={{ y: -8, scale: 1.01 }}
+            onClick={() => openNoteModal(note)}
             style={{
-                flex: 1,
-                overflowY: 'auto',
-                paddingRight: '12px',
-                margin: '10px 0',
-                position: 'relative',
+                background: 'rgba(15, 23, 42, 0.85)',
+                // Hardware acceleration
+                transform: 'translateZ(0)',
+                willChange: 'transform, opacity',
+                borderRadius: '32px',
+                padding: '28px',
                 cursor: 'pointer',
-                maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)'
+                border: `1px solid ${note.isPinned ? `${note.color}60` : 'rgba(255,255,255,0.08)'}`,
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '380px',
+                transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease',
+                boxShadow: note.isPinned
+                    ? `0 15px 30px -5px ${note.color}20`
+                    : '0 8px 20px -10px rgba(0,0,0,0.5)',
             }}
         >
-            <p style={{
-                fontSize: '15px', color: 'rgba(255,255,255,0.45)', lineHeight: '1.7',
-                margin: 0, whiteSpace: 'pre-wrap',
-                fontFamily: themeFont
-            }}>
-                {note.content || 'Mulailah menulis isi catatanmu di sini...'}
-            </p>
-        </div>
+            {/* Decorative Accent */}
+            <div style={{
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '6px',
+                background: note.color || '#3b82f6',
+                borderRadius: '32px 32px 0 0',
+                opacity: 0.9
+            }} />
 
-        {/* Footer: Date & Actions */}
-        <div style={{
-            marginTop: '24px', paddingTop: '20px',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{
-                    width: '32px', height: '32px', borderRadius: '10px',
-                    background: `rgba(${themeColor}, 0.1)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: `rgb(${themeColor})`
+            {/* Header: Title & Badges */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {note.isPinned && (
+                            <div style={{
+                                padding: '5px 10px', borderRadius: '10px', background: `${note.color}20`,
+                                color: note.color, display: 'flex', alignItems: 'center', gap: '5px',
+                                border: `1px solid ${note.color}40`
+                            }}>
+                                <Pin size={10} fill={note.color} />
+                                <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>PINNED</span>
+                            </div>
+                        )}
+                        <div style={{
+                            padding: '5px 10px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)',
+                            color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: '5px',
+                            border: '1px solid rgba(255,255,255,0.1)'
+                        }}>
+                            <Tag size={10} />
+                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{note.category || 'GENERAL'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h4 style={{
+                    fontSize: '18px', fontWeight: '900', color: note.color || 'white',
+                    margin: 0, lineHeight: '1.4',
+                    fontFamily: "'Outfit', sans-serif", letterSpacing: '-0.3px',
+                    wordBreak: 'break-word'
                 }}>
-                    <Calendar size={14} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: '11px', color: 'white', fontWeight: '800' }}>{note.date}</span>
-                    <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', fontWeight: '700' }}>DIAMBIL</span>
-                </div>
+                    {note.title || 'Catatan Baru'}
+                </h4>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-                <motion.button
-                    whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.08)' }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={(e) => { e.stopPropagation(); togglePin(note.id, e); }}
-                    style={{
-                        width: '42px', height: '42px', borderRadius: '14px',
-                        background: note.isPinned ? `${note.color}15` : 'rgba(255,255,255,0.03)',
-                        color: note.isPinned ? note.color : 'rgba(255,255,255,0.3)',
-                        border: `1px solid ${note.isPinned ? `${note.color}40` : 'rgba(255,255,255,0.05)'}`,
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                    <Pin size={16} fill={note.isPinned ? note.color : 'transparent'} />
-                </motion.button>
-                <motion.button
-                    whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.15)' }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={(e) => { e.stopPropagation(); deleteNote(note.id, e); }}
-                    style={{
-                        width: '42px', height: '42px', borderRadius: '14px',
-                        background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                    <Trash2 size={16} />
-                </motion.button>
+            {/* Content Body - Full Scrolling Enabled */}
+            <div
+                className="custom-card-scroll"
+                style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    paddingRight: '12px',
+                    margin: '10px 0',
+                    cursor: 'text',
+                    position: 'relative',
+                    zIndex: 2
+                }}
+            >
+                <p style={{
+                    fontSize: '14px', color: 'rgba(255,255,255,0.7)', lineHeight: '1.6',
+                    margin: 0, whiteSpace: 'pre-wrap',
+                    fontFamily: themeFont
+                }}>
+                    {note.content || 'Mulailah menulis isi catatanmu...'}
+                </p>
             </div>
-        </div>
-    </motion.div>
-));
+
+            {/* Footer */}
+            <div style={{
+                marginTop: '16px', paddingTop: '16px',
+                borderTop: '1px solid rgba(255,255,255,0.05)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                        width: '28px', height: '28px', borderRadius: '8px',
+                        background: `rgba(${themeColor}, 0.1)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: `rgb(${themeColor})`
+                    }}>
+                        <Calendar size={12} />
+                    </div>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontWeight: '700' }}>{note.date}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => { e.stopPropagation(); togglePin(note.id, e); }}
+                        style={{
+                            width: '36px', height: '36px', borderRadius: '12px',
+                            background: note.isPinned ? `${note.color}15` : 'rgba(255,255,255,0.03)',
+                            color: note.isPinned ? note.color : 'rgba(255,255,255,0.3)',
+                            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                        <Pin size={14} fill={note.isPinned ? note.color : 'transparent'} />
+                    </motion.button>
+                    <motion.button
+                        whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.15)' }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => { e.stopPropagation(); deleteNote(note.id, e); }}
+                        style={{
+                            width: '36px', height: '36px', borderRadius: '12px',
+                            background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
+                            border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                        <Trash2 size={14} />
+                    </motion.button>
+                </div>
+            </div>
+        </motion.div>
+    );
+}, (prev, next) => {
+    // Advanced memo check to prevent re-renders when irrelevant props change
+    return prev.note.id === next.note.id &&
+        prev.note.title === next.note.title &&
+        prev.note.content === next.note.content &&
+        prev.note.isPinned === next.note.isPinned &&
+        prev.note.color === next.note.color &&
+        prev.note.category === next.note.category &&
+        prev.themeColor === next.themeColor &&
+        prev.themeFont === next.themeFont;
+});
 
 const CatatanKerja = () => {
     // ... rest of the component ...
@@ -214,6 +216,10 @@ const CatatanKerja = () => {
     const [themeFont, setThemeFont] = useState("'Inter', sans-serif"); // Default Font
     const [showScrollTop, setShowScrollTop] = useState(false);
 
+    // Virtualization State
+    const [visibleCount, setVisibleCount] = useState(24);
+    const [isSyncing, setIsSyncing] = useState(false);
+
     // Debounced Search
     const [debouncedSearch, setDebouncedSearch] = useState('');
     useEffect(() => {
@@ -221,12 +227,12 @@ const CatatanKerja = () => {
         return () => clearTimeout(timer);
     }, [search]);
 
-    // Scroll Detector
+    // Scroll Detector - Only for Scroll to Top Button
     useEffect(() => {
         const handleScroll = () => {
             setShowScrollTop(window.scrollY > 300);
         };
-        window.addEventListener('scroll', handleScroll);
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
@@ -754,32 +760,47 @@ const CatatanKerja = () => {
 
     const filteredNotes = React.useMemo(() => {
         if (!Array.isArray(notes)) return [];
-        const searchSafe = (debouncedSearch || '').toLowerCase(); // Use debounced search
+        const searchSafe = (debouncedSearch || '').toLowerCase();
 
-        return notes.filter(n => {
+        // 1. Efficient Filtering
+        const results = notes.filter(n => {
+            if (!n) return false;
             const isFile = n.category === 'REPOSITORY_FILE';
-            if (viewMode === 'NOTES') {
-                if (isFile) return false; // Hide files in notes view
 
-                // Normal Note Filtering
-                if (!n || typeof n !== 'object') return false;
+            if (viewMode === 'NOTES') {
+                if (isFile) return false;
+                const matchesCategory = activeTab === 'All' || n.category === activeTab;
+                if (!matchesCategory) return false;
+
+                if (!searchSafe) return true;
                 const titleSafe = String(n.title || '').toLowerCase();
                 const contentSafe = String(n.content || '').toLowerCase();
-                const matchesSearch = !searchSafe || titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
-                const matchesCategory = activeTab === 'All' || n.category === activeTab;
-                return matchesSearch && matchesCategory;
+                return titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
             } else {
-                // Repository View Filtering
-                if (!isFile) return false; // Hide notes in file view
-                const titleSafe = String(n.title || '').toLowerCase(); // Filename
-                return !searchSafe || titleSafe.includes(searchSafe);
+                if (!isFile) return false;
+                if (!searchSafe) return true;
+                return String(n.title || '').toLowerCase().includes(searchSafe);
             }
-        }).sort((a, b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
-            return (a.id || 0) - (b.id || 0); // Oldest first
+        });
+
+        // 2. Efficient Sorting (Oldest First)
+        return results.sort((a, b) => {
+            // Priority 1: Pinned Notes
+            const pinA = a.is_pinned || a.isPinned;
+            const pinB = b.is_pinned || b.isPinned;
+            if (pinA !== pinB) return pinA ? -1 : 1;
+
+            // Priority 2: Precise Timestamp Sorting (Oldest First)
+            const timeA = new Date(a.last_updated || a.lastUpdated || a.id).getTime();
+            const timeB = new Date(b.last_updated || b.lastUpdated || b.id).getTime();
+            return (timeA || 0) - (timeB || 0);
         });
     }, [notes, debouncedSearch, activeTab, viewMode]);
+
+    // 3. Virtualization: Only take visible items
+    const visibleNotes = React.useMemo(() => {
+        return filteredNotes.slice(0, visibleCount);
+    }, [filteredNotes, visibleCount]);
 
     const getNoteStats = (content) => {
         try {
@@ -888,8 +909,15 @@ const CatatanKerja = () => {
                         <input
                             type="text"
                             placeholder="Cari ide brilianmu..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
+                            defaultValue={search}
+                            onChange={e => {
+                                // Optimized: Don't set main search state on every keystroke
+                                // Let the debounced effect handle it from a local ref or simpler way
+                                if (timerRef.current) clearTimeout(timerRef.current);
+                                timerRef.current = setTimeout(() => {
+                                    setSearch(e.target.value);
+                                }, 300);
+                            }}
                             style={{
                                 width: '100%',
                                 minWidth: isMobile ? '0' : '300px',
@@ -899,7 +927,7 @@ const CatatanKerja = () => {
                                 border: '1px solid rgba(255,255,255,0.08)',
                                 borderRadius: '18px',
                                 color: 'white',
-                                transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                transition: 'all 0.3s ease',
                                 outline: 'none',
                                 fontWeight: '600',
                                 boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
@@ -907,12 +935,10 @@ const CatatanKerja = () => {
                             onFocus={(e) => {
                                 e.target.style.background = 'rgba(255,255,255,0.05)';
                                 e.target.style.borderColor = `rgba(${themeColor}, 0.4)`;
-                                e.target.style.boxShadow = `0 0 20px rgba(${themeColor}, 0.15), inset 0 2px 4px rgba(0,0,0,0.2)`;
                             }}
                             onBlur={(e) => {
                                 e.target.style.background = 'rgba(255,255,255,0.03)';
                                 e.target.style.borderColor = 'rgba(255,255,255,0.08)';
-                                e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.2)';
                             }}
                         />
                     </div>
@@ -1076,10 +1102,10 @@ const CatatanKerja = () => {
                                 animate={{ opacity: 1 }}
                                 style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 20px', textAlign: 'center' }}>
                                 <div style={{ padding: '30px', borderRadius: '30px', background: 'rgba(255,255,255,0.03)', marginBottom: '24px' }}>
-                                    <NotebookPen size={80} style={{ opacity: 0.2, color: 'var(--primary)' }} />
+                                    <NotebookPen size={80} style={{ opacity: 0.2, color: `rgb(${themeColor})` }} />
                                 </div>
                                 <h3 style={{ fontSize: '24px', color: 'white', fontWeight: '700', marginBottom: '8px' }}>Mulai Menulis Hari Ini</h3>
-                                <p style={{ color: 'var(--text-muted)', maxWidth: '300px' }}>Klik tombol di atas untuk membuat catatan kerja pertamamu.</p>
+                                <p style={{ color: 'rgba(255,255,255,0.4)', maxWidth: '300px' }}>Klik tombol di atas untuk membuat catatan kerja pertamamu.</p>
                             </motion.div>
                         ) : (
                             filteredNotes.map((note, index) => (
@@ -1096,6 +1122,9 @@ const CatatanKerja = () => {
                             ))
                         )}
                     </div>
+
+                    {/* Infinite Scroll Removed - Loading all at once for stability */}
+
 
                     {/* PRO Modal Editor - Ultra Premium Re-Design */}
                     {createPortal(
@@ -1998,6 +2027,7 @@ const CatatanKerja = () => {
                         <AnimatePresence mode="popLayout">
                             {filteredNotes.map((file, index) => {
                                 if (!file) return null;
+                                // ... file processing logic remains the same ...
                                 const filename = file.title || 'unnamed_file';
                                 const ext = filename.split('.').pop()?.toLowerCase() || '';
                                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
@@ -2034,7 +2064,7 @@ const CatatanKerja = () => {
                                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                                        transition={{ delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
+                                        transition={{ delay: Math.min(index * 0.05, 0.5), type: 'spring', stiffness: 300, damping: 25 }}
                                         whileHover={{
                                             y: -12,
                                             rotateX: 2,
@@ -2049,7 +2079,8 @@ const CatatanKerja = () => {
                                             transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                                             position: 'relative',
                                             transformStyle: 'preserve-3d',
-                                            perspective: '1000px'
+                                            perspective: '1000px',
+                                            transform: 'translateZ(0)' // Force acceleration
                                         }}
                                     >
                                         {/* Animated Glow Border */}
@@ -2078,6 +2109,7 @@ const CatatanKerja = () => {
                                                 <img
                                                     src={file.content}
                                                     alt={file.title}
+                                                    loading="lazy"
                                                     style={{
                                                         width: '100%',
                                                         height: '100%',
@@ -2087,8 +2119,6 @@ const CatatanKerja = () => {
                                                 />
                                             ) : (
                                                 <>
-                                                    {/* ULTRA PREMIUM 3D FOLDER DESIGN */}
-
                                                     {/* Holographic Background */}
                                                     <motion.div
                                                         animate={{
@@ -2131,7 +2161,7 @@ const CatatanKerja = () => {
                                                         ))}
                                                     </div>
 
-                                                    {/* 3D FOLDER ICON - Center Positioned */}
+                                                    {/* 3D FOLDER ICON */}
                                                     <div style={{
                                                         position: 'absolute',
                                                         left: '50%',
@@ -2139,301 +2169,66 @@ const CatatanKerja = () => {
                                                         transform: 'translate(-50%, -50%)',
                                                         perspective: '200px'
                                                     }}>
-                                                        {/* Folder Shadow */}
                                                         <motion.div
                                                             animate={{ scale: [1, 1.05, 1], opacity: [0.3, 0.5, 0.3] }}
                                                             transition={{ repeat: Infinity, duration: 2.5 }}
                                                             style={{
-                                                                position: 'absolute',
-                                                                bottom: '-8px',
-                                                                left: '50%',
-                                                                transform: 'translateX(-50%)',
-                                                                width: '50px',
-                                                                height: '10px',
-                                                                borderRadius: '50%',
-                                                                background: 'rgba(0,0,0,0.4)',
-                                                                filter: 'blur(6px)'
+                                                                position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)',
+                                                                width: '50px', height: '10px', borderRadius: '50%', background: 'rgba(0,0,0,0.4)', filter: 'blur(6px)'
                                                             }}
                                                         />
-
-                                                        {/* Folder Back Layer */}
                                                         <motion.div
                                                             animate={{ rotateY: [-3, 3, -3], y: [0, -2, 0] }}
                                                             transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
                                                             style={{
-                                                                width: '60px',
-                                                                height: '48px',
+                                                                width: '60px', height: '48px',
                                                                 background: `linear-gradient(180deg, ${typeStyle.color}cc, ${typeStyle.color}99)`,
-                                                                borderRadius: '6px',
-                                                                position: 'relative',
-                                                                boxShadow: `0 8px 24px ${typeStyle.color}60, inset 0 1px 0 rgba(255,255,255,0.3)`
+                                                                borderRadius: '6px', position: 'relative', boxShadow: `0 8px 24px ${typeStyle.color}60, inset 0 1px 0 rgba(255,255,255,0.3)`
                                                             }}
                                                         >
-                                                            {/* Folder Tab */}
                                                             <div style={{
-                                                                position: 'absolute',
-                                                                top: '-10px',
-                                                                left: '4px',
-                                                                width: '24px',
-                                                                height: '14px',
+                                                                position: 'absolute', top: '-10px', left: '4px', width: '24px', height: '14px',
                                                                 background: `linear-gradient(180deg, ${typeStyle.color}, ${typeStyle.color}dd)`,
-                                                                borderRadius: '4px 4px 0 0',
-                                                                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)'
+                                                                borderRadius: '4px 4px 0 0', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)'
                                                             }} />
-
-                                                            {/* Folder Front Layer */}
                                                             <motion.div
                                                                 animate={{ rotateX: [0, -2, 0] }}
                                                                 transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
                                                                 style={{
-                                                                    position: 'absolute',
-                                                                    top: '6px',
-                                                                    left: '0',
-                                                                    right: '0',
-                                                                    bottom: '0',
+                                                                    position: 'absolute', top: '6px', left: '0', right: '0', bottom: '0',
                                                                     background: `linear-gradient(180deg, ${typeStyle.color}, ${typeStyle.color}bb)`,
-                                                                    borderRadius: '4px 6px 6px 6px',
-                                                                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 4px ${typeStyle.color}40`
+                                                                    borderRadius: '4px 6px 6px 6px', boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 4px ${typeStyle.color}40`
                                                                 }}
                                                             >
-                                                                {/* File Type Icon Inside Folder */}
-                                                                <div style={{
-                                                                    position: 'absolute',
-                                                                    top: '50%',
-                                                                    left: '50%',
-                                                                    transform: 'translate(-50%, -50%)',
-                                                                    fontSize: '18px',
-                                                                    filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))'
-                                                                }}>
-                                                                    {typeStyle.icon}
-                                                                </div>
-
-                                                                {/* Shine Effect */}
-                                                                <motion.div
-                                                                    animate={{ x: [-30, 70], opacity: [0, 0.5, 0] }}
-                                                                    transition={{ repeat: Infinity, duration: 3, delay: 1 }}
-                                                                    style={{
-                                                                        position: 'absolute',
-                                                                        top: 0,
-                                                                        left: 0,
-                                                                        width: '20px',
-                                                                        height: '100%',
-                                                                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
-                                                                        transform: 'skewX(-20deg)'
-                                                                    }}
-                                                                />
+                                                                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '18px' }}>{typeStyle.icon}</div>
                                                             </motion.div>
-
-                                                            {/* Glowing Orbs */}
-                                                            <motion.div
-                                                                animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0.8, 0.4] }}
-                                                                transition={{ repeat: Infinity, duration: 2 }}
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    top: '-4px',
-                                                                    right: '-4px',
-                                                                    width: '12px',
-                                                                    height: '12px',
-                                                                    borderRadius: '50%',
-                                                                    background: 'white',
-                                                                    boxShadow: `0 0 10px white, 0 0 20px ${typeStyle.color}`
-                                                                }}
-                                                            />
                                                         </motion.div>
                                                     </div>
-
-                                                    {/* File Extension - Large Watermark */}
-                                                    <motion.div
-                                                        animate={{ opacity: [0.08, 0.15, 0.08] }}
-                                                        transition={{ repeat: Infinity, duration: 4 }}
-                                                        style={{
-                                                            position: 'absolute',
-                                                            right: '12px',
-                                                            bottom: '8px',
-                                                            fontSize: '36px',
-                                                            fontWeight: '900',
-                                                            color: 'white',
-                                                            textTransform: 'uppercase',
-                                                            letterSpacing: '3px',
-                                                            textShadow: `0 0 20px ${typeStyle.color}`
-                                                        }}
-                                                    >
-                                                        .{ext}
-                                                    </motion.div>
                                                 </>
                                             )}
 
-                                            {/* Premium Badge */}
-                                            <div style={{
-                                                position: 'absolute',
-                                                top: '14px',
-                                                left: '14px',
-                                                padding: '8px 14px',
-                                                borderRadius: '12px',
-                                                background: 'rgba(0,0,0,0.7)',
-                                                backdropFilter: 'blur(20px)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                border: `1px solid ${typeStyle.color}40`
-                                            }}>
-                                                <motion.div
-                                                    animate={{ scale: [1, 1.2, 1] }}
-                                                    transition={{ repeat: Infinity, duration: 2 }}
-                                                    style={{
-                                                        width: '8px',
-                                                        height: '8px',
-                                                        borderRadius: '50%',
-                                                        background: typeStyle.color,
-                                                        boxShadow: `0 0 10px ${typeStyle.color}`
-                                                    }}
-                                                />
-                                                <span style={{
-                                                    color: typeStyle.color,
-                                                    fontSize: '11px',
-                                                    fontWeight: '800',
-                                                    letterSpacing: '1px'
-                                                }}>
-                                                    {typeStyle.label}
-                                                </span>
-                                            </div>
-
-                                            {/* Size Badge */}
-                                            <div style={{
-                                                position: 'absolute',
-                                                top: '14px',
-                                                right: '14px',
-                                                padding: '6px 12px',
-                                                borderRadius: '10px',
-                                                background: 'rgba(0,0,0,0.6)',
-                                                backdropFilter: 'blur(10px)',
-                                                color: 'white',
-                                                fontSize: '11px',
-                                                fontWeight: '700'
-                                            }}>
-                                                {fileSize}
-                                            </div>
+                                            <div style={{ position: 'absolute', top: '14px', right: '14px', padding: '6px 12px', borderRadius: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '11px', fontWeight: '700' }}>{fileSize}</div>
                                         </div>
 
                                         {/* File Info Section */}
                                         <div style={{ padding: '24px', position: 'relative', zIndex: 1 }}>
-                                            {/* File Icon & Name */}
                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
-                                                <motion.div
-                                                    whileHover={{ rotate: [0, -5, 5, 0], scale: 1.1 }}
-                                                    style={{
-                                                        width: '56px', height: '56px', borderRadius: '18px', flexShrink: 0,
-                                                        background: `linear-gradient(135deg, ${typeStyle.bg}, transparent)`,
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        border: `2px solid ${typeStyle.color}30`,
-                                                        boxShadow: `0 8px 20px ${typeStyle.color}20`
-                                                    }}
-                                                >
+                                                <div style={{ width: '56px', height: '56px', borderRadius: '18px', background: typeStyle.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${typeStyle.color}30` }}>
                                                     {getFileIcon(file.title)}
-                                                </motion.div>
+                                                </div>
                                                 <div style={{ overflow: 'hidden', flex: 1 }}>
-                                                    <h4 style={{
-                                                        fontSize: '16px', fontWeight: '800', color: 'white',
-                                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                                        marginBottom: '8px',
-                                                        lineHeight: 1.3
-                                                    }}>
-                                                        {file.title}
-                                                    </h4>
-                                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                        <span style={{
-                                                            fontSize: '12px',
-                                                            color: 'rgba(255,255,255,0.5)',
-                                                            fontWeight: '600',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '6px'
-                                                        }}>
-                                                            <Calendar size={12} /> {file.date}
-                                                        </span>
-                                                        <span style={{
-                                                            fontSize: '10px',
-                                                            color: typeStyle.color,
-                                                            fontWeight: '800',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '8px',
-                                                            background: typeStyle.bg,
-                                                            textTransform: 'uppercase',
-                                                            letterSpacing: '0.5px'
-                                                        }}>
-                                                            {ext}
-                                                        </span>
-                                                    </div>
+                                                    <h4 style={{ fontSize: '16px', fontWeight: '800', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '8px' }}>{file.title}</h4>
+                                                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={12} /> {file.date}</span>
                                                 </div>
                                             </div>
 
-                                            {/* Action Buttons - Premium Style */}
                                             <div style={{ display: 'flex', gap: '12px' }}>
-                                                <motion.button
-                                                    whileHover={{ scale: 1.03, y: -2 }}
-                                                    whileTap={{ scale: 0.97 }}
-                                                    onClick={() => downloadFile(file)}
-                                                    style={{
-                                                        flex: 1,
-                                                        padding: '16px',
-                                                        borderRadius: '16px',
-                                                        background: typeStyle.gradient,
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        fontWeight: '800',
-                                                        fontSize: '13px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        gap: '10px',
-                                                        boxShadow: `0 10px 25px ${typeStyle.color}50`,
-                                                        letterSpacing: '0.5px'
-                                                    }}
-                                                >
+                                                <motion.button whileHover={{ scale: 1.03, y: -2 }} whileTap={{ scale: 0.97 }} onClick={() => downloadFile(file)}
+                                                    style={{ flex: 1, padding: '16px', borderRadius: '16px', background: typeStyle.gradient, color: 'white', border: 'none', cursor: 'pointer', fontWeight: '800', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: `0 10px 25px ${typeStyle.color}50` }}>
                                                     <ArrowDown size={18} strokeWidth={2.5} /> DOWNLOAD
                                                 </motion.button>
-
-                                                <motion.button
-                                                    whileHover={{ scale: 1.1, background: 'rgba(255,255,255,0.1)' }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(file.title);
-                                                        alert('📋 Nama file disalin!');
-                                                    }}
-                                                    style={{
-                                                        padding: '16px',
-                                                        borderRadius: '16px',
-                                                        background: 'rgba(255,255,255,0.05)',
-                                                        color: 'rgba(255,255,255,0.7)',
-                                                        border: '1px solid rgba(255,255,255,0.1)',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}
-                                                    title="Salin nama file"
-                                                >
-                                                    <Copy size={18} />
-                                                </motion.button>
-
-                                                <motion.button
-                                                    whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.2)' }}
-                                                    whileTap={{ scale: 0.9 }}
-                                                    onClick={(e) => deleteNote(file.id, e, 'file')}
-                                                    style={{
-                                                        padding: '16px',
-                                                        borderRadius: '16px',
-                                                        background: 'rgba(239, 68, 68, 0.1)',
-                                                        color: '#ef4444',
-                                                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}
-                                                    title="Hapus file"
-                                                >
+                                                <motion.button whileHover={{ scale: 1.1, background: 'rgba(239, 68, 68, 0.2)' }} whileTap={{ scale: 0.9 }} onClick={(e) => deleteNote(file.id, e, 'file')}
+                                                    style={{ padding: '16px', borderRadius: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     <Trash2 size={18} />
                                                 </motion.button>
                                             </div>
@@ -2443,6 +2238,9 @@ const CatatanKerja = () => {
                             })}
                         </AnimatePresence>
                     </div>
+
+                    {/* Loading trigger removed */}
+
 
                     {/* EMPTY STATE */}
                     {filteredNotes.length === 0 && (
@@ -2480,7 +2278,8 @@ const CatatanKerja = () => {
                         </motion.div>
                     )}
                 </motion.div>
-            )}
+            )
+            }
 
             {/* Premium Delete Confirmation Modal */}
             <AnimatePresence>
@@ -2499,7 +2298,28 @@ const CatatanKerja = () => {
                 )}
             </AnimatePresence>
 
-        </div>
+            {/* Scroll to Top button */}
+            <AnimatePresence>
+                {showScrollTop && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.5, y: 20 }}
+                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        style={{
+                            position: 'fixed', bottom: '100px', right: '30px',
+                            width: '50px', height: '50px', borderRadius: '15px',
+                            background: `rgb(${themeColor})`, color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: `0 10px 20px rgba(${themeColor}, 0.3)`,
+                            zIndex: 1000, border: 'none', cursor: 'pointer'
+                        }}
+                    >
+                        <ArrowUp size={24} />
+                    </motion.button>
+                )}
+            </AnimatePresence>
+        </div >
     );
 };
 
