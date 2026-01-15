@@ -135,7 +135,26 @@ const KesalahanStaf = () => {
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
                 if (cloudData && cloudData.length > 0) {
-                    const normalizedData = cloudData.map(m => ({
+                    // Extract Settings from Cloud Data if exists
+                    const settingsRecord = cloudData.find(m => m.id === 888888888 || m.staff_name === 'CONFIG_HIDDEN');
+                    if (settingsRecord) {
+                        try {
+                            const config = JSON.parse(settingsRecord.description);
+                            if (config.sheetUrl) {
+                                setSheetUrl(config.sheetUrl);
+                                localStorage.setItem(`staff_sheet_url_${user.username}`, config.sheetUrl);
+                            }
+                            if (config.isAutoSync !== undefined) {
+                                setIsAutoSync(config.isAutoSync);
+                                localStorage.setItem(`staff_auto_sync_${user.username}`, String(config.isAutoSync));
+                            }
+                        } catch (e) { console.error("Error parsing cloud settings", e); }
+                    }
+
+                    // Filter out settings record from mistakes list
+                    const actualMistakes = cloudData.filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
+
+                    const normalizedData = actualMistakes.map(m => ({
                         ...m,
                         staffName: m.staff_name || '',
                         evidenceLink: m.evidence_link || '',
@@ -231,6 +250,25 @@ const KesalahanStaf = () => {
 
             if (!error) setSyncStatus('Cloud Connected');
             else setSyncStatus('Sync Failed');
+        }
+    };
+
+    const syncSettingsToCloud = async (url, autoSync) => {
+        if (!supabase || !user) return;
+        const userId = user.username || user.email;
+        try {
+            await supabase.from('staff_mistakes').upsert({
+                id: 888888888,
+                user_id: userId,
+                staff_name: 'CONFIG_HIDDEN',
+                description: JSON.stringify({ sheetUrl: url, isAutoSync: autoSync }),
+                severity: 'System',
+                date: new Date().toISOString().split('T')[0],
+                last_updated: new Date().toISOString()
+            });
+            console.log('[Sync] Settings saved to cloud');
+        } catch (e) {
+            console.error('[Sync] Failed to save settings to cloud', e);
         }
     };
 
@@ -597,6 +635,9 @@ const KesalahanStaf = () => {
         if (!isBackground && user?.username) {
             localStorage.setItem(`staff_sheet_url_${user.username}`, urlToUse);
             localStorage.setItem(`staff_auto_sync_${user.username}`, String(isAutoSync));
+
+            // Sync settings to cloud
+            syncSettingsToCloud(urlToUse, isAutoSync);
         }
 
         if (!isBackground) setIsLoadingSheet(true);
@@ -1583,6 +1624,13 @@ const KesalahanStaf = () => {
                                                 type="text"
                                                 value={sheetUrl || ''}
                                                 onChange={e => setSheetUrl(e.target.value)}
+                                                onBlur={e => {
+                                                    e.target.style.borderColor = 'var(--glass-border)';
+                                                    if (user?.username) {
+                                                        localStorage.setItem(`staff_sheet_url_${user.username}`, e.target.value);
+                                                        syncSettingsToCloud(e.target.value, isAutoSync);
+                                                    }
+                                                }}
                                                 placeholder="Tempel link Google Sheet di sini..."
                                                 style={{
                                                     width: '100%',
@@ -1597,7 +1645,6 @@ const KesalahanStaf = () => {
                                                     transition: 'all 0.3s'
                                                 }}
                                                 onFocus={e => e.target.style.borderColor = '#3b82f6'}
-                                                onBlur={e => e.target.style.borderColor = 'var(--glass-border)'}
                                             />
                                             {sheetUrl && (
                                                 <button
@@ -1616,7 +1663,10 @@ const KesalahanStaf = () => {
                                                 onChange={e => {
                                                     const val = e.target.checked;
                                                     setIsAutoSync(val);
-                                                    if (user?.username) localStorage.setItem(`staff_auto_sync_${user.username}`, val);
+                                                    if (user?.username) {
+                                                        localStorage.setItem(`staff_auto_sync_${user.username}`, String(val));
+                                                        syncSettingsToCloud(sheetUrl, val);
+                                                    }
                                                 }}
                                                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                                             />

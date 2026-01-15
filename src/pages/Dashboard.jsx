@@ -500,7 +500,7 @@ const Dashboard = () => {
 
                 const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix}`) || '[]');
                 const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
-                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]');
+                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]').filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
                 const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix}`) || '[]');
                 let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix}`) || '[]');
 

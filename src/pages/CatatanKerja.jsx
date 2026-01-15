@@ -441,6 +441,7 @@ const CatatanKerja = () => {
 
         const syncWithCloud = async () => {
             setSaveStatus('Sinkronisasi...');
+            setIsSyncing(true);
             try {
                 const { data: cloudData, error: fetchError } = await supabase
                     .from('notes')
@@ -477,6 +478,12 @@ const CatatanKerja = () => {
                         // 4. Recovery: Check for notes in Local that are NOT in Cloud (Offline Created)
                         // OR Local notes that are NEWER than Cloud (Offline Edits)
                         if (Array.isArray(prevLocal)) {
+                            const parseSafe = (ts) => {
+                                if (!ts) return 0;
+                                const d = new Date(ts);
+                                return isNaN(d.getTime()) ? 0 : d.getTime();
+                            };
+
                             prevLocal.forEach(localNote => {
                                 const cloudNote = cloudMap.get(localNote.id);
 
@@ -485,8 +492,8 @@ const CatatanKerja = () => {
                                     mergedStore.push(localNote);
                                 } else {
                                     // Note exists in both. Compare Timestamps.
-                                    const localTime = new Date(localNote.lastUpdated || 0).getTime();
-                                    const cloudTime = new Date(cloudNote.lastUpdated || 0).getTime();
+                                    const localTime = parseSafe(localNote.lastUpdated);
+                                    const cloudTime = parseSafe(cloudNote.lastUpdated || cloudNote.last_updated);
 
                                     if (localTime > cloudTime) {
                                         // Local is newer! Overwrite the cloud entry in the store with local.
@@ -509,6 +516,8 @@ const CatatanKerja = () => {
             } catch (err) {
                 console.error("Cloud Sync Error:", err);
                 setSaveStatus('Mode Offline');
+            } finally {
+                setIsSyncing(false);
             }
         };
 
@@ -525,8 +534,8 @@ const CatatanKerja = () => {
                         const updatedNote = {
                             ...raw,
                             color: typeof raw.color === 'string' ? raw.color : '#3b82f6',
-                            isPinned: raw.is_pinned,
-                            lastUpdated: raw.last_updated
+                            isPinned: !!raw.is_pinned,
+                            lastUpdated: raw.last_updated || new Date().toISOString()
                         };
 
                         setNotes(prev => {
@@ -550,15 +559,23 @@ const CatatanKerja = () => {
         return () => { supabase.removeChannel(channel); };
     }, [user?.username, isInitialLoaded]);
 
-    // Auto-save to localStorage
+    // Auto-save to localStorage (Optimized: Exclude heavy content for REPOSITORY_FILE to save space & performance)
     useEffect(() => {
         if (!user?.username || !isInitialLoaded) return;
         try {
-            localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(notes));
+            // Optimization: Create a lightweight version for localStorage
+            const strippedNotes = notes.map(n => {
+                if (n.category === 'REPOSITORY_FILE' || (n.content && n.content.length > 50000)) {
+                    // Don't store large data URLs / Base64 in localStorage (keeps UI fluid)
+                    return { ...n, content: n.category === 'REPOSITORY_FILE' ? '' : n.content.substring(0, 1000) };
+                }
+                return n;
+            });
+            localStorage.setItem(`app_catatan_kerja_${user.username}`, JSON.stringify(strippedNotes));
         } catch (e) {
             console.error("Quota exceeded or localStorage error:", e);
             if (e.name === 'QuotaExceededError') {
-                setSaveStatus('Memory Penuh!');
+                setSaveStatus('Memory Lokal Penuh');
             }
         }
     }, [notes, user?.username, isInitialLoaded]);
@@ -583,7 +600,7 @@ const CatatanKerja = () => {
             content: note.content || '',
             date: note.date || new Date().toLocaleDateString('id-ID'),
             color: (typeof note.color === 'string' && note.color.startsWith('#')) ? note.color : '#3b82f6',
-            lastUpdated: note.lastUpdated || note.last_updated || new Date().toLocaleString('id-ID'),
+            lastUpdated: note.lastUpdated || note.last_updated || new Date().toISOString(),
             isPinned: !!note.isPinned,
             category: note.category || 'General',
             priority: note.priority || 'Medium',
@@ -627,7 +644,7 @@ const CatatanKerja = () => {
         const updated = {
             ...activeNote,
             [field]: safeValue,
-            lastUpdated: new Date().toLocaleString('id-ID')
+            lastUpdated: new Date().toISOString()
         };
         setActiveNote(updated);
 
@@ -644,7 +661,7 @@ const CatatanKerja = () => {
             content: '',
             date: new Date().toLocaleDateString('id-ID'),
             color: '#3b82f6',
-            lastUpdated: new Date().toLocaleString('id-ID'),
+            lastUpdated: new Date().toISOString(),
             isPinned: false,
             category: activeTab === 'All' ? 'General' : activeTab,
             priority: 'Medium',
@@ -786,14 +803,21 @@ const CatatanKerja = () => {
         // 2. Efficient Sorting (Oldest First)
         return results.sort((a, b) => {
             // Priority 1: Pinned Notes
-            const pinA = a.is_pinned || a.isPinned;
-            const pinB = b.is_pinned || b.isPinned;
+            const pinA = !!(a.is_pinned || a.isPinned);
+            const pinB = !!(b.is_pinned || b.isPinned);
             if (pinA !== pinB) return pinA ? -1 : 1;
 
             // Priority 2: Precise Timestamp Sorting (Oldest First)
-            const timeA = new Date(a.last_updated || a.lastUpdated || a.id).getTime();
-            const timeB = new Date(b.last_updated || b.lastUpdated || b.id).getTime();
-            return (timeA || 0) - (timeB || 0);
+            const parseDate = (note) => {
+                const ts = note.last_updated || note.lastUpdated;
+                if (!ts) return typeof note.id === 'number' ? note.id : 0;
+                const d = new Date(ts);
+                return isNaN(d.getTime()) ? (typeof note.id === 'number' ? note.id : 0) : d.getTime();
+            };
+
+            const timeA = parseDate(a);
+            const timeB = parseDate(b);
+            return timeA - timeB;
         });
     }, [notes, debouncedSearch, activeTab, viewMode]);
 
@@ -1096,7 +1120,14 @@ const CatatanKerja = () => {
                         flex: 1,
                         alignItems: 'start'
                     }}>
-                        {filteredNotes.length === 0 ? (
+                        {isSyncing && notes.length === 0 ? (
+                            <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 20px' }}>
+                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} style={{ marginBottom: '20px' }}>
+                                    <Database size={48} color={`rgb(${themeColor})`} style={{ opacity: 0.5 }} />
+                                </motion.div>
+                                <h3 style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', fontWeight: '700' }}>Menghubungkan ke Cloud...</h3>
+                            </div>
+                        ) : filteredNotes.length === 0 ? (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
