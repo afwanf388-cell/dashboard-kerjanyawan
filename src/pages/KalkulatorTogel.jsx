@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calculator, Coins, SlidersHorizontal, X, Globe, Trophy, Hash, Percent, Target, Grid, Zap, Award } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const POOLS = [
     "HOKI DRAW", "HONGKONG LOTTO", "SYDNEY LOTTO",
@@ -149,6 +150,26 @@ const TogelCalculator = () => {
     const [inputs, setInputs] = useState({});
     const [results, setResults] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [dashboardFont, setDashboardFont] = useState("'Inter', sans-serif");
+    const { user } = useAuth();
+
+    // Sync Dashboard Font
+    useEffect(() => {
+        const updateFont = () => {
+            const saved = localStorage.getItem(`dashboard_settings_${user?.username}`);
+            if (saved) {
+                const settings = JSON.parse(saved);
+                if (settings.fontFamily) setDashboardFont(settings.fontFamily);
+            }
+        };
+        updateFont();
+        window.addEventListener('storage', updateFont);
+        const interval = setInterval(updateFont, 1000);
+        return () => {
+            window.removeEventListener('storage', updateFont);
+            clearInterval(interval);
+        };
+    }, [user?.username]);
 
     const filteredPools = POOLS.filter(pool =>
         pool.toLowerCase().includes(searchTerm.toLowerCase())
@@ -236,7 +257,8 @@ const TogelCalculator = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
                             <h1 style={{
                                 fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: '900', color: 'white',
-                                letterSpacing: '-1px', textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                                letterSpacing: '-1px', textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                                fontFamily: dashboardFont
                             }}>
                                 {selectedPool}
                             </h1>
@@ -245,12 +267,12 @@ const TogelCalculator = () => {
                                 color: 'white', fontSize: '11px',
                                 padding: '4px 10px', borderRadius: '20px', fontWeight: '800',
                                 boxShadow: '0 0 10px rgba(14, 165, 233, 0.4)',
-                                letterSpacing: '0.5px'
+                                letterSpacing: '0.5px', fontFamily: dashboardFont
                             }}>
                                 LIVE
                             </div>
                         </div>
-                        <p style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '500' }}>
+                        <p style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '500', fontFamily: dashboardFont }}>
                             <Coins size={16} color="#0ea5e9" />
                             Professional Prediction & Calculation Tool
                         </p>
@@ -496,7 +518,8 @@ const TogelCalculator = () => {
                             background: '#0f172a', color: 'white',
                             fontWeight: '900', textTransform: 'uppercase', fontSize: '16px', letterSpacing: '2px',
                             boxShadow: `0 0 30px ${gameData[category].color}30`,
-                            position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '10px'
+                            position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: '10px',
+                            fontFamily: dashboardFont
                         }}>
                             <Trophy size={18} color={gameData[category].color} />
                             {category}
@@ -560,19 +583,38 @@ const TogelCalculator = () => {
                                             </div>
                                         </div>
 
-                                        {/* INPUT */}
-                                        <div style={{ marginBottom: '20px' }}>
+                                        {/* INPUT ULTRA PREMIUM */}
+                                        <div style={{ marginBottom: '24px', position: 'relative' }}>
+                                            <div style={{
+                                                position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)',
+                                                color: gameData[category].color, display: 'flex', alignItems: 'center', gap: '4px',
+                                                fontSize: '14px', fontWeight: '900', zIndex: 2, pointerEvents: 'none'
+                                            }}>
+                                                Rp
+                                            </div>
                                             <input
                                                 type="number"
                                                 placeholder="0"
                                                 value={inputs[game.name] || ''}
                                                 onChange={(e) => handleInputChange(game.name, e.target.value)}
                                                 style={{
-                                                    width: '100%', padding: '16px',
-                                                    borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)',
-                                                    background: '#020617', color: 'white',
-                                                    fontSize: '20px', fontWeight: 'bold', textAlign: 'center',
-                                                    outline: 'none', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)'
+                                                    width: '100%', padding: '18px 18px 18px 45px',
+                                                    borderRadius: '20px', border: '1px solid rgba(255,255,255,0.08)',
+                                                    background: 'rgba(2, 6, 23, 0.8)', color: 'white',
+                                                    fontSize: '22px', fontWeight: '900', textAlign: 'right',
+                                                    outline: 'none', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                    fontFamily: dashboardFont,
+                                                    boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)'
+                                                }}
+                                                onFocus={e => {
+                                                    e.target.style.borderColor = gameData[category].color;
+                                                    e.target.style.boxShadow = `0 0 25px ${gameData[category].color}25, inset 0 2px 10px rgba(0,0,0,0.5)`;
+                                                    e.target.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onBlur={e => {
+                                                    e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+                                                    e.target.style.boxShadow = 'inset 0 2px 10px rgba(0,0,0,0.5)';
+                                                    e.target.style.transform = 'translateY(0)';
                                                 }}
                                             />
                                         </div>

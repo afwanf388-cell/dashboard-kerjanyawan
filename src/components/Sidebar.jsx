@@ -52,7 +52,7 @@ const Sidebar = ({ isOpen, onClose, isMobile }) => {
         { name: 'Catatan Kerja', icon: <NotebookPen size={20} />, path: '/catatan' },
         { name: 'Kesalahan Staf', icon: <UserX size={20} />, path: '/kesalahan-staf' },
         { name: 'Jadwal Result', icon: <CalendarCheck size={20} />, path: '/jadwal' },
-        { name: 'Pemahaman Bola', icon: <BookOpen size={20} />, path: '/bola' },
+        { name: 'Edu Wiki', icon: <BookOpen size={20} />, path: '/bola' },
         { name: 'Jadwal Bank', icon: <Landmark size={20} />, path: '/jadwal-bank' },
         { name: 'Kalkulator Togel', icon: <Calculator size={20} />, path: '/kalkulator-togel' },
         { name: 'Kalkulator Bola', icon: <Trophy size={20} />, path: '/kalkulator-bola' },
