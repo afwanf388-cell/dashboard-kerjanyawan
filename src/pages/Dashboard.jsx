@@ -19,8 +19,8 @@ const GlassCard = ({ children, style, className, onClick }) => (
         onClick={onClick}
         style={{
             background: 'rgba(11, 15, 25, 0.7)',
-            backdropFilter: 'blur(40px)',
-            WebkitBackdropFilter: 'blur(40px)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             border: '1px solid rgba(255, 255, 255, 0.04)',
             borderRadius: '28px',
             padding: '28px',
@@ -207,8 +207,8 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                 position: 'fixed',
                 inset: 0,
                 zIndex: 2000,
-                background: 'rgba(2, 6, 23, 0.9)',
-                backdropFilter: 'blur(15px)',
+                background: 'rgba(2, 6, 23, 0.85)',
+                backdropFilter: 'blur(10px)',
                 display: 'flex',
                 alignItems: 'flex-start', // Force to top
                 justifyContent: 'center',
@@ -628,7 +628,10 @@ const Dashboard = () => {
             } catch (e) { console.error(e); }
         };
         loadStats();
-    }, [user]);
+        // Refresh every 30 seconds for live feel
+        const interval = setInterval(loadStats, 30000);
+        return () => clearInterval(interval);
+    }, [user?.username]); // Changed from user to user?.username to prevent unnecessary re-runs
 
     const formatIDR = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
 

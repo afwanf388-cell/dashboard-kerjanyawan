@@ -53,8 +53,9 @@ const NoteCard = React.memo(({ note, index, themeColor, themeFont, openNoteModal
         whileHover={{ y: -10, scale: 1.02 }}
         onClick={() => openNoteModal(note)}
         style={{
-            background: 'rgba(15, 23, 42, 0.85)', // Increased opacity slightly for better contrast without blur
-            // backdropFilter: 'blur(20px)', // REMOVED CAUSE OF LAG (Macet)
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(10px)', // RE-ENABLED WITH OPTIMIZED VALUE
+            WebkitBackdropFilter: 'blur(10px)',
             borderRadius: '32px',
             padding: '28px',
             cursor: 'pointer',
@@ -212,6 +213,13 @@ const CatatanKerja = () => {
     const [themeColor, setThemeColor] = useState('59, 130, 246'); // Default Blue RGB
     const [themeFont, setThemeFont] = useState("'Inter', sans-serif"); // Default Font
     const [showScrollTop, setShowScrollTop] = useState(false);
+
+    // Debounced Search
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search), 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     // Scroll Detector
     useEffect(() => {
@@ -746,6 +754,8 @@ const CatatanKerja = () => {
 
     const filteredNotes = React.useMemo(() => {
         if (!Array.isArray(notes)) return [];
+        const searchSafe = (debouncedSearch || '').toLowerCase(); // Use debounced search
+
         return notes.filter(n => {
             const isFile = n.category === 'REPOSITORY_FILE';
             if (viewMode === 'NOTES') {
@@ -753,25 +763,23 @@ const CatatanKerja = () => {
 
                 // Normal Note Filtering
                 if (!n || typeof n !== 'object') return false;
-                const searchSafe = (search || '').toLowerCase();
                 const titleSafe = String(n.title || '').toLowerCase();
                 const contentSafe = String(n.content || '').toLowerCase();
-                const matchesSearch = titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
+                const matchesSearch = !searchSafe || titleSafe.includes(searchSafe) || contentSafe.includes(searchSafe);
                 const matchesCategory = activeTab === 'All' || n.category === activeTab;
                 return matchesSearch && matchesCategory;
             } else {
                 // Repository View Filtering
                 if (!isFile) return false; // Hide notes in file view
-                const searchSafe = (search || '').toLowerCase();
                 const titleSafe = String(n.title || '').toLowerCase(); // Filename
-                return titleSafe.includes(searchSafe);
+                return !searchSafe || titleSafe.includes(searchSafe);
             }
         }).sort((a, b) => {
             if (a.isPinned && !b.isPinned) return -1;
             if (!a.isPinned && b.isPinned) return 1;
-            return (a.id || 0) - (b.id || 0); // Oldest first (catatan lama di atas)
+            return (a.id || 0) - (b.id || 0); // Oldest first
         });
-    }, [notes, search, activeTab, viewMode]);
+    }, [notes, debouncedSearch, activeTab, viewMode]);
 
     const getNoteStats = (content) => {
         try {

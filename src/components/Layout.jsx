@@ -3,11 +3,14 @@ import { Outlet, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import { Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 
 const Layout = () => {
     const { user } = useAuth();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
+    const location = useLocation();
 
     // Detect mobile screen
     useEffect(() => {
@@ -167,7 +170,20 @@ const Layout = () => {
                 }}
             >
                 <div className="page-wrapper">
-                    <Outlet />
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={location.pathname}
+                            initial={{ opacity: 0, y: 10, scale: 0.99 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                            transition={{
+                                duration: 0.3,
+                                ease: [0.23, 1, 0.32, 1] // Custom cubic-bezier for premium feel
+                            }}
+                        >
+                            <Outlet />
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
             </main>
         </div>

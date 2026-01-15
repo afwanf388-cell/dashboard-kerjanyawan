@@ -417,7 +417,7 @@ const DataLogin = () => {
                                 gap: '18px',
                                 border: '1px solid rgba(255,255,255,0.06)',
                                 background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.4))',
-                                backdropFilter: 'blur(16px)'
+                                backdropFilter: 'blur(10px)'
                             }}
                         >
                             {/* Decorative Top Bar */}
@@ -574,7 +574,7 @@ const DataLogin = () => {
             {/* Premium Modal Editor */}
             <AnimatePresence>
                 {showModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
                         <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }} className="glass-effect" style={{ width: '100%', maxWidth: '520px', padding: 0, overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
                             {/* Modal Header */}
                             <div style={{ padding: '32px 32px 24px', borderBottom: '1px solid var(--glass-border)', background: 'linear-gradient(180deg, rgba(59, 130, 246, 0.1), transparent)' }}>

@@ -523,7 +523,7 @@ const Keuangan = () => {
                     background: radial-gradient(circle at top right, #1e293b 0%, #0f172a 60%);
                 }
                 .glass-card {
-                    background: var(--bg-card); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+                    background: var(--bg-card); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
                     border: 1px solid var(--glass-border); border-radius: 24px; padding: 24px;
                     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1); transition: transform 0.2s ease;
                 }
