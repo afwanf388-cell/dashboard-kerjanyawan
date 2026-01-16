@@ -51,7 +51,8 @@ const WikiHub = () => {
         title: '',
         content: '',
         category: '',
-        type: 'BOLA'
+        type: 'BOLA',
+        imageUrl: ''
     });
 
     const sections = {
@@ -116,6 +117,7 @@ const WikiHub = () => {
         const syncProcess = async () => {
             setSyncStatus('Sinkronisasi...');
             try {
+                // 1. Ambil data dari Cloud
                 const { data: cloudData, error: fetchError } = await supabase
                     .from('bola_articles')
                     .select('*')
@@ -124,24 +126,48 @@ const WikiHub = () => {
 
                 if (fetchError) throw fetchError;
 
+                // 2. Ambil data dari Local
                 const savedLocal = localStorage.getItem(`articles_v2_${user.username}`);
                 const localData = savedLocal ? JSON.parse(savedLocal) : [];
 
-                if (cloudData && cloudData.length > 0) {
-                    const finalData = cloudData.map(item => ({
-                        ...item,
-                        id: Number(item.id),
-                        type: item.type || 'BOLA',
-                        updateDate: item.update_date || item.updateDate
-                    }));
+                const processedCloud = (cloudData || []).map(item => ({
+                    ...item,
+                    id: Number(item.id),
+                    type: item.type || 'BOLA',
+                    imageUrl: item.image_url || item.imageUrl || '',
+                    updateDate: item.update_date || item.updateDate
+                }));
+
+                // 3. MERGE LOGIC: Gabungkan data cloud dengan data local yang belum ada di cloud
+                // Gunakan Map untuk de-duplikasi berdasarkan ID
+                const articleMap = new Map();
+
+                // Masukkan data cloud dulu (prioritas utama)
+                processedCloud.forEach(a => articleMap.set(a.id, a));
+
+                // Masukkan data local yang BELUM ada di cloud atau lebih baru
+                if (Array.isArray(localData)) {
+                    localData.forEach(localItem => {
+                        if (!articleMap.has(localItem.id)) {
+                            // Ini data baru yang mungkin belum tersinkron
+                            articleMap.set(localItem.id, localItem);
+                        }
+                    });
+                }
+
+                const finalData = Array.from(articleMap.values()).sort((a, b) => a.id - b.id);
+
+                if (finalData.length > 0) {
                     setArticles(finalData);
                     localStorage.setItem(`articles_v2_${user.username}`, JSON.stringify(finalData));
-                    setSyncStatus('Cloud Connected');
-                } else if (Array.isArray(localData) && localData.length > 0) {
-                    setArticles(localData);
-                    setSyncStatus('Backing up...');
-                    for (const item of localData) {
-                        await syncToCloud(item);
+
+                    // Jika ada data local yang belum di cloud, coba sinkronkan
+                    const unsynced = finalData.filter(f => !processedCloud.find(c => c.id === f.id));
+                    if (unsynced.length > 0) {
+                        setSyncStatus('Backing up...');
+                        for (const item of unsynced) {
+                            await syncToCloud(item);
+                        }
                     }
                     setSyncStatus('Cloud Connected');
                 } else {
@@ -173,11 +199,16 @@ const WikiHub = () => {
                             ...payload.new,
                             id: Number(payload.new.id),
                             updateDate: payload.new.update_date || payload.new.updateDate,
-                            type: payload.new.type || 'BOLA'
+                            type: payload.new.type || 'BOLA',
+                            imageUrl: payload.new.image_url || payload.new.imageUrl || ''
                         };
                         setArticles(prev => {
                             const exists = prev.find(a => a.id === updated.id);
-                            if (exists) return prev.map(a => a.id === updated.id ? updated : a);
+                            if (exists) {
+                                // Hanya update jika berbeda untuk mencegah infinite loop
+                                if (JSON.stringify(exists) === JSON.stringify(updated)) return prev;
+                                return prev.map(a => a.id === updated.id ? updated : a);
+                            }
                             return [...prev, updated].sort((a, b) => a.id - b.id);
                         });
                     }
@@ -197,23 +228,28 @@ const WikiHub = () => {
         setSyncStatus('Menyimpan...');
         try {
             if (action === 'delete') {
-                await supabase.from('bola_articles').delete().eq('id', item.id);
+                const { error } = await supabase.from('bola_articles').delete().eq('id', item.id);
+                if (error) throw error;
             } else {
-                await supabase.from('bola_articles').upsert({
+                const { error } = await supabase.from('bola_articles').upsert({
                     id: item.id,
                     user_id: user.username,
                     title: item.title,
                     content: item.content,
                     category: item.category,
                     type: item.type || 'BOLA',
+                    image_url: item.imageUrl || '',
                     update_date: item.updateDate,
                     last_updated: new Date().toISOString()
                 });
+                if (error) throw error;
             }
             setSyncStatus('Cloud Connected');
+            return true;
         } catch (err) {
             console.error("Sync to cloud error:", err);
-            setSyncStatus('Offline Mode');
+            setSyncStatus('Database Error');
+            return false;
         }
     };
 
@@ -232,6 +268,7 @@ const WikiHub = () => {
             const newItem = { ...formData, id: Date.now(), updateDate: now, type: activeSection };
             setArticles([...articles, newItem]);
             syncToCloud(newItem);
+            setSelectedArticle(newItem);
         }
         setShowEditor(false);
         setEditingId(null);
@@ -331,7 +368,7 @@ const WikiHub = () => {
                     <motion.button
                         whileHover={{ scale: 1.02, y: -4 }} whileTap={{ scale: 0.98 }}
                         onClick={() => {
-                            setFormData({ title: '', content: '', category: activeTheme.categories[1]?.name || 'Umum', type: activeSection });
+                            setFormData({ title: '', content: '', category: activeTheme.categories[1]?.name || 'Umum', type: activeSection, imageUrl: '' });
                             setEditingId(null);
                             setShowEditor(true);
                         }}
@@ -339,7 +376,8 @@ const WikiHub = () => {
                             padding: '24px', borderRadius: '30px',
                             background: `linear-gradient(135deg, ${activeTheme.color}, rgba(0,0,0,0.4))`,
                             color: 'white', border: '1px solid rgba(255,255,255,0.1)',
-                            display: 'flex', flexDirection: 'column', gap: '12px', cursor: 'pointer'
+                            display: 'flex', flexDirection: 'column', gap: '12px', cursor: 'pointer',
+                            boxShadow: `0 10px 40px ${activeTheme.color}30`
                         }}
                     >
                         <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -372,32 +410,45 @@ const WikiHub = () => {
                         />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: selectedArticle ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: selectedArticle ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                         {filteredArticles.map(article => (
                             <motion.div
                                 key={article.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                                 onClick={() => setSelectedArticle(article)}
                                 style={{
-                                    padding: '24px', cursor: 'pointer', borderRadius: '24px', transition: 'all 0.4s',
+                                    padding: '0', cursor: 'pointer', borderRadius: '28px', transition: 'all 0.4s',
                                     background: selectedArticle?.id === article.id ? `${activeTheme.color}15` : 'rgba(255,255,255,0.02)',
                                     border: `1px solid ${selectedArticle?.id === article.id ? activeTheme.color : 'rgba(255,255,255,0.05)'}`,
                                     position: 'relative', overflow: 'hidden'
                                 }}
                             >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <div style={{ padding: '6px 14px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', fontSize: '10px', fontWeight: '900', color: 'rgba(255,255,255,0.4)' }}>
-                                        {(article.category || 'UMUM').toUpperCase()}
+                                {article.imageUrl && (
+                                    <div style={{ height: '140px', width: '100%', overflow: 'hidden' }}>
+                                        <img src={article.imageUrl} alt={article.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8, transition: 'all 0.5s' }} />
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Clock size={12} /> {article.updateDate}
+                                )}
+                                <div style={{ padding: '24px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                        <div style={{ padding: '6px 14px', borderRadius: '10px', background: `${activeTheme.color}20`, fontSize: '10px', fontWeight: '900', color: activeTheme.color }}>
+                                            {(article.category || 'UMUM').toUpperCase()}
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Clock size={12} /> {article.updateDate}
+                                        </div>
                                     </div>
+                                    <h4 style={{ fontSize: '18px', fontWeight: '900', color: 'white', marginBottom: '12px', lineHeight: '1.4' }}>{article.title || 'Tanpa Judul'}</h4>
+                                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.6' }}>
+                                        {(article.content || '').replace(/\*\*/g, '')}
+                                    </p>
                                 </div>
-                                <h4 style={{ fontSize: '18px', fontWeight: '900', color: 'white', marginBottom: '10px' }}>{article.title || 'Tanpa Judul'}</h4>
-                                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.6' }}>
-                                    {(article.content || '').replace(/\*\*/g, '')}
-                                </p>
                             </motion.div>
                         ))}
+                        {filteredArticles.length === 0 && (
+                            <div style={{ gridColumn: '1 / -1', padding: '100px 20px', textAlign: 'center', background: 'rgba(255,255,255,0.01)', borderRadius: '30px', border: '1px dashed rgba(255,255,255,0.05)' }}>
+                                <BookOpen size={48} style={{ opacity: 0.1, marginBottom: '16px' }} />
+                                <p style={{ color: 'rgba(255,255,255,0.3)', fontWeight: '800' }}>Belum ada wawasan di kategori ini.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -415,37 +466,57 @@ const WikiHub = () => {
                                 height: '100%'
                             }}
                         >
-                            <div style={{ height: '160px', width: '100%', background: `linear-gradient(to bottom, ${activeTheme.color}30, transparent)`, position: 'relative', padding: '32px' }}>
-                                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                                    <span style={{ padding: '4px 12px', borderRadius: '8px', background: 'white', color: 'black', fontSize: '10px', fontWeight: '950' }}>{(selectedArticle.category || 'UMUM').toUpperCase()}</span>
+                            {/* HERO HEADER */}
+                            <div style={{ height: '280px', width: '100%', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                                {selectedArticle.imageUrl ? (
+                                    <img src={selectedArticle.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} alt="" />
+                                ) : (
+                                    <div style={{ width: '100%', height: '100%', background: `linear-gradient(to bottom, ${activeTheme.color}50, transparent)` }} />
+                                )}
+                                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0f172a, transparent 80%)' }} />
+
+                                <div style={{ position: 'absolute', inset: 0, padding: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                        <span style={{ padding: '6px 16px', borderRadius: '12px', background: activeTheme.color, color: 'white', fontSize: '11px', fontWeight: '950', boxShadow: `0 4px 15px ${activeTheme.color}40` }}>{(selectedArticle.category || 'UMUM').toUpperCase()}</span>
+                                        <span style={{ padding: '6px 16px', borderRadius: '12px', background: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '11px', fontWeight: '950', backdropFilter: 'blur(5px)' }}>{selectedArticle.updateDate}</span>
+                                    </div>
+                                    <h2 style={{ fontSize: '32px', fontWeight: '950', color: 'white', margin: 0, lineHeight: '1.2', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>{selectedArticle.title}</h2>
                                 </div>
-                                <h2 style={{ fontSize: '24px', fontWeight: '950', color: 'white', margin: 0 }}>{selectedArticle.title}</h2>
-                                <div style={{ position: 'absolute', top: '24px', right: '24px', display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => setIsFullScreen(!isFullScreen)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', cursor: 'pointer' }}>
-                                        {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                                    </button>
-                                    <button onClick={() => setSelectedArticle(null)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', cursor: 'pointer' }}><X size={18} /></button>
+
+                                <div style={{ position: 'absolute', top: '24px', right: '24px', display: 'flex', gap: '10px' }}>
+                                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => setIsFullScreen(!isFullScreen)} style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', cursor: 'pointer', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {isFullScreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+                                    </motion.button>
+                                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => setSelectedArticle(null)} style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', cursor: 'pointer', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></motion.button>
                                 </div>
                             </div>
-                            <div style={{ padding: '32px', flex: 1, overflowY: 'auto' }} className="custom-scroll">
-                                <div style={{ display: 'flex', gap: '10px', marginBottom: '32px' }}>
-                                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => {
-                                        setFormData({ title: selectedArticle.title, content: selectedArticle.content, category: selectedArticle.category, type: selectedArticle.type });
+
+                            {/* CONTENT AREA */}
+                            <div style={{ padding: '40px', flex: 1, overflowY: 'auto' }} className="custom-scroll">
+                                <div style={{ display: 'flex', gap: '16px', marginBottom: '40px' }}>
+                                    <motion.button whileHover={{ scale: 1.05 }} onClick={() => {
+                                        setFormData({ title: selectedArticle.title, content: selectedArticle.content, category: selectedArticle.category, type: selectedArticle.type, imageUrl: selectedArticle.imageUrl || '' });
                                         setEditingId(selectedArticle.id);
                                         setShowEditor(true);
-                                    }} style={{ padding: '10px 20px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: 'none', cursor: 'pointer', fontWeight: '800' }}>EDIT</motion.button>
-                                    <motion.button whileHover={{ scale: 1.1 }} onClick={() => setDeleteModal({ id: selectedArticle.id, title: selectedArticle.title })} style={{ padding: '10px 20px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: 'none', cursor: 'pointer', fontWeight: '800' }}>HAPUS</motion.button>
+                                    }} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                        <Edit2 size={18} /> EDIT
+                                    </motion.button>
+                                    <motion.button whileHover={{ scale: 1.05 }} onClick={() => setDeleteModal({ id: selectedArticle.id, title: selectedArticle.title })} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                        <Trash2 size={18} /> HAPUS
+                                    </motion.button>
                                 </div>
-                                <div className="article-content" style={{ fontSize: '16px', lineHeight: '1.8', color: 'rgba(255,255,255,0.8)', whiteSpace: 'pre-wrap' }}>
+
+                                <div className="article-content" style={{ fontSize: '17px', lineHeight: '1.9', color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
                                     {(selectedArticle.content || "").split('\n').map((line, i) => {
                                         if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
-                                            return <h3 key={i} style={{ color: activeTheme.color, marginTop: '24px', fontWeight: '900' }}>{line.replace(/\*\*/g, '')}</h3>;
+                                            return <h3 key={i} style={{ color: activeTheme.color, marginTop: '32px', marginBottom: '16px', fontWeight: '950', fontSize: '20px' }}>{line.replace(/\*\*/g, '')}</h3>;
                                         }
-                                        return <p key={i}>{line}</p>;
+                                        return <p key={i} style={{ marginBottom: '16px' }}>{line}</p>;
                                     })}
                                 </div>
                             </div>
                         </motion.div>
+
                     )}
                 </AnimatePresence>
             </div>
@@ -467,7 +538,8 @@ const WikiHub = () => {
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                background: `linear-gradient(90deg, ${activeTheme.color}15, transparent)`
+                                background: `linear-gradient(90deg, ${activeTheme.color}20, transparent)`,
+                                backdropFilter: 'blur(20px)'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                     <div style={{
@@ -499,7 +571,7 @@ const WikiHub = () => {
 
                             <form onSubmit={handleSave} style={{ padding: '40px', fontFamily: dashboardFont }}>
                                 <div style={{ display: 'grid', gap: '32px' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '24px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr)', gap: '24px' }}>
                                         {/* TITLE INPUT */}
                                         <div style={{ position: 'relative' }}>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '900', color: activeTheme.color, textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '1px' }}>
@@ -523,12 +595,10 @@ const WikiHub = () => {
                                                     onFocus={e => {
                                                         e.target.style.borderColor = activeTheme.color;
                                                         e.target.style.boxShadow = `0 0 20px ${activeTheme.color}20, inset 0 2px 4px rgba(0,0,0,0.2)`;
-                                                        e.target.parentElement.firstChild.style.color = activeTheme.color;
                                                     }}
                                                     onBlur={e => {
                                                         e.target.style.borderColor = 'rgba(255,255,255,0.08)';
                                                         e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.2)';
-                                                        e.target.parentElement.firstChild.style.color = 'rgba(255,255,255,0.2)';
                                                     }}
                                                     placeholder="Contoh: Strategi Offside..."
                                                 />
@@ -548,11 +618,7 @@ const WikiHub = () => {
                                                         width: '100%', padding: '18px', borderRadius: '18px',
                                                         background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.08)',
                                                         color: 'white', fontSize: '15px', fontFamily: dashboardFont,
-                                                        appearance: 'none', outline: 'none', transition: 'all 0.3s ease',
-                                                        backgroundImage: `linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.2) 50%), linear-gradient(135deg, rgba(255,255,255,0.2) 50%, transparent 50%)`,
-                                                        backgroundPosition: `calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px)`,
-                                                        backgroundSize: `5px 5px, 5px 5px`,
-                                                        backgroundRepeat: 'no-repeat'
+                                                        appearance: 'none', outline: 'none', transition: 'all 0.3s ease'
                                                     }}
                                                 >
                                                     {activeTheme.categories.filter(c => c.name !== 'Semua').map(c => (
@@ -560,6 +626,31 @@ const WikiHub = () => {
                                                     ))}
                                                 </select>
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    {/* IMAGE URL INPUT */}
+                                    <div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '900', color: activeTheme.color, textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '1px' }}>
+                                            <Plus size={14} /> Link Gambar Ilustrasi (Opsional)
+                                        </label>
+                                        <div style={{ display: 'grid', gridTemplateColumns: formData.imageUrl ? '100px 1fr' : '1fr', gap: '20px', alignItems: 'center' }}>
+                                            {formData.imageUrl && (
+                                                <div style={{ height: '80px', borderRadius: '16px', overflow: 'hidden', border: `2px solid ${activeTheme.color}` }}>
+                                                    <img src={formData.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Preview" />
+                                                </div>
+                                            )}
+                                            <input
+                                                value={formData.imageUrl}
+                                                onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                                                style={{
+                                                    width: '100%', padding: '18px', borderRadius: '18px',
+                                                    background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.08)',
+                                                    color: 'white', fontSize: '15px', fontFamily: dashboardFont,
+                                                    outline: 'none', transition: 'all 0.3s ease'
+                                                }}
+                                                placeholder="Tempel link gambar di sini (Direct Link / Imgur / Pinterest)..."
+                                            />
                                         </div>
                                     </div>
 

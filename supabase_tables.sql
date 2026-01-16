@@ -159,6 +159,8 @@ CREATE TABLE IF NOT EXISTS bola_articles (
     title TEXT NOT NULL,
     content TEXT,
     category TEXT DEFAULT 'Taktik',
+    type TEXT DEFAULT 'BOLA',
+    image_url TEXT,
     update_date TEXT,
     last_updated TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
