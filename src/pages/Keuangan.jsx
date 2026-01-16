@@ -76,8 +76,8 @@ const Keuangan = () => {
             setIsFetchingPrice(false);
         } else {
             try {
-                // Fetch public Antam price (Logam Mulia Scraping API)
-                const response = await fetch('https://logammulia-api.vercel.app/api/antam');
+                // Fetch public Antam price (Logam Mulia Scraping API) VIA CORS PROXY
+                const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://logammulia-api.vercel.app/api/antam')}`);
                 if (response.ok) {
                     const result = await response.json();
                     if (result.data && result.data[0]) {

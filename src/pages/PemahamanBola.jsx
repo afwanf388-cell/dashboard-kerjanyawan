@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Trash2, BookOpen, Clock, Tag, ChevronRight, Search, Target,
     Activity, BarChart2, ShieldAlert, Award, Edit2, X, ArrowLeft,
     Zap, Hash, Calculator, HelpCircle, Trophy, FileText, Settings,
-    Maximize2, Minimize2, Type
+    Maximize2, Minimize2, Type, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -13,47 +13,156 @@ import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 // --- SOPHISTICATED IMAGE COMPONENT ---
 // --- SOPHISTICATED IMAGE COMPONENT ---
-const SmartImage = ({ src, alt, onClick, imgStyle = {}, loading = 'lazy' }) => {
-    const [isLoaded, setIsLoaded] = useState(false);
+// --- SUPER SOPHISTICATED IMAGE COMPONENT (CDN ACCELERATED) ---
+const SmartImage = React.memo(({ src, alt, onClick, imgStyle = {}, loading = 'lazy', width = 0 }) => {
+    const [status, setStatus] = useState('loading'); // 'loading' | 'loaded' | 'error'
     const imgRef = useRef(null);
+    const [currentSrc, setCurrentSrc] = useState('');
+    const [retryCount, setRetryCount] = useState(0);
 
-    useEffect(() => {
-        if (imgRef.current && imgRef.current.complete) {
-            setIsLoaded(true);
+    // OPTIMIZER FUNCTION: Routes images through global CDN for caching + resizing + WebP conversion
+    const getOptimizedUrl = useCallback((url, targetWidth) => {
+        if (!url) return '';
+        if (url.startsWith('data:') || url.startsWith('blob:')) return url; // Skip local/raw data
+
+        try {
+            // Remove previous optimization params if any
+            let cleanUrl = url;
+            if (url.includes('wsrv.nl')) {
+                cleanUrl = new URL(url).searchParams.get('url');
+            }
+
+            const cdn = new URL('https://wsrv.nl');
+            cdn.searchParams.set('url', cleanUrl);
+            cdn.searchParams.set('a', 'attention'); // Smart crop focus
+
+            if (targetWidth > 0) {
+                cdn.searchParams.set('w', targetWidth);
+                cdn.searchParams.set('q', '80'); // Quality 80% (High but light)
+                cdn.searchParams.set('output', 'webp'); // Ultra modern format
+            }
+
+            return cdn.toString();
+        } catch (e) {
+            return url; // Fallback to original if URL parsing fails
         }
     }, []);
 
+    useEffect(() => {
+        setStatus('loading');
+        // If width is provided (e.g. for thumbnails), requests a smaller version
+        const optimized = getOptimizedUrl(src, width);
+        setCurrentSrc(optimized);
+    }, [src, width, retryCount, getOptimizedUrl]);
+
+    useEffect(() => {
+        if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+            setStatus('loaded');
+        }
+    }, [currentSrc]);
+
+    // Safety timeout: 30s
+    useEffect(() => {
+        if (status !== 'loading') return;
+        const timer = setTimeout(() => {
+            if (status === 'loading') setStatus('error');
+        }, 30000);
+        return () => clearTimeout(timer);
+    }, [status]);
+
+    const handleRetry = (e) => {
+        if (e) e.stopPropagation();
+        setStatus('loading');
+        setRetryCount(prev => prev + 1);
+        // Force bypass cache on retry
+        setCurrentSrc(prev => `${prev}&t=${Date.now()}`);
+    };
+
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0f172a' }}>
-            {!isLoaded && (
+        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#0f172a', overflow: 'hidden' }}>
+            {status === 'loading' && (
                 <div style={{
                     position: 'absolute', inset: 0,
-                    background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%)',
-                    backgroundSize: '200% 100%',
-                    animation: 'shimmer 1.5s infinite linear',
+                    background: '#1e293b',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     zIndex: 1
-                }} />
+                }}>
+                    {/* Sophisticated Pulse Loader */}
+                    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                        <div style={{
+                            position: 'absolute', inset: 0,
+                            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent)',
+                            transform: 'translateX(-100%)',
+                            animation: 'shimmer 1.5s infinite'
+                        }} />
+                        <div style={{
+                            position: 'absolute', bottom: '10px', right: '10px',
+                            display: 'flex', gap: '4px'
+                        }}>
+                            <div className="dot-pulse" style={{ animationDelay: '0s' }}></div>
+                            <div className="dot-pulse" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="dot-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
+                    </div>
+                </div>
             )}
+
+            {status === 'error' && (
+                <div
+                    onClick={handleRetry}
+                    style={{
+                        position: 'absolute', inset: 0,
+                        background: '#1e293b',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexDirection: 'column', gap: '12px',
+                        zIndex: 2, cursor: 'pointer'
+                    }}
+                >
+                    <div style={{ padding: '12px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }}>
+                        <RefreshCw size={20} color="#64748b" />
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                        Reload
+                    </span>
+                </div>
+            )}
+
             <img
                 ref={imgRef}
-                src={src}
+                src={currentSrc}
                 alt={alt}
                 loading={loading}
                 decoding="async"
-                onLoad={() => setIsLoaded(true)}
+                onLoad={() => setStatus('loaded')}
+                onError={() => setStatus('error')}
                 onClick={onClick}
                 style={{
-                    width: '100%', height: 'auto', minHeight: '100%', display: 'block',
-                    opacity: isLoaded ? 1 : 0,
-                    transition: 'opacity 0.4s ease-out',
-                    transform: 'translateZ(0)',
-                    willChange: 'opacity',
+                    width: '100%', height: '100%', display: 'block',
+                    opacity: status === 'loaded' ? 1 : 0,
+                    transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                    objectFit: 'cover',
+                    filter: status === 'loaded' ? 'none' : 'blur(10px)',
                     ...imgStyle
                 }}
             />
+            <style>{`
+                @keyframes shimmer { 100% { transform: translateX(100%); } }
+                .dot-pulse {
+                    width: 4px; height: 4px; background: #3b82f6; border-radius: 50%;
+                    animation: dotPulse 1.5s infinite ease-in-out;
+                }
+                @keyframes dotPulse { 
+                    0%, 100% { transform: scale(0.8); opacity: 0.5; } 
+                    50% { transform: scale(1.5); opacity: 1; } 
+                }
+            `}</style>
         </div>
     );
-};
+});
+
+// Static Styles for Performance
+const POINTER_STYLE = { cursor: 'pointer' };
+const ZOOM_STYLE = { cursor: 'zoom-in' };
 
 const WikiHub = () => {
     const { user } = useAuth();
@@ -408,7 +517,7 @@ const WikiHub = () => {
                                         onClick={() => setActiveCategory(cat.name)}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px',
-                                            borderRadius: '16px', background: isActive ? `${cat.color}15` : 'transparent',
+                                            borderRadius: '16px', background: isActive ? `${cat.color}15` : 'rgba(255, 255, 255, 0)',
                                             color: isActive ? cat.color : 'rgba(255,255,255,0.45)',
                                             border: isActive ? `1px solid ${cat.color}30` : '1px solid transparent',
                                             fontWeight: isActive ? '900' : '700', fontSize: '13.5px', cursor: 'pointer', textAlign: 'left',
@@ -485,7 +594,7 @@ const WikiHub = () => {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: selectedArticle ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                        {filteredArticles.map(article => (
+                        {filteredArticles.map((article, idx) => (
                             <motion.div
                                 key={article.id}
                                 style={{
@@ -511,8 +620,9 @@ const WikiHub = () => {
                                             <SmartImage
                                                 src={article.imageUrl}
                                                 alt={article.title}
-                                                imgStyle={{ cursor: 'pointer' }}
-                                                loading="lazy"
+                                                imgStyle={POINTER_STYLE}
+                                                loading={idx < 4 ? "eager" : "lazy"}
+                                                width={400} // Thumbnail Size
                                             />
                                         </div>
                                         <div
@@ -529,8 +639,8 @@ const WikiHub = () => {
                                                 whileHover={{ scale: 1.2, background: 'rgba(255,255,255,0.2)' }}
                                                 whileTap={{ scale: 0.9 }}
                                                 style={{
-                                                    padding: '12px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
-                                                    backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.1)',
+                                                    padding: '12px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)',
+                                                    border: '1px solid rgba(255,255,255,0.1)',
                                                     pointerEvents: 'auto', cursor: 'zoom-in'
                                                 }}
                                                 onClick={(e) => {
@@ -595,8 +705,9 @@ const WikiHub = () => {
                                         <SmartImage
                                             src={selectedArticle.imageUrl}
                                             onClick={() => setFullscreenImage(selectedArticle.imageUrl)}
-                                            imgStyle={{ cursor: 'zoom-in' }}
+                                            imgStyle={ZOOM_STYLE}
                                             loading="eager"
+                                            width={1200} // High Res for Hero
                                         />
                                     </div>
                                 ) : (
@@ -696,7 +807,7 @@ const WikiHub = () => {
                                                         }}
                                                     >
                                                         <div className="image-container-scrollable" style={{ width: '100%', height: '100%', overflowY: 'auto' }}>
-                                                            <SmartImage src={url} alt="" loading="lazy" />
+                                                            <SmartImage src={url} alt="" loading="lazy" width={300} />
                                                         </div>
                                                         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.3s', pointerEvents: 'none' }} className="gallery-hover">
                                                             <div style={{ padding: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(5px)' }}>

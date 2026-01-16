@@ -513,7 +513,8 @@ const Dashboard = () => {
                     currentGoldPrice = Number(savedPrice);
                 } else {
                     try {
-                        const response = await fetch('https://logammulia-api.vercel.app/api/antam');
+                        // Use CORS proxy to prevent browser console errors
+                        const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://logammulia-api.vercel.app/api/antam')}`);
                         if (response.ok) {
                             const result = await response.json();
                             if (result.data && result.data[0]) {
@@ -521,7 +522,8 @@ const Dashboard = () => {
                             }
                         }
                     } catch (e) {
-                        console.warn("Gold price API failed on dashboard, using fallback");
+                        // Fallback silently or log warning if needed, but the proxy should prevent CORS red errors
+                        console.warn("Gold price API unavailable, using fallback:", e.message);
                     }
                 }
 
