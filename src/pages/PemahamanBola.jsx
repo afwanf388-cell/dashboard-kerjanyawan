@@ -23,6 +23,7 @@ const WikiHub = () => {
     const [syncStatus, setSyncStatus] = useState('Standby');
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+    const [fullscreenImage, setFullscreenImage] = useState(null);
     const [dashboardFont, setDashboardFont] = useState("'Inter', sans-serif");
 
     // Sync Dashboard Font
@@ -52,7 +53,7 @@ const WikiHub = () => {
         content: '',
         category: '',
         type: 'BOLA',
-        imageUrl: ''
+        imageUrls: ['']
     });
 
     const sections = {
@@ -200,19 +201,20 @@ const WikiHub = () => {
                             id: Number(payload.new.id),
                             updateDate: payload.new.update_date || payload.new.updateDate,
                             type: payload.new.type || 'BOLA',
-                            imageUrl: payload.new.image_url || payload.new.imageUrl || ''
+                            imageUrl: (payload.new.image_url || '').split(',')[0] || '',
+                            imageUrls: (payload.new.image_url || '').split(',').filter(url => url.trim() !== '')
                         };
                         setArticles(prev => {
                             const exists = prev.find(a => a.id === updated.id);
                             if (exists) {
-                                // Hanya update jika berbeda untuk mencegah infinite loop
                                 if (JSON.stringify(exists) === JSON.stringify(updated)) return prev;
                                 return prev.map(a => a.id === updated.id ? updated : a);
                             }
                             return [...prev, updated].sort((a, b) => a.id - b.id);
                         });
                     }
-                }).subscribe();
+                }
+            ).subscribe();
 
         return () => { supabase.removeChannel(channel); };
     }, [user?.username]);
@@ -238,7 +240,7 @@ const WikiHub = () => {
                     content: item.content,
                     category: item.category,
                     type: item.type || 'BOLA',
-                    image_url: item.imageUrl || '',
+                    image_url: Array.isArray(item.imageUrls) ? item.imageUrls.filter(url => url.trim() !== '').join(',') : (item.imageUrl || ''),
                     update_date: item.updateDate,
                     last_updated: new Date().toISOString()
                 });
@@ -260,12 +262,12 @@ const WikiHub = () => {
         if (editingId) {
             const current = articles.find(a => a.id === editingId);
             if (!current) return;
-            const updated = { ...current, ...formData, updateDate: now };
+            const updated = { ...current, ...formData, updateDate: now, imageUrl: formData.imageUrls[0] || '' };
             setArticles(articles.map(a => a.id === editingId ? updated : a));
             syncToCloud(updated);
             if (selectedArticle?.id === editingId) setSelectedArticle(updated);
         } else {
-            const newItem = { ...formData, id: Date.now(), updateDate: now, type: activeSection };
+            const newItem = { ...formData, id: Date.now(), updateDate: now, type: activeSection, imageUrl: formData.imageUrls[0] || '' };
             setArticles([...articles, newItem]);
             syncToCloud(newItem);
             setSelectedArticle(newItem);
@@ -339,26 +341,44 @@ const WikiHub = () => {
             }}>
                 {/* LEFT SIDEBAR */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <div className="glass-effect" style={{ padding: '24px', borderRadius: '30px', background: 'rgba(15, 23, 42, 0.4)' }}>
+                    <div className="glass-effect" style={{
+                        padding: '24px', borderRadius: '30px',
+                        background: 'rgba(2, 6, 17, 0.85)',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                        boxShadow: '0 25px 60px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.01)'
+                    }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                            <div style={{ width: '8px', height: '24px', borderRadius: '4px', background: activeTheme.color }} />
-                            <h3 style={{ fontSize: '13px', fontWeight: '900', color: 'white', letterSpacing: '1px' }}>KATEGORI {activeSection}</h3>
+                            <div style={{
+                                width: '4px', height: '20px', borderRadius: '2px',
+                                background: activeTheme.color,
+                                boxShadow: `0 0 15px ${activeTheme.color}`
+                            }} />
+                            <h3 style={{ fontSize: '11px', fontWeight: '900', color: 'rgba(255,255,255,0.9)', letterSpacing: '2px', textTransform: 'uppercase' }}>KATEGORI {activeSection}</h3>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {activeTheme.categories.map(cat => {
                                 const isActive = activeCategory === cat.name;
                                 return (
                                     <motion.button
-                                        key={cat.name} whileHover={{ x: 5 }} onClick={() => setActiveCategory(cat.name)}
+                                        key={cat.name} whileHover={{ x: 8, background: 'rgba(255,255,255,0.03)' }}
+                                        onClick={() => setActiveCategory(cat.name)}
                                         style={{
-                                            display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px',
-                                            borderRadius: '16px', background: isActive ? `${cat.color}20` : 'transparent',
-                                            color: isActive ? cat.color : 'rgba(255,255,255,0.4)',
-                                            border: isActive ? `1px solid ${cat.color}40` : '1px solid transparent',
-                                            fontWeight: '800', fontSize: '14px', cursor: 'pointer', textAlign: 'left'
+                                            display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px',
+                                            borderRadius: '16px', background: isActive ? `${cat.color}15` : 'transparent',
+                                            color: isActive ? cat.color : 'rgba(255,255,255,0.45)',
+                                            border: isActive ? `1px solid ${cat.color}30` : '1px solid transparent',
+                                            fontWeight: isActive ? '900' : '700', fontSize: '13.5px', cursor: 'pointer', textAlign: 'left',
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                         }}
                                     >
-                                        {cat.icon && React.createElement(cat.icon, { size: 18 })} {cat.name}
+                                        <div style={{
+                                            opacity: isActive ? 1 : 0.6,
+                                            transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                                            transition: 'transform 0.3s ease'
+                                        }}>
+                                            {cat.icon && React.createElement(cat.icon, { size: 16 })}
+                                        </div>
+                                        {cat.name}
                                     </motion.button>
                                 );
                             })}
@@ -368,7 +388,7 @@ const WikiHub = () => {
                     <motion.button
                         whileHover={{ scale: 1.02, y: -4 }} whileTap={{ scale: 0.98 }}
                         onClick={() => {
-                            setFormData({ title: '', content: '', category: activeTheme.categories[1]?.name || 'Umum', type: activeSection, imageUrl: '' });
+                            setFormData({ title: '', content: '', category: activeTheme.categories[1]?.name || 'Umum', type: activeSection, imageUrls: [''] });
                             setEditingId(null);
                             setShowEditor(true);
                         }}
@@ -397,15 +417,25 @@ const WikiHub = () => {
                 {/* MIDDLE: LIST */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }} className="custom-scroll">
                     <div style={{ position: 'relative' }}>
-                        <Search style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.2)' }} size={20} />
+                        <Search style={{ position: 'absolute', left: '24px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.25)' }} size={18} />
                         <input
                             placeholder={`Cari dalam perpustakaan ${activeSection.toLowerCase()}...`}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             style={{
-                                width: '100%', padding: '20px 20px 20px 60px', borderRadius: '24px',
-                                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                                color: 'white', fontSize: '15px'
+                                width: '100%', padding: '24px 24px 24px 64px', borderRadius: '24px',
+                                background: 'rgba(2, 6, 17, 0.7)', border: '1px solid rgba(255,255,255,0.06)',
+                                color: 'white', fontSize: '15px', fontWeight: '600',
+                                boxShadow: '0 15px 35px rgba(0,0,0,0.4), inset 0 2px 10px rgba(0,0,0,0.5)',
+                                outline: 'none', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                            }}
+                            onFocus={e => {
+                                e.target.style.borderColor = activeTheme.color;
+                                e.target.style.boxShadow = `0 15px 45px rgba(0,0,0,0.5), 0 0 20px ${activeTheme.color}15, inset 0 2px 10px rgba(0,0,0,0.5)`;
+                            }}
+                            onBlur={e => {
+                                e.target.style.borderColor = 'rgba(255,255,255,0.06)';
+                                e.target.style.boxShadow = '0 15px 35px rgba(0,0,0,0.4), inset 0 2px 10px rgba(0,0,0,0.5)';
                             }}
                         />
                     </div>
@@ -417,27 +447,60 @@ const WikiHub = () => {
                                 onClick={() => setSelectedArticle(article)}
                                 style={{
                                     padding: '0', cursor: 'pointer', borderRadius: '28px', transition: 'all 0.4s',
-                                    background: selectedArticle?.id === article.id ? `${activeTheme.color}15` : 'rgba(255,255,255,0.02)',
+                                    background: selectedArticle?.id === article.id ? 'rgba(15, 23, 42, 0.8)' : 'rgba(4, 9, 23, 0.65)',
                                     border: `1px solid ${selectedArticle?.id === article.id ? activeTheme.color : 'rgba(255,255,255,0.05)'}`,
-                                    position: 'relative', overflow: 'hidden'
+                                    position: 'relative', overflow: 'hidden',
+                                    boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
                                 }}
+                                whileHover={{ y: -8, boxShadow: `0 30px 60px rgba(0,0,0,0.6), 0 0 30px ${activeTheme.color}10` }}
                             >
                                 {article.imageUrl && (
-                                    <div style={{ height: '140px', width: '100%', overflow: 'hidden' }}>
-                                        <img src={article.imageUrl} alt={article.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8, transition: 'all 0.5s' }} />
+                                    <div style={{ height: '150px', width: '100%', overflow: 'hidden', position: 'relative', background: '#020617' }}>
+                                        <img
+                                            src={article.imageUrl}
+                                            alt={article.title}
+                                            loading="lazy"
+                                            decoding="async"
+                                            style={{
+                                                width: '100%', height: '100%', objectFit: 'cover',
+                                                opacity: 0.85, transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                imageRendering: 'auto'
+                                            }}
+                                        />
+                                        <div
+                                            className="img-overlay"
+                                            style={{
+                                                position: 'absolute', inset: 0,
+                                                background: 'linear-gradient(to top, rgba(2, 6, 17, 0.9), transparent 70%)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                opacity: 0, transition: 'opacity 0.4s ease'
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (article.imageUrl) setFullscreenImage(article.imageUrl);
+                                            }}
+                                        >
+                                            <motion.div
+                                                whileHover={{ scale: 1.2, background: 'rgba(255,255,255,0.2)' }}
+                                                whileTap={{ scale: 0.9 }}
+                                                style={{ padding: '12px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                            >
+                                                <Maximize2 size={22} color="white" />
+                                            </motion.div>
+                                        </div>
                                     </div>
                                 )}
                                 <div style={{ padding: '24px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                        <div style={{ padding: '6px 14px', borderRadius: '10px', background: `${activeTheme.color}20`, fontSize: '10px', fontWeight: '900', color: activeTheme.color }}>
+                                        <div style={{ padding: '6px 12px', borderRadius: '8px', background: `${activeTheme.color}15`, fontSize: '9px', fontWeight: '900', color: activeTheme.color, letterSpacing: '0.5px' }}>
                                             {(article.category || 'UMUM').toUpperCase()}
                                         </div>
-                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
                                             <Clock size={12} /> {article.updateDate}
                                         </div>
                                     </div>
-                                    <h4 style={{ fontSize: '18px', fontWeight: '900', color: 'white', marginBottom: '12px', lineHeight: '1.4' }}>{article.title || 'Tanpa Judul'}</h4>
-                                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.6' }}>
+                                    <h4 style={{ fontSize: '18px', fontWeight: '900', color: 'rgba(255,255,255,0.95)', marginBottom: '12px', lineHeight: '1.4' }}>{article.title || 'Tanpa Judul'}</h4>
+                                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.7' }}>
                                         {(article.content || '').replace(/\*\*/g, '')}
                                     </p>
                                 </div>
@@ -467,13 +530,30 @@ const WikiHub = () => {
                             }}
                         >
                             {/* HERO HEADER */}
-                            <div style={{ height: '280px', width: '100%', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                            <div
+                                style={{ height: '280px', width: '100%', position: 'relative', overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+                                onClick={() => selectedArticle.imageUrl && setFullscreenImage(selectedArticle.imageUrl)}
+                            >
                                 {selectedArticle.imageUrl ? (
-                                    <img src={selectedArticle.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} alt="" />
+                                    <motion.img
+                                        initial={{ scale: 1.2, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        transition={{ duration: 1.2, ease: "easeOut" }}
+                                        src={selectedArticle.imageUrl}
+                                        loading="eager"
+                                        decoding="async"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, imageRendering: 'auto' }}
+                                        alt=""
+                                    />
                                 ) : (
-                                    <div style={{ width: '100%', height: '100%', background: `linear-gradient(to bottom, ${activeTheme.color}50, transparent)` }} />
+                                    <div style={{ width: '100%', height: '100%', background: `linear-gradient(to bottom, ${activeTheme.color}60, transparent)` }} />
                                 )}
-                                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #0f172a, transparent 80%)' }} />
+                                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #020617, transparent 60%)' }} />
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.5s ease-out' }} className="hero-zoom-hint">
+                                    <div style={{ padding: '14px 28px', borderRadius: '40px', background: 'rgba(1, 4, 12, 0.8)', backdropFilter: 'blur(15px)', color: 'white', fontSize: '12px', fontWeight: '900', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', letterSpacing: '1px' }}>
+                                        <Maximize2 size={16} /> PERBESAR GAMBAR
+                                    </div>
+                                </div>
 
                                 <div style={{ position: 'absolute', inset: 0, padding: '40px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                                     <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -492,31 +572,75 @@ const WikiHub = () => {
                             </div>
 
                             {/* CONTENT AREA */}
-                            <div style={{ padding: '40px', flex: 1, overflowY: 'auto' }} className="custom-scroll">
-                                <div style={{ display: 'flex', gap: '16px', marginBottom: '40px' }}>
-                                    <motion.button whileHover={{ scale: 1.05 }} onClick={() => {
-                                        setFormData({ title: selectedArticle.title, content: selectedArticle.content, category: selectedArticle.category, type: selectedArticle.type, imageUrl: selectedArticle.imageUrl || '' });
-                                        setEditingId(selectedArticle.id);
-                                        setShowEditor(true);
-                                    }} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                                        <Edit2 size={18} /> EDIT
-                                    </motion.button>
-                                    <motion.button whileHover={{ scale: 1.05 }} onClick={() => setDeleteModal({ id: selectedArticle.id, title: selectedArticle.title })} style={{ flex: 1, padding: '16px', borderRadius: '18px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                                        <Trash2 size={18} /> HAPUS
-                                    </motion.button>
-                                </div>
+                            <div style={{ padding: '40px', flex: 1, overflowY: 'auto', position: 'relative' }} className="custom-scroll">
+                                {/* Blurred Backdrop Content */}
+                                {selectedArticle.imageUrl && (
+                                    <div style={{
+                                        position: 'absolute', top: 0, left: 0, width: '100%', height: '400px',
+                                        opacity: 0.15, pointerEvents: 'none', zIndex: 0,
+                                        maskImage: 'linear-gradient(to bottom, black, transparent)',
+                                        WebkitMaskImage: 'linear-gradient(to bottom, black, transparent)'
+                                    }}>
+                                        <img src={selectedArticle.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(60px)' }} alt="" />
+                                    </div>
+                                )}
 
-                                <div className="article-content" style={{ fontSize: '17px', lineHeight: '1.9', color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
-                                    {(selectedArticle.content || "").split('\n').map((line, i) => {
-                                        if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
-                                            return <h3 key={i} style={{ color: activeTheme.color, marginTop: '32px', marginBottom: '16px', fontWeight: '950', fontSize: '20px' }}>{line.replace(/\*\*/g, '')}</h3>;
-                                        }
-                                        return <p key={i} style={{ marginBottom: '16px' }}>{line}</p>;
-                                    })}
+                                <div style={{ position: 'relative', zIndex: 1 }}>
+                                    <div style={{ display: 'flex', gap: '16px', marginBottom: '40px' }}>
+                                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => {
+                                            const urls = selectedArticle.imageUrls || (selectedArticle.image_url ? selectedArticle.image_url.split(',') : ['']);
+                                            setFormData({
+                                                title: selectedArticle.title,
+                                                content: selectedArticle.content,
+                                                category: selectedArticle.category,
+                                                type: selectedArticle.type,
+                                                imageUrls: urls.length > 0 ? urls : ['']
+                                            });
+                                            setEditingId(selectedArticle.id);
+                                            setShowEditor(true);
+                                        }} style={{ flex: 1, padding: '16px', borderRadius: '20px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                            <Edit2 size={18} /> EDIT
+                                        </motion.button>
+                                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setDeleteModal({ id: selectedArticle.id, title: selectedArticle.title })} style={{ flex: 1, padding: '16px', borderRadius: '20px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)', cursor: 'pointer', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                            <Trash2 size={18} /> HAPUS
+                                        </motion.button>
+                                    </div>
+
+                                    <div className="article-content" style={{ fontSize: '17px', lineHeight: '1.9', color: 'rgba(255,255,255,0.92)', whiteSpace: 'pre-wrap' }}>
+                                        {(selectedArticle.content || "").split('\n').map((line, i) => {
+                                            if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
+                                                return <h3 key={i} style={{ color: activeTheme.color, marginTop: '32px', marginBottom: '16px', fontWeight: '950', fontSize: '20px' }}>{line.replace(/\*\*/g, '')}</h3>;
+                                            }
+                                            return <p key={i} style={{ marginBottom: '16px' }}>{line}</p>;
+                                        })}
+                                    </div>
+
+                                    {/* Multi Image Gallery */}
+                                    {(selectedArticle.imageUrls || []).length > 1 && (
+                                        <div style={{ marginTop: '40px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                                                <Maximize2 size={16} color={activeTheme.color} />
+                                                <span style={{ fontSize: '13px', fontWeight: '900', color: 'rgba(255,255,255,0.5)', letterSpacing: '1px' }}>GALLERY ILUSTRASI</span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+                                                {selectedArticle.imageUrls.slice(1).map((url, idx) => (
+                                                    <motion.div
+                                                        key={idx} whileHover={{ scale: 1.03, y: -5 }}
+                                                        onClick={() => setFullscreenImage(url)}
+                                                        style={{ height: '180px', borderRadius: '20px', overflow: 'hidden', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}
+                                                    >
+                                                        <img src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" loading="lazy" />
+                                                        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)', display: 'flex', alignItems: 'flex-end', padding: '15px', opacity: 0, transition: 'opacity 0.3s' }} className="gallery-hover">
+                                                            <Maximize2 size={18} color="white" />
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
-
                     )}
                 </AnimatePresence>
             </div>
@@ -630,27 +754,55 @@ const WikiHub = () => {
                                     </div>
 
                                     {/* IMAGE URL INPUT */}
+                                    {/* MULTI IMAGE URL INPUT */}
                                     <div>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '900', color: activeTheme.color, textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '1px' }}>
-                                            <Plus size={14} /> Link Gambar Ilustrasi (Opsional)
-                                        </label>
-                                        <div style={{ display: 'grid', gridTemplateColumns: formData.imageUrl ? '100px 1fr' : '1fr', gap: '20px', alignItems: 'center' }}>
-                                            {formData.imageUrl && (
-                                                <div style={{ height: '80px', borderRadius: '16px', overflow: 'hidden', border: `2px solid ${activeTheme.color}` }}>
-                                                    <img src={formData.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Preview" />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '900', color: activeTheme.color, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                                <Plus size={14} /> Link Gambar Ilustrasi (Multi-Upload Support)
+                                            </label>
+                                            <motion.button
+                                                type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                                onClick={() => setFormData({ ...formData, imageUrls: [...formData.imageUrls, ''] })}
+                                                style={{ padding: '6px 14px', borderRadius: '10px', background: `${activeTheme.color}15`, border: `1px solid ${activeTheme.color}30`, color: activeTheme.color, fontSize: '11px', fontWeight: '900', cursor: 'pointer' }}
+                                            >
+                                                + TAMBAH LINK
+                                            </motion.button>
+                                        </div>
+                                        <div style={{ display: 'grid', gap: '12px' }}>
+                                            {formData.imageUrls.map((url, index) => (
+                                                <div key={index} style={{ display: 'grid', gridTemplateColumns: url ? '80px 1fr 50px' : '1fr 50px', gap: '16px', alignItems: 'center', background: 'rgba(15, 23, 42, 0.4)', padding: '12px', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    {url && (
+                                                        <div style={{ height: '60px', borderRadius: '12px', overflow: 'hidden', border: `2px solid ${activeTheme.color}40` }}>
+                                                            <img src={url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Preview" />
+                                                        </div>
+                                                    )}
+                                                    <input
+                                                        value={url}
+                                                        onChange={e => {
+                                                            const newUrls = [...formData.imageUrls];
+                                                            newUrls[index] = e.target.value;
+                                                            setFormData({ ...formData, imageUrls: newUrls });
+                                                        }}
+                                                        style={{
+                                                            width: '100%', padding: '14px', borderRadius: '12px',
+                                                            background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)',
+                                                            color: 'white', fontSize: '14px', fontFamily: dashboardFont,
+                                                            outline: 'none', transition: 'all 0.3s ease'
+                                                        }}
+                                                        placeholder={`Link Gambar #${index + 1}...`}
+                                                    />
+                                                    <motion.button
+                                                        type="button" whileHover={{ scale: 1.1, color: '#ef4444' }}
+                                                        onClick={() => {
+                                                            const newUrls = formData.imageUrls.filter((_, i) => i !== index);
+                                                            setFormData({ ...formData, imageUrls: newUrls.length ? newUrls : [''] });
+                                                        }}
+                                                        style={{ padding: '10px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.2)', cursor: 'pointer' }}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </motion.button>
                                                 </div>
-                                            )}
-                                            <input
-                                                value={formData.imageUrl}
-                                                onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
-                                                style={{
-                                                    width: '100%', padding: '18px', borderRadius: '18px',
-                                                    background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.08)',
-                                                    color: 'white', fontSize: '15px', fontFamily: dashboardFont,
-                                                    outline: 'none', transition: 'all 0.3s ease'
-                                                }}
-                                                placeholder="Tempel link gambar di sini (Direct Link / Imgur / Pinterest)..."
-                                            />
+                                            ))}
                                         </div>
                                     </div>
 
@@ -729,11 +881,95 @@ const WikiHub = () => {
                 />
             )}
 
+            {/* LIGHTBOX */}
+            <AnimatePresence>
+                {fullscreenImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setFullscreenImage(null)}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 99999,
+                            background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(20px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px'
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                            style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <img
+                                src={fullscreenImage}
+                                style={{
+                                    maxWidth: '100%', maxHeight: '90vh', borderRadius: '24px',
+                                    boxShadow: '0 30px 100px rgba(0,0,0,0.8)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    transform: 'translateZ(0)',
+                                    imageRendering: 'auto'
+                                }}
+                                alt="Full view"
+                            />
+                            <div style={{ position: 'absolute', bottom: '-60px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '20px' }}>
+                                <motion.a
+                                    href={fullscreenImage} target="_blank" rel="noopener noreferrer"
+                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.2)' }}
+                                    style={{
+                                        padding: '12px 24px', borderRadius: '30px', background: 'rgba(255,255,255,0.1)',
+                                        color: 'white', textDecoration: 'none', fontSize: '13px', fontWeight: '800',
+                                        backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)',
+                                        display: 'flex', alignItems: 'center', gap: '8px'
+                                    }}
+                                >
+                                    <Maximize2 size={18} /> LIHAT ASLI
+                                </motion.a>
+                                <motion.button
+                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.2)' }}
+                                    onClick={() => {
+                                        const link = document.createElement('a');
+                                        link.href = fullscreenImage;
+                                        link.download = `artikel-bola-${Date.now()}.png`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    }}
+                                    style={{
+                                        padding: '12px 24px', borderRadius: '30px', background: 'rgba(255,255,255,0.1)',
+                                        color: 'white', border: '1px solid rgba(255,255,255,0.1)', fontSize: '13px', fontWeight: '800',
+                                        backdropFilter: 'blur(10px)', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '8px'
+                                    }}
+                                >
+                                    <FileText size={18} /> SIMPAN GAMBAR
+                                </motion.button>
+                            </div>
+                            <motion.button
+                                whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
+                                onClick={() => setFullscreenImage(null)}
+                                style={{
+                                    position: 'absolute', top: '-60px', right: 0,
+                                    width: '44px', height: '44px', borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white',
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >
+                                <X size={24} />
+                            </motion.button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <style>{`
                 .custom-scroll::-webkit-scrollbar { width: 5px; }
                 .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
                 @media (max-width: 1000px) {
                     .wiki-main-grid { grid-template-columns: 1fr !important; height: auto !important; }
+                }
+                .wiki-main-grid > div:nth-child(2) > div > div:hover .img-overlay {
+                    opacity: 1 !important;
+                }
+                [style*="cursor: pointer"]:hover .hero-zoom-hint {
+                    opacity: 1 !important;
                 }
             `}</style>
         </div>
