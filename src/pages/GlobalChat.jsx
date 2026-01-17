@@ -418,16 +418,22 @@ const GlobalChat = () => {
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
                 .chat-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-                .contact-item { transition: all 0.2s ease; cursor: pointer; }
-                .contact-item:hover { background: rgba(255,255,255,0.05); }
-                .contact-item.active { background: rgba(99, 102, 241, 0.15); border-left: 3px solid #6366f1; }
-                .msg-bubble:hover .msg-actions { opacity: 1; }
-                .msg-actions { opacity: 0; transition: opacity 0.15s ease; }
-                .action-btn { transition: all 0.2s ease; cursor: pointer; }
-                .action-btn:hover { background: rgba(99, 102, 241, 0.2); color: #6366f1; transform: scale(1.05); }
-                .action-btn:active { transform: scale(0.95); }
+                .contact-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden; }
+                .contact-item:hover { background: rgba(99, 102, 241, 0.08); transform: translateX(5px); }
+                .contact-item.active { background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), transparent); border-left: 4px solid #6366f1; }
+                .msg-bubble:hover .msg-actions { opacity: 1; transform: translateY(0); }
+                .msg-actions { opacity: 0; transition: all 0.2s ease; transform: translateY(10px); }
+                .action-btn { transition: all 0.2s ease; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+                .action-btn:hover { background: rgba(99, 102, 241, 0.2); color: #818cf8; transform: scale(1.1); }
+                .action-btn:active { transform: scale(0.9); }
                 .online-dot { animation: pulse-online 2s ease-in-out infinite; }
                 @keyframes pulse-online { 0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); } }
+                .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+                .me-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); box-shadow: 0 8px 25px -5px rgba(99, 102, 241, 0.4); }
+                .other-glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+                .msg-content { position: relative; z-index: 1; }
+                .msg-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+                .msg-bubble:hover .msg-glow { opacity: 1; }
                 .media-item { transition: all 0.2s ease; cursor: pointer; }
                 .media-item:hover { transform: scale(1.05); filter: brightness(1.1); }
                 .unread-badge {
@@ -800,65 +806,122 @@ const GlobalChat = () => {
                                 <div style={{ textAlign: 'center', margin: '8px 0' }}>
                                     <span style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', fontSize: '12px', padding: '6px 16px', borderRadius: '20px' }}>Today</span>
                                 </div>
-                                {filteredMessages.map((msg) => {
+                                {filteredMessages.map((msg, index) => {
                                     const isMe = msg.user_id === profile.email;
                                     const replyMsg = msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null;
-                                    return (
-                                        <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="msg-bubble"
-                                            style={{ display: 'flex', gap: '12px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', maxWidth: '85%', alignSelf: isMe ? 'flex-end' : 'flex-start', position: 'relative' }}>
-                                            {chatSettings.showAvatars && (
-                                                <img src={msg.avatar || getAvatar(msg.username)} alt=""
-                                                    style={{ width: chatSettings.compactMode ? '32px' : '36px', height: chatSettings.compactMode ? '32px' : '36px', borderRadius: '50%', objectFit: 'cover', border: isMe ? '2px solid #6366f1' : 'none' }} />
-                                            )}
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
-                                                {!isMe && <span style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>{msg.username}</span>}
+                                    const isFirstInGroup = index === 0 || messages[index - 1]?.user_id !== msg.user_id;
 
-                                                {/* Reply Preview */}
+                                    return (
+                                        <motion.div key={msg.id} initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                            className="msg-bubble"
+                                            style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: isMe ? 'flex-end' : 'flex-start',
+                                                maxWidth: '90%',
+                                                alignSelf: isMe ? 'flex-end' : 'flex-start',
+                                                position: 'relative',
+                                                marginBottom: isFirstInGroup ? '12px' : '4px'
+                                            }}>
+
+                                            {/* Profile Header (Avatar + Name) - Only show for first message in group */}
+                                            {isFirstInGroup && (
+                                                <div style={{
+                                                    display: 'flex',
+                                                    flexDirection: isMe ? 'row-reverse' : 'row',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    marginBottom: '6px',
+                                                    padding: '0 4px'
+                                                }}>
+                                                    {chatSettings.showAvatars && (
+                                                        <motion.img whileHover={{ scale: 1.1 }}
+                                                            src={msg.avatar || getAvatar(msg.username)} alt=""
+                                                            style={{
+                                                                width: '32px', height: '32px',
+                                                                borderRadius: '10px', objectFit: 'cover',
+                                                                border: isMe ? '2px solid #6366f1' : '2px solid rgba(255,255,255,0.1)',
+                                                                boxShadow: isMe ? '0 0 10px rgba(99, 102, 241, 0.3)' : 'none'
+                                                            }} />
+                                                    )}
+                                                    <span style={{
+                                                        color: isMe ? '#a855f7' : '#818cf8',
+                                                        fontSize: '12px', fontWeight: '800',
+                                                        letterSpacing: '0.02em',
+                                                        textShadow: '0 0 10px rgba(99, 102, 241, 0.2)'
+                                                    }}>{isMe ? 'Anda' : msg.username}</span>
+                                                </div>
+                                            )}
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                                                {/* Reply Preview Card */}
                                                 {replyMsg && (
-                                                    <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 12px', borderRadius: '8px', marginBottom: '4px', borderLeft: '3px solid #6366f1', fontSize: '12px', color: '#94a3b8', maxWidth: '200px' }}>
-                                                        <span style={{ color: '#6366f1', fontWeight: '600' }}>{replyMsg.username}</span>
-                                                        <p style={{ margin: '4px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{replyMsg.message}</p>
+                                                    <div style={{
+                                                        background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(5px)',
+                                                        padding: '8px 12px', borderRadius: '12px 12px 4px 4px', marginBottom: '-4px',
+                                                        borderLeft: '4px solid #6366f1', fontSize: '11px', color: '#94a3b8',
+                                                        maxWidth: '280px', borderTop: '1px solid rgba(255,255,255,0.05)',
+                                                        alignSelf: isMe ? 'flex-end' : 'flex-start'
+                                                    }}>
+                                                        <span style={{ color: '#818cf8', fontWeight: '800', fontSize: '10px' }}>{replyMsg.username}</span>
+                                                        <p style={{ margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.7 }}>{replyMsg.message}</p>
                                                     </div>
                                                 )}
 
-                                                <div style={{
-                                                    background: msg.is_deleted ? 'rgba(100,100,100,0.3)' : (isMe ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(30, 25, 60, 0.9)'),
-                                                    color: 'white', padding: msg.attachment ? '8px' : (chatSettings.compactMode ? '8px 12px' : '12px 16px'), borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                                                    border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)', boxShadow: isMe && !msg.is_deleted ? '0 4px 15px rgba(99, 102, 241, 0.3)' : 'none',
-                                                    fontStyle: msg.is_deleted ? 'italic' : 'normal', opacity: msg.is_deleted ? 0.7 : 1,
+                                                <div className={isMe ? 'me-gradient' : 'other-glass'} style={{
+                                                    color: 'white',
+                                                    padding: msg.attachment ? '6px' : (chatSettings.compactMode ? '10px 14px' : '14px 22px'),
+                                                    borderRadius: isMe ? (isFirstInGroup ? '24px 4px 24px 24px' : '24px 24px 24px 24px') : (isFirstInGroup ? '4px 24px 24px 24px' : '24px 24px 24px 24px'),
+                                                    position: 'relative',
+                                                    overflow: 'hidden',
+                                                    transition: 'all 0.3s ease',
+                                                    border: isMe ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.08)',
+                                                    boxShadow: isMe ? '0 10px 25px -5px rgba(99, 102, 241, 0.4)' : '0 4px 15px rgba(0,0,0,0.2)',
                                                 }}>
+                                                    <div className="msg-glow" />
                                                     {msg.attachment && !msg.is_deleted && (
-                                                        <img src={msg.attachment} alt="" onClick={() => setImagePreview(msg.attachment)}
-                                                            style={{ maxWidth: chatSettings.compactMode ? '220px' : '280px', borderRadius: '12px', display: 'block', marginBottom: msg.message ? '8px' : 0, cursor: 'pointer' }} />
+                                                        <motion.img whileHover={{ scale: 1.02 }}
+                                                            src={msg.attachment} alt="" onClick={() => setImagePreview(msg.attachment)}
+                                                            style={{
+                                                                maxWidth: chatSettings.compactMode ? '260px' : '340px',
+                                                                borderRadius: '18px', display: 'block',
+                                                                marginBottom: msg.message ? '10px' : 0, cursor: 'pointer',
+                                                                boxShadow: '0 10px 30px rgba(0,0,0,0.4)'
+                                                            }} />
                                                     )}
-                                                    {msg.message && <p style={{
-                                                        margin: 0,
-                                                        fontSize: chatSettings.fontSize === 'small' ? '12px' : chatSettings.fontSize === 'large' ? '16px' : '14px',
-                                                        lineHeight: '1.5'
-                                                    }}>{msg.message}</p>}
-                                                    {msg.is_edited && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>(edited)</span>}
+                                                    {msg.message && <div className="msg-content" style={{
+                                                        fontSize: chatSettings.fontSize === 'small' ? '12px' : chatSettings.fontSize === 'large' ? '17px' : '15px',
+                                                        lineHeight: '1.6', fontWeight: '450', letterSpacing: '0.01em'
+                                                    }}>{msg.message}</div>}
+                                                    {msg.is_edited && <span style={{ fontSize: '9px', opacity: 0.5, marginTop: '4px', display: 'block', textAlign: 'right' }}>Edited</span>}
                                                 </div>
 
-                                                {(chatSettings.showTimestamp || isMe) && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                                        {chatSettings.showTimestamp && <span style={{ color: '#64748b', fontSize: '10px' }}>{formatTime(msg.created_at)}</span>}
-                                                        {isMe && chatSettings.showReadReceipts && <CheckCheck size={14} color={msg.is_optimistic ? '#64748b' : '#6366f1'} />}
-                                                    </div>
-                                                )}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', padding: '0 6px' }}>
+                                                    {chatSettings.showTimestamp && <span style={{ color: '#4b5563', fontSize: '10px', fontWeight: '700' }}>{formatTime(msg.created_at)}</span>}
+                                                    {isMe && chatSettings.showReadReceipts && (
+                                                        <CheckCheck size={12} color="#6366f1" />
+                                                    )}
+                                                </div>
 
-                                                {/* Message Actions */}
+                                                {/* Floating Actions */}
                                                 {!msg.is_deleted && (
-                                                    <div className="msg-actions" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleReplyMessage(msg); }} className="action-btn"
-                                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Reply size={14} /></button>
-                                                        <button onClick={(e) => { e.stopPropagation(); handleCopyMessage(msg.message); }} className="action-btn"
-                                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Copy size={14} /></button>
+                                                    <div className="msg-actions" style={{
+                                                        display: 'flex', gap: '4px', marginTop: '4px',
+                                                        background: 'rgba(15, 12, 45, 0.9)', padding: '3px 6px',
+                                                        borderRadius: '8px', backdropFilter: 'blur(10px)',
+                                                        border: '1px solid rgba(255,255,255,0.1)'
+                                                    }}>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleReplyMessage(msg); }} className="action-btn" title="Reply"
+                                                            style={{ background: 'none', border: 'none', color: '#94a3b8' }}><Reply size={14} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleCopyMessage(msg.message); }} className="action-btn" title="Copy"
+                                                            style={{ background: 'none', border: 'none', color: '#94a3b8' }}><Copy size={14} /></button>
                                                         {isMe && (
                                                             <>
-                                                                <button onClick={(e) => { e.stopPropagation(); setEditingMessage(msg); setEditText(msg.message); }} className="action-btn"
-                                                                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Edit3 size={14} /></button>
-                                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id, true); }} className="action-btn"
-                                                                    style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#ef4444' }}><Trash2 size={14} /></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); setEditingMessage(msg); setEditText(msg.message); }} className="action-btn" title="Edit"
+                                                                    style={{ background: 'none', border: 'none', color: '#94a3b8' }}><Edit3 size={14} /></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id, true); }} className="action-btn" title="Delete"
+                                                                    style={{ background: 'none', border: 'none', color: '#f87171' }}><Trash2 size={14} /></button>
                                                             </>
                                                         )}
                                                     </div>
