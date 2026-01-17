@@ -4,7 +4,8 @@ import {
     Send, Search, X, Paperclip, MoreVertical, Phone, Video, Info, Smile,
     Check, CheckCheck, Star, Trash2, Reply, Settings, Bell, Hash,
     ChevronRight, ChevronDown, MessageSquare, RefreshCw, Copy, Edit3,
-    Flag, Bookmark, Heart, Eye, EyeOff, Pin, ZoomIn, Download, Volume2, VolumeX
+    Flag, Bookmark, Heart, Eye, EyeOff, Pin, ZoomIn, Download, Volume2, VolumeX,
+    Mic, Square, Play, Pause, Plus, Users, Globe, Headset
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -89,6 +90,13 @@ const GlobalChat = () => {
     const [isStarred, setIsStarred] = useState(false);
     const [unreadCounts, setUnreadCounts] = useState({});
     const [lastMessages, setLastMessages] = useState({});
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const [mediaRecorder, setMediaRecorder] = useState(null);
+    const [showAddGroupModal, setShowAddGroupModal] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [customGroups, setCustomGroups] = useState([]);
+    const [deleteRoomModal, setDeleteRoomModal] = useState(null); // { id, title, isGlobal }
 
     // Chat Settings (persisted)
     const [chatSettings, setChatSettings] = useState(() => {
@@ -112,6 +120,7 @@ const GlobalChat = () => {
     const scrollRef = useRef(null);
     const audioRef = useRef(new Audio(NOTIFY_SOUND));
     const inputRef = useRef(null);
+    const recordingTimerRef = useRef(null);
 
     const profile = useMemo(() => ({
         id: user?.id,
@@ -119,6 +128,8 @@ const GlobalChat = () => {
         email: user?.email || 'guest@example.com',
         avatar: user?.avatar || null,
     }), [user]);
+
+    const isAdmin = useMemo(() => profile.email === 'taufikhidayaat56@gmail.com', [profile.email]);
 
     const getAvatar = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'User'}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
@@ -250,6 +261,93 @@ const GlobalChat = () => {
         }
     }, [activeRoom]);
 
+    // Load Custom Groups
+    useEffect(() => {
+        if (!database) return;
+        const groupsRef = ref(database, 'group_metadata');
+        const unsub = onValue(groupsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const list = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+                setCustomGroups(list);
+            }
+        });
+        return () => off(groupsRef, 'value', unsub);
+    }, [database]);
+
+    // Voice Recording Functions
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            recorder.ondataavailable = (e) => chunks.push(e.data);
+            recorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => {
+                    const base64Audio = reader.result;
+                    sendAudioMessage(base64Audio);
+                };
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            recorder.start();
+            setMediaRecorder(recorder);
+            setIsRecording(true);
+            setRecordingTime(0);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+        } catch (err) {
+            console.error('Error starting recording:', err);
+            showToast('Microphone access denied', 'error');
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.stop();
+            setIsRecording(false);
+            clearInterval(recordingTimerRef.current);
+        }
+    };
+
+    const sendAudioMessage = async (base64Audio) => {
+        if (!database) return;
+        const newMsgData = {
+            room_id: activeRoom,
+            user_id: profile.email,
+            username: profile.displayName,
+            avatar: profile.avatar,
+            voice: base64Audio,
+            message: '🎤 Pesan suara',
+            created_at: new Date().toISOString(),
+        };
+        try {
+            const messagesRef = ref(database, `messages/${activeRoom}`);
+            await set(push(messagesRef), newMsgData);
+        } catch (error) {
+            showToast('Gagal mengirim pesan suara', 'error');
+        }
+    };
+
+    const handleCreateGroup = async () => {
+        if (!newGroupName.trim() || !database) return;
+        const groupRef = push(ref(database, 'group_metadata'));
+        await set(groupRef, {
+            name: newGroupName.trim(),
+            created_by: profile.email,
+            created_at: new Date().toISOString(),
+            icon: 'Users'
+        });
+        setNewGroupName('');
+        setShowAddGroupModal(false);
+        showToast('Grup berhasil dibuat');
+    };
+
     // Dummy loadMessages to keep compatibility with existing refresh buttons
     const loadMessages = useCallback(async () => {
         // Firebase is realtime, so we don't need manual reload
@@ -333,6 +431,51 @@ const GlobalChat = () => {
             showToast(`Gagal: ${error.message}`, 'error');
         }
     }, [inputMessage, attachment, replyTo, profile, activeRoom]);
+
+    const handleDeleteRoom = (roomId, e) => {
+        if (e) e.stopPropagation();
+        if (!database) return;
+
+        const isGlobal = roomId === GLOBAL_ROOM_ID;
+        // Check admin privilege for Global Chat
+        const isAdminAccount = profile.email === 'taufikhidayaat56@gmail.com';
+
+        if (isGlobal && !isAdminAccount) {
+            showToast('Akses ditolak: Hanya Admin yang bisa menghapus Global Chat', 'error');
+            return;
+        }
+
+        // Get Room Title
+        let roomTitle = 'Percakapan';
+        if (isGlobal) {
+            roomTitle = 'Global Chat';
+        } else {
+            const group = customGroups.find(g => g.id === roomId);
+            if (group) {
+                roomTitle = `Grup: ${group.name}`;
+            } else {
+                const contact = contacts.find(c => getPrivateRoomId(profile.email, c.email) === roomId);
+                if (contact) roomTitle = `Chat: ${contact.name}`;
+            }
+        }
+
+        setDeleteRoomModal({ id: roomId, title: roomTitle, isGlobal });
+    };
+
+    const confirmDeleteRoom = async () => {
+        if (!deleteRoomModal || !database) return;
+        const { id } = deleteRoomModal;
+
+        try {
+            await remove(ref(database, `messages/${id}`));
+            showToast('Percakapan telah dibersihkan secara permanen');
+            if (activeRoom === id) setMessages([]);
+            setDeleteRoomModal(null);
+        } catch (error) {
+            console.error('Delete error:', error);
+            showToast('Gagal menghapus percakapan', 'error');
+        }
+    };
 
     // Delete Message (Firebase version)
     const handleDeleteMessage = async (msgId, forEveryone = false) => {
@@ -434,7 +577,6 @@ const GlobalChat = () => {
                 .msg-content { position: relative; z-index: 1; }
                 .msg-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
                 .msg-bubble:hover .msg-glow { opacity: 1; }
-                .media-item { transition: all 0.2s ease; cursor: pointer; }
                 .media-item:hover { transform: scale(1.05); filter: brightness(1.1); }
                 .unread-badge {
                     position: absolute; top: -5px; right: -5px;
@@ -450,6 +592,31 @@ const GlobalChat = () => {
                     70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
                     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
                 }
+                .global-orb {
+                    background: linear-gradient(135deg, #6366f1, #d946ef);
+                    box-shadow: 0 0 20px rgba(99, 102, 241, 0.6);
+                    position: relative; overflow: hidden;
+                }
+                .global-orb::after {
+                    content: ''; position: absolute; inset: 0;
+                    background: linear-gradient(0deg, transparent, rgba(255,255,255,0.4), transparent);
+                    animation: shine 3s infinite;
+                }
+                @keyframes shine { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+                .recording-wave {
+                    display: flex; align-items: center; gap: 3px; height: 20px;
+                }
+                .wave-bar {
+                    width: 3px; height: 100%; background: #ef4444; border-radius: 2px;
+                    animation: wave-anim 0.5s ease-in-out infinite;
+                }
+                @keyframes wave-anim {
+                    0%, 100% { height: 5px; }
+                    50% { height: 20px; }
+                }
+                .delete-conv-btn { opacity: 0; transition: all 0.2s ease; border: none; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 6px; padding: 4px; display: flex; align-items: center; justify-content: center; }
+                .contact-item:hover .delete-conv-btn { opacity: 1; }
+                .delete-conv-btn:hover { background: #ef4444 !important; color: white !important; transform: scale(1.1); }
             `}</style>
 
             {/* Toast Notification */}
@@ -648,16 +815,49 @@ const GlobalChat = () => {
 
                     {/* Channels & Users */}
                     <div className="chat-sidebar" style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {/* Custom Groups */}
+                        {customGroups.length > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <div style={{ padding: '0 12px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>CUSTOM GROUPS</span>
+                                </div>
+                                {customGroups.map((group) => {
+                                    const isActive = activeRoom === group.id;
+                                    const unread = unreadCounts[group.id] || 0;
+                                    return (
+                                        <div key={group.id} onClick={() => { setActiveRoom(group.id); setSelectedContact(null); if (isMobile) setShowContactList(false); }}
+                                            className={`contact-item ${isActive ? 'active' : ''}`}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '16px', marginBottom: '4px' }}>
+                                            <div style={{ position: 'relative' }}>
+                                                <div className="global-orb" style={{ width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                                                    <Users size={18} color="white" />
+                                                </div>
+                                                {unread > 0 && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="unread-badge pulse-unread">{unread}</motion.div>}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ color: 'white', fontSize: '14px', fontWeight: '700' }}>{group.name}</div>
+                                                <div style={{ color: '#4b5563', fontSize: '11px' }}>Custom Channel</div>
+                                            </div>
+                                            <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(group.id, e)} title="Delete Group Room">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         {/* Channels */}
-                        <div style={{ padding: '16px 12px 8px' }}>
-                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px' }}>CHANNELS</span>
+                        <div style={{ padding: '16px 12px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>CHANNELS</span>
+                            <button onClick={() => setShowAddGroupModal(true)} style={{ background: 'rgba(99, 102, 241, 0.1)', border: 'none', borderRadius: '6px', padding: '4px', cursor: 'pointer', color: '#818cf8' }}><Plus size={14} /></button>
                         </div>
                         <div className={`contact-item ${activeRoom === GLOBAL_ROOM_ID ? 'active' : ''}`}
                             onClick={() => { setActiveRoom(GLOBAL_ROOM_ID); setSelectedContact(null); if (isMobile) setShowContactList(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', marginBottom: '4px' }}>
+                            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 12px', borderRadius: '20px', marginBottom: '8px' }}>
                             <div style={{ position: 'relative' }}>
-                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Hash size={20} color="#6366f1" />
+                                <div className="global-orb" style={{ width: '48px', height: '48px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Hash size={24} color="white" />
                                 </div>
                                 {unreadCounts[GLOBAL_ROOM_ID] > 0 && (
                                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="unread-badge pulse-unread">
@@ -667,13 +867,18 @@ const GlobalChat = () => {
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>global-chat</div>
-                                    {lastMessages[GLOBAL_ROOM_ID] && <span style={{ color: '#64748b', fontSize: '10px' }}>{formatTime(lastMessages[GLOBAL_ROOM_ID].created_at)}</span>}
+                                    <div style={{ color: 'white', fontSize: '15px', fontWeight: '800' }}>global-chat</div>
+                                    {lastMessages[GLOBAL_ROOM_ID] && <span style={{ color: '#4b5563', fontSize: '10px', fontWeight: '700' }}>{formatTime(lastMessages[GLOBAL_ROOM_ID].created_at)}</span>}
                                 </div>
-                                <div style={{ color: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '#94a3b8' : '#64748b', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '600' : '400' }}>
-                                    {lastMessages[GLOBAL_ROOM_ID] ? `${lastMessages[GLOBAL_ROOM_ID].username}: ${lastMessages[GLOBAL_ROOM_ID].message}` : 'Global communication'}
+                                <div style={{ color: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '#94a3b8' : '#4b5563', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '700' : '400' }}>
+                                    {lastMessages[GLOBAL_ROOM_ID] ? `${lastMessages[GLOBAL_ROOM_ID].username}: ${lastMessages[GLOBAL_ROOM_ID].message}` : 'Tap to join global'}
                                 </div>
                             </div>
+                            {isAdmin && (
+                                <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(GLOBAL_ROOM_ID, e)} title="Clear Global Chat">
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
                         </div>
 
                         <div style={{ padding: '16px 12px 8px', marginTop: '8px' }}>
@@ -717,6 +922,9 @@ const GlobalChat = () => {
                                         {lastMessages[getPrivateRoomId(profile.email, contact.email)]?.message || contact.email}
                                     </p>
                                 </div>
+                                <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(getPrivateRoomId(profile.email, contact.email), e)} title="Delete Conversation">
+                                    <Trash2 size={14} />
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -871,7 +1079,7 @@ const GlobalChat = () => {
 
                                                 <div className={isMe ? 'me-gradient' : 'other-glass'} style={{
                                                     color: 'white',
-                                                    padding: msg.attachment ? '6px' : (chatSettings.compactMode ? '10px 14px' : '14px 22px'),
+                                                    padding: (msg.attachment || msg.voice) ? '6px' : (chatSettings.compactMode ? '10px 16px' : '14px 22px'),
                                                     borderRadius: isMe ? (isFirstInGroup ? '24px 4px 24px 24px' : '24px 24px 24px 24px') : (isFirstInGroup ? '4px 24px 24px 24px' : '24px 24px 24px 24px'),
                                                     position: 'relative',
                                                     overflow: 'hidden',
@@ -886,11 +1094,32 @@ const GlobalChat = () => {
                                                             style={{
                                                                 maxWidth: chatSettings.compactMode ? '260px' : '340px',
                                                                 borderRadius: '18px', display: 'block',
-                                                                marginBottom: msg.message ? '10px' : 0, cursor: 'pointer',
+                                                                marginBottom: msg.message && !msg.voice ? '10px' : 0, cursor: 'pointer',
                                                                 boxShadow: '0 10px 30px rgba(0,0,0,0.4)'
                                                             }} />
                                                     )}
-                                                    {msg.message && <div className="msg-content" style={{
+                                                    {msg.voice && !msg.is_deleted && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '16px', minWidth: '200px' }}>
+                                                            <button onClick={() => {
+                                                                const audio = new Audio(msg.voice);
+                                                                const btn = document.getElementById(`play-${msg.id}`);
+                                                                audio.play();
+                                                                if (btn) btn.style.color = '#10b981';
+                                                                audio.onended = () => { if (btn) btn.style.color = 'white'; };
+                                                            }}
+                                                                id={`play-${msg.id}`}
+                                                                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer' }}>
+                                                                <Play size={18} fill="currentColor" />
+                                                            </button>
+                                                            <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', position: 'relative' }}>
+                                                                <div className="voice-wave" style={{ position: 'absolute', inset: 0, display: 'flex', gap: '2px', alignItems: 'center' }}>
+                                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => <div key={i} style={{ flex: 1, height: `${20 + Math.random() * 60}%`, background: 'rgba(255,255,255,0.3)', borderRadius: '1px' }} />)}
+                                                                </div>
+                                                            </div>
+                                                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: '600' }}>Voice</span>
+                                                        </div>
+                                                    )}
+                                                    {msg.message && !msg.voice && <div className="msg-content" style={{
                                                         fontSize: chatSettings.fontSize === 'small' ? '12px' : chatSettings.fontSize === 'large' ? '17px' : '15px',
                                                         lineHeight: '1.6', fontWeight: '450', letterSpacing: '0.01em'
                                                     }}>{msg.message}</div>}
@@ -959,25 +1188,48 @@ const GlobalChat = () => {
                         )}
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(30, 25, 60, 0.8)',
-                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: '12px 16px', border: '1px solid rgba(255,255,255,0.06)'
+                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: '10px 16px', border: '1px solid rgba(255,255,255,0.06)'
                         }}>
-                            <label style={{ cursor: 'pointer', color: '#64748b', padding: '4px' }}>
-                                <Paperclip size={20} />
-                                <input type="file" accept="image/*" hidden onChange={handleFileSelect} />
-                            </label>
-                            <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
-                                placeholder="Type a message..." style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none' }} />
-                            <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="action-btn"
-                                style={{ background: 'none', border: 'none', color: showEmojiPicker ? '#6366f1' : '#64748b', padding: '4px' }}><Smile size={20} /></button>
-                            <button onClick={handleSend} disabled={!inputMessage.trim() && !attachment}
-                                style={{
-                                    background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)',
-                                    border: 'none', borderRadius: '12px', padding: '10px 20px', color: 'white', fontWeight: '600', fontSize: '14px',
-                                    display: 'flex', alignItems: 'center', gap: '6px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default'
-                                }}>
-                                Send <Send size={16} />
-                            </button>
+                            {isRecording ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', color: '#ef4444' }}>
+                                    <div className="recording-wave">
+                                        {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <div key={i} className="wave-bar" style={{ animationDelay: `${i * 0.1}s` }} />)}
+                                    </div>
+                                    <span style={{ fontWeight: '800', fontSize: '14px', letterSpacing: '0.5px' }}>
+                                        RECORDING: {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+                                    </span>
+                                    <button onClick={stopRecording}
+                                        style={{ marginLeft: 'auto', background: 'rgba(239, 68, 68, 0.15)', border: 'none', borderRadius: '10px', padding: '10px 20px', color: '#ef4444', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Square size={16} fill="currentColor" /> STOP
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px' }}>
+                                        <Paperclip size={20} color="#64748b" />
+                                        <input type="file" accept="image/*" hidden onChange={handleFileSelect} />
+                                    </label>
+                                    <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
+                                        placeholder="Type a message..." style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none', padding: '8px 0' }} />
+
+                                    <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="action-btn"
+                                        style={{ background: 'none', border: 'none', color: showEmojiPicker ? '#6366f1' : '#64748b', padding: '4px' }}><Smile size={20} /></button>
+
+                                    <button onClick={startRecording} className="action-btn"
+                                        style={{ background: 'none', border: 'none', color: '#64748b', padding: '4px' }}><Mic size={20} /></button>
+
+                                    <button onClick={handleSend} disabled={!inputMessage.trim() && !attachment}
+                                        style={{
+                                            background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)',
+                                            border: 'none', borderRadius: '12px', padding: '10px 20px', color: 'white', fontWeight: '800', fontSize: '14px',
+                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default',
+                                            boxShadow: inputMessage.trim() || attachment ? '0 10px 20px -5px rgba(99, 102, 241, 0.4)' : 'none'
+                                        }}>
+                                        Send <Send size={16} />
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -990,12 +1242,13 @@ const GlobalChat = () => {
                     display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0
                 }}>
                     <div style={{ textAlign: 'center', padding: '32px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                        <div style={{
-                            width: '100px', height: '100px', borderRadius: '24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px'
+                        <div className="global-orb" style={{
+                            width: '100px', height: '100px', borderRadius: '30px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+                            boxShadow: '0 15px 35px rgba(99, 102, 241, 0.4)'
                         }}><Hash size={48} color="white" /></div>
-                        <h3 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: '0 0 4px' }}>Global Chat</h3>
-                        <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Public channel for everyone</p>
+                        <h3 style={{ color: 'white', fontSize: '20px', fontWeight: '800', margin: '0 0 6px', letterSpacing: '0.5px' }}>Global Space</h3>
+                        <p style={{ color: '#4b5563', fontSize: '13px', margin: 0, fontWeight: '600' }}>Public channel for everyone</p>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '20px' }}>
                             {[{ icon: Flag, action: () => showToast('Reported') }, { icon: Bell, action: () => setIsMuted(!isMuted) }, { icon: Info, action: () => showToast('Info channel') }, { icon: Star, action: () => setIsStarred(!isStarred) }].map((item, i) => (
                                 <button key={i} onClick={item.action} className="action-btn" style={{
@@ -1044,6 +1297,69 @@ const GlobalChat = () => {
                         <Suspense fallback={<div style={{ width: 320, height: 350, background: '#1e293b', borderRadius: 12 }} />}>
                             <EmojiPicker theme="dark" width={320} height={350} onEmojiClick={(e) => setInputMessage(prev => prev + e.emoji)} />
                         </Suspense>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Add Group Modal */}
+            <AnimatePresence>
+                {showAddGroupModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setShowAddGroupModal(false)}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ background: '#1e1b4b', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '400px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Users size={20} color="white" />
+                                    </div>
+                                    <h3 style={{ color: 'white', margin: 0, fontSize: '18px', fontWeight: '800' }}>Buat Grup Kustom</h3>
+                                </div>
+                                <button onClick={() => setShowAddGroupModal(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '10px', width: '32px', height: '32px', color: 'white', cursor: 'pointer' }}><X size={18} /></button>
+                            </div>
+                            <div style={{ marginBottom: '24px' }}>
+                                <label style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>NAMA GRUP</label>
+                                <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} autoFocus
+                                    style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', padding: '16px', color: 'white', outline: 'none', fontSize: '15px' }} placeholder="Contoh: Tim Proyek..." />
+                            </div>
+                            <button onClick={handleCreateGroup} disabled={!newGroupName.trim()}
+                                style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: '14px', color: 'white', fontWeight: '800', cursor: 'pointer', opacity: newGroupName.trim() ? 1 : 0.5, transition: 'all 0.3s ease', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.3)' }}>
+                                Buat Grup Sekarang
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Custom Delete Room Modal */}
+            <AnimatePresence>
+                {deleteRoomModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setDeleteRoomModal(null)}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '20px' }}>
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ background: '#1e1b4b', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', textAlign: 'center' }}>
+                            <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                                <Trash2 size={40} />
+                            </div>
+                            <h3 style={{ color: 'white', fontSize: '22px', fontWeight: '800', margin: '0 0 12px' }}>Hapus Percakapan?</h3>
+                            <p style={{ color: '#94a3b8', fontSize: '15px', lineHeight: '1.6', margin: '0 0 32px' }}>
+                                Apakah Anda yakin ingin menghapus semua pesan di <span style={{ color: 'white', fontWeight: '700' }}>{deleteRoomModal.title}</span>? Tindakan ini bersifat permanen dan tidak bisa dibatalkan.
+                            </p>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button onClick={() => setDeleteRoomModal(null)}
+                                    style={{ flex: 1, padding: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                    Batal
+                                </button>
+                                <button onClick={confirmDeleteRoom}
+                                    style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '800', cursor: 'pointer', boxShadow: '0 10px 20px rgba(239, 68, 68, 0.3)' }}>
+                                    Ya, Hapus!
+                                </button>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
