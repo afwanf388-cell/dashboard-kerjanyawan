@@ -1,917 +1,989 @@
-import React, { useState, useEffect, useRef, Suspense, lazy, memo, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Send, Globe, Lock, PlusCircle, Settings,
-    CheckCheck, X, Paperclip,
-    Reply as ReplyIcon, Bell, Search, Users, UserPlus,
-    ArrowRight, Info, MoreVertical, ShieldCheck, Zap, Clock, Camera, Trash2, EyeOff, Mic, Play, Pause, Square,
-    ChevronLeft, Menu, Smile, Sticker
+    Send, Search, X, Paperclip, MoreVertical, Phone, Video, Info, Smile,
+    Check, CheckCheck, Star, Trash2, Reply, Settings, Bell, Hash,
+    ChevronRight, ChevronDown, MessageSquare, RefreshCw, Copy, Edit3,
+    Flag, Bookmark, Heart, Eye, EyeOff, Pin, ZoomIn, Download, Volume2, VolumeX
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_KEY } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { database } from '../lib/firebase';
+import { ref, push, set, onValue, off, update, remove, query, orderByChild, equalTo, limitToLast } from 'firebase/database';
 
-// PERFORMANCE: Lazy load EmojiPicker (300KB+ reduction in initial bundle!)
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
-// Simple loading fallback for emoji picker
-const EmojiPickerFallback = () => (
-    <div style={{
-        height: '350px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#1e293b',
-        borderRadius: '12px'
-    }}>
-        <div style={{
-            width: '24px', height: '24px',
-            border: '3px solid rgba(59,130,246,0.2)',
-            borderTopColor: '#3b82f6',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-        }} />
-    </div>
-);
+// Deterministic UUID generator for PM (MD5-like)
+const generateChatId = (id1, id2) => {
+    const combined = [id1, id2].sort().join(':');
+    let hash = 0;
+    for (let i = 0; i < combined.length; i++) {
+        const char = combined.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    const hex = Math.abs(hash).toString(16).padEnd(32, '0');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(12, 15)}-a${hex.slice(15, 18)}-${hex.slice(18, 30)}`;
+};
 
-const SULTAN_STICKERS = [
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNzhqZ3Z5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/cF7QqO5DYdft6/giphy.gif', // Cool Doge
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/l0HlHFRbmaXRoTfkc/giphy.gif', // Thumbs up
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/3o7aD2saalBwwftBIY/giphy.gif', // Laughing
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/l0HlO3BJ1lq0lT2da/giphy.gif', // Heart
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/3oKIPnAiaMCws8nOsE/giphy.gif', // Fire
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/l0HlI6N8Hn0yKE89q/giphy.gif', // Wow
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/3o7TKr3nzbh5WgCFxe/giphy.gif', // Sad
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbm91eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/3o7TKoWXm3okO1kgHC/giphy.gif', // High Five
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjR5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/l0ExhcMov7hbbSkGw/giphy.gif', // Party
-    'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjR5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5eGZ5L2dpZg/3o6UB3VhArvomJHtdK/giphy.gif'  // Money
-];
-
-// ==========================================
-// 🛠️ CONFIGURATION ZONE 🛠️
-// ==========================================
-// Credentials imported from src/lib/supabase.js to ensure consistency
+// CONFIG
 const GLOBAL_ROOM_ID = '00000000-0000-0000-0000-000000000000';
-const SOFT_NOTIFY_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3';
-const PROFILE_KEY = 'user_custom_profile_v2';
-const HIDDEN_MSGS_KEY = 'user_hidden_messages_v1';
-const CACHED_MSGS_KEY = 'user_cached_messages_v1';
+const NOTIFY_SOUND = 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3';
+const CACHED_MSGS_KEY = 'global_chat_messages_v3';
 
-// UTILS: AGGRESSIVE COMPRESSION
-const compressImage = (file) => {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 800; // Reduced from 1200
-                let width = img.width;
-                let height = img.height;
-
-                if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                // Compress to JPEG 0.5 quality (Aggressive)
-                resolve(canvas.toDataURL('image/jpeg', 0.5));
-            };
+// Compress Image Helper
+const compressImage = (file) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX = 800;
+            let { width, height } = img;
+            if (width > height && width > MAX) { height *= MAX / width; width = MAX; }
+            else if (height > MAX) { width *= MAX / height; height = MAX; }
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
-    });
+        img.onerror = () => resolve(null);
+    };
+    reader.onerror = () => resolve(null);
+});
+
+const formatTime = (date) => new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+// Generate deterministic PM Room ID from two user emails
+const getPrivateRoomId = (email1, email2) => {
+    return generateChatId(email1, email2);
 };
 
 const GlobalChat = () => {
     const { user } = useAuth();
-    const [supabase, setSupabase] = useState(null);
-    // OPTIMIZATION: Initialize with cache immediately for zero-latency UI
-    const [allMessages, setAllMessages] = useState(() => {
-        if (!user?.username) return [];
-        try {
-            const cached = localStorage.getItem(`${CACHED_MSGS_KEY}_${user.username}`);
-            return cached ? JSON.parse(cached) : [];
-        } catch (e) { return []; }
-    });
-    const [chatRooms, setChatRooms] = useState([]);
-    const [activeRoomId, setActiveRoomId] = useState(GLOBAL_ROOM_ID);
-    const [activeTab, setActiveTab] = useState('All');
+
+    // Core States
+    const [messages, setMessages] = useState([]);
+    const [contacts, setContacts] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
-    const [status, setStatus] = useState('connecting');
-    const [showNewChatModal, setShowNewChatModal] = useState(false);
-    const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [replyTo, setReplyTo] = useState(null);
-    const [isAtBottom, setIsAtBottom] = useState(true);
-    const [toast, setToast] = useState(null);
-    const [hiddenMessageIds, setHiddenMessageIds] = useState([]);
-    const [openMenuId, setOpenMenuId] = useState(null);
-    const [showPicker, setShowPicker] = useState(false);
-    const [pickerTab, setPickerTab] = useState('emoji'); // 'emoji' | 'sticker'
-
-    const [profile, setProfile] = useState({
-        displayName: user?.username || 'Sultan',
-        email: user?.email || 'sultan@email.com',
-        avatar: null
-    });
-
-    const [typingUsers, setTypingUsers] = useState([]);
-    const [readReceipts, setReadReceipts] = useState({});
-    const [members, setMembers] = useState([]);
-    const [memberAvatars, setMemberAvatars] = useState({});
-    const [pinnedMsg, setPinnedMsg] = useState(null);
-
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [activeRoom, setActiveRoom] = useState(GLOBAL_ROOM_ID);
+    const [selectedContact, setSelectedContact] = useState(null);
     const [attachment, setAttachment] = useState(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordDuration, setRecordDuration] = useState(0);
-    const timerRef = useRef(null);
+    const [replyTo, setReplyTo] = useState(null);
+    const [sharedMedia, setSharedMedia] = useState([]);
+
+    // UI States
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showRightPanel, setShowRightPanel] = useState(true);
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+    const [showContactList, setShowContactList] = useState(true);
+    const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+    const [editingMessage, setEditingMessage] = useState(null);
+    const [editText, setEditText] = useState('');
+    const [imagePreview, setImagePreview] = useState(null);
+    const [showSettings, setShowSettings] = useState(false);
+    const [toast, setToast] = useState(null);
+    const [isStarred, setIsStarred] = useState(false);
+    const [unreadCounts, setUnreadCounts] = useState({});
+    const [lastMessages, setLastMessages] = useState({});
+
+    // Chat Settings (persisted)
+    const [chatSettings, setChatSettings] = useState(() => {
+        try {
+            const saved = localStorage.getItem('chat_settings_v1');
+            return saved ? JSON.parse(saved) : {
+                notifications: true,
+                notificationSound: true,
+                showTimestamp: true,
+                compactMode: false,
+                fontSize: 'medium',
+                bubbleStyle: 'modern',
+                autoScroll: true,
+                showAvatars: true,
+                showReadReceipts: true,
+                enterToSend: true,
+            };
+        } catch { return { notifications: true, notificationSound: true, showTimestamp: true, compactMode: false, fontSize: 'medium', bubbleStyle: 'modern', autoScroll: true, showAvatars: true, showReadReceipts: true, enterToSend: true }; }
+    });
 
     const scrollRef = useRef(null);
-    const audioRef = useRef(new Audio(SOFT_NOTIFY_SOUND));
-    // --- IMPROVED MOBILE DETECTION & NAVIGATION ---
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
-    const [showSidebarOnMobile, setShowSidebarOnMobile] = useState(true);
+    const audioRef = useRef(new Audio(NOTIFY_SOUND));
+    const inputRef = useRef(null);
 
+    const profile = useMemo(() => ({
+        id: user?.id,
+        displayName: user?.displayName || user?.username || 'Guest',
+        email: user?.email || 'guest@example.com',
+        avatar: user?.avatar || null,
+    }), [user]);
+
+    const getAvatar = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'User'}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+
+    // Show Toast Notification
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 3000);
+    };
+
+    // Save settings to localStorage
+    const updateChatSettings = (key, value) => {
+        const newSettings = { ...chatSettings, [key]: value };
+        setChatSettings(newSettings);
+        localStorage.setItem('chat_settings_v1', JSON.stringify(newSettings));
+        showToast(`${key} updated`);
+    };
+
+    // Clear all messages (local only)
+    const handleClearChatHistory = () => {
+        if (confirm('Hapus semua riwayat chat dari tampilan ini? (Data di server tidak terhapus)')) {
+            setMessages([]);
+            if (user?.username) {
+                localStorage.removeItem(`${CACHED_MSGS_KEY}_${user.username}`);
+            }
+            showToast('Chat history cleared');
+            setShowSettings(false);
+        }
+    };
+
+    // Load Messages (Firebase version)
+    useEffect(() => {
+        if (!database || !user) return;
+
+        setIsLoading(true);
+        // Safety timeout to stop loading spinner after 5 seconds if no response
+        const timeout = setTimeout(() => setIsLoading(false), 5000);
+
+        const messagesRef = ref(database, `messages/${activeRoom}`);
+        const messagesQuery = query(messagesRef, limitToLast(100));
+
+        const unsubscribe = onValue(messagesQuery, (snapshot) => {
+            clearTimeout(timeout);
+            const data = snapshot.val();
+            if (data) {
+                const messageList = Object.keys(data).map(key => ({
+                    id: key,
+                    ...data[key]
+                }));
+                setMessages(messageList.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+
+                const media = messageList
+                    .filter(m => m.attachment?.startsWith('data:image'))
+                    .map(m => ({ id: m.id, url: m.attachment, sender: m.username, time: m.created_at }));
+                setSharedMedia(media);
+
+                // Notification sound logic
+                const lastMsg = messageList[messageList.length - 1];
+                if (lastMsg && lastMsg.user_id !== profile.email && chatSettings.notificationSound) {
+                    // Only play if it's a new message (simple check with timestamp)
+                    const msgTime = new Date(lastMsg.created_at).getTime();
+                    if (Date.now() - msgTime < 5000) {
+                        audioRef.current.play().catch(() => { });
+                    }
+                }
+            } else {
+                setMessages([]);
+                setSharedMedia([]);
+            }
+            setIsLoading(false);
+        }, (error) => {
+            clearTimeout(timeout);
+            console.error('Firebase Error:', error);
+            showToast(`Firebase Error: ${error.message}`, 'error');
+            setIsLoading(false);
+        });
+
+        return () => {
+            clearTimeout(timeout);
+            off(messagesRef, 'value', unsubscribe);
+        };
+    }, [activeRoom, user, profile.email, chatSettings.notificationSound]);
+
+    // Track Unread Messages for ALL rooms
+    useEffect(() => {
+        if (!database || !user || !contacts.length) return;
+
+        const rooms = [GLOBAL_ROOM_ID, ...contacts.map(c => getPrivateRoomId(profile.email, c.email))];
+        const unsubscribes = [];
+
+        rooms.forEach(roomId => {
+            const roomRef = ref(database, `messages/${roomId}`);
+            const roomQuery = query(roomRef, limitToLast(1));
+
+            const unsub = onValue(roomQuery, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    const lastMsgId = Object.keys(data)[0];
+                    const lastMsg = data[lastMsgId];
+
+                    // Update last message preview
+                    setLastMessages(prev => ({ ...prev, [roomId]: lastMsg }));
+
+                    // Increment unread if not in active room and message is not from me
+                    if (roomId !== activeRoom && lastMsg.user_id !== profile.email) {
+                        setUnreadCounts(prev => ({
+                            ...prev,
+                            [roomId]: (prev[roomId] || 0) + 1
+                        }));
+
+                        // Show sophisticated toast for background messages
+                        if (chatSettings.notifications) {
+                            // Non-blocking notification logic can go here
+                        }
+                    }
+                }
+            });
+            unsubscribes.push({ ref: roomRef, unsub });
+        });
+
+        return () => {
+            unsubscribes.forEach(({ ref: r, unsub }) => off(r, 'value', unsub));
+        };
+    }, [database, user, contacts, profile.email, activeRoom, chatSettings.notifications]);
+
+    // Reset unread count when room becomes active
+    useEffect(() => {
+        if (activeRoom) {
+            setUnreadCounts(prev => ({ ...prev, [activeRoom]: 0 }));
+        }
+    }, [activeRoom]);
+
+    // Dummy loadMessages to keep compatibility with existing refresh buttons
+    const loadMessages = useCallback(async () => {
+        // Firebase is realtime, so we don't need manual reload
+        // but we'll leave this empty to avoid breaking other parts
+    }, []);
+
+    // Load Contacts
+    const loadContacts = useCallback(async () => {
+        if (!supabase) return;
+        try {
+            const { data, error } = await supabase.from('user_accounts').select('id, username, display_name, email, avatar, status');
+            if (error) throw error;
+            setContacts((data || []).filter(u => u.email !== profile.email).map(u => ({
+                id: u.id, name: u.display_name || u.username || 'User',
+                email: u.email, avatar: u.avatar, online: u.status === 'online',
+            })));
+        } catch (error) {
+            console.error('Error loading contacts:', error);
+        }
+    }, [profile.email]);
+
+    // Initialize & Layout
     useEffect(() => {
         const handleResize = () => {
             const mobile = window.innerWidth <= 1024;
             setIsMobile(mobile);
-            // If we resize from desktop to mobile, hide sidebar by default if room selected
-            if (mobile && activeRoomId) setShowSidebarOnMobile(false);
-
-            // Auto-scroll to bottom on keyboard popup
-            if (isAtBottom && scrollRef.current) {
-                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }
+            if (mobile) setShowRightPanel(false);
         };
         window.addEventListener('resize', handleResize);
+        handleResize();
+
+        // Load data if user is authenticated
+        if (user) {
+            loadMessages();
+            loadContacts();
+        }
+
         return () => window.removeEventListener('resize', handleResize);
-    }, [activeRoomId, isAtBottom]);
+    }, [activeRoom, user, loadMessages, loadContacts]);
 
-    // Switch view on mobile when active room changes
+    // Real-time Subscription (Handled by Firebase useEffect above)
+    // We can remove this Supabase channel logic
+
+    // Auto Scroll
     useEffect(() => {
-        if (isMobile && activeRoomId) setShowSidebarOnMobile(false);
-    }, [activeRoomId, isMobile]);
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages]);
 
-    // --- SETUP ---
-    useEffect(() => {
-        const client = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
-        setSupabase(client);
-        loadData(client);
+    // Send Message (Firebase version)
+    const handleSend = useCallback(async () => {
+        if (!inputMessage.trim() && !attachment) return;
+        if (!database) return;
 
-        // Load Local Storage Data Safely based on USER
-        let saved = {};
-        if (user?.username) {
-            try {
-                saved = JSON.parse(localStorage.getItem(`${PROFILE_KEY}_${user.username}`) || '{}');
-            } catch (e) { console.error("Profile load failed", e); }
-        }
+        const msgText = inputMessage.trim();
+        const currentAttachment = attachment;
+        const currentReplyTo = replyTo;
+        const currentRoom = activeRoom;
 
-        const globalBg = user?.bgImage || user?.bg_image || null;
-        setProfile(prev => ({
-            ...prev, ...saved,
-            email: user?.email || saved.email || 'sultan@email.com',
-            displayName: saved.displayName || user?.username || 'Sultan',
-            bg_image: globalBg // STRICT SYNC: Always use Dashboard BG
-        }));
-
-        let hidden = [];
-        if (user?.username) {
-            try {
-                hidden = JSON.parse(localStorage.getItem(`${HIDDEN_MSGS_KEY}_${user.username}`) || '[]');
-            } catch (e) { console.error("Hidden msgs load failed", e); }
-        }
-        setHiddenMessageIds(hidden);
-
-
-        const channel = client.channel(`chat_v32`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, async (payload) => {
-                let newMsg = payload.new;
-                if (newMsg.room_id !== activeRoomId) return;
-
-                // FIX: If the payload is incomplete (sometimes happens with large Base64), fetch the full row
-                if (!newMsg.message && !newMsg.attachment) {
-                    const { data } = await client.from('chat_messages').select('*').eq('id', newMsg.id).single();
-                    if (data) newMsg = data;
-                }
-
-                setAllMessages(prev => {
-                    if (prev.some(m => m.id === newMsg.id)) return prev;
-                    return [...prev, newMsg];
-                });
-
-                if (newMsg.username !== profile.displayName) {
-                    audioRef.current.play().catch(() => { });
-                    setToast({ title: newMsg.username, msg: newMsg.message || 'Mengirim gambar sultan...' });
-                    setTimeout(() => setToast(null), 3000);
-                    markAsRead(newMsg.id);
-                }
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, payload => {
-                setAllMessages(prev => prev.filter(m => m.id !== payload.old.id));
-            })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages' }, payload => {
-                setAllMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_rooms' }, () => {
-                loadData(client);
-            })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_typing' }, payload => {
-                const typingData = payload.new;
-                if (typingData.user_id === profile.email) return;
-                setTypingUsers(prev => {
-                    const exists = prev.find(u => u.user_id === typingData.user_id);
-                    if (exists) return prev.map(u => u.user_id === typingData.user_id ? typingData : u);
-                    return [...prev, typingData];
-                });
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_typing' }, payload => {
-                setTypingUsers(prev => prev.filter(u => u.id !== payload.old.id));
-            })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_reads' }, payload => {
-                setReadReceipts(prev => ({ ...prev, [payload.new.message_id]: [...(prev[payload.new.message_id] || []), payload.new.user_id] }));
-            })
-            .subscribe();
-
-        // Typing cleanup interval
-        const typingInterval = setInterval(() => {
-            setTypingUsers(prev => prev.filter(u => (new Date() - new Date(u.last_active)) < 5000));
-        }, 3000);
-
-        return () => {
-            client.removeChannel(channel);
-            clearInterval(typingInterval);
-        };
-    }, [user, activeRoomId, profile.displayName, profile.email]);
-
-    const updateTypingStatus = async (isTyping) => {
-        if (!supabase || !profile.email) return;
-        if (isTyping) {
-            await supabase.from('chat_typing').upsert([{
-                user_id: profile.email,
-                username: profile.displayName,
-                room_id: activeRoomId,
-                last_active: new Date().toISOString()
-            }], { onConflict: 'user_id' });
-        } else {
-            await supabase.from('chat_typing').delete().eq('user_id', profile.email);
-        }
-    };
-
-    const loadData = async (client = supabase) => {
-        if (!client) return;
-        setStatus('connecting');
-        const isGlobal = activeRoomId === GLOBAL_ROOM_ID;
-
-        try {
-            // OPTIMIZATION: Use Promise.all for parallel fetching
-            const [roomsResult, msgsResult, readsResult, membersResult] = await Promise.all([
-                client.from('chat_rooms').select('*'),
-                client.from('chat_messages').select('*').eq('room_id', activeRoomId).order('created_at', { ascending: true }).limit(50),
-                client.from('chat_reads').select('*'),
-                client.from('chat_room_members').select('*').eq('room_id', activeRoomId)
-            ]);
-
-            // Handle Rooms
-            setChatRooms(roomsResult.data || []);
-
-            // Check if user is member of Global Community (auto-join)
-            if (profile.email && isGlobal) {
-                const { data: mbrCheck } = await client.from('chat_room_members').select('*').eq('room_id', GLOBAL_ROOM_ID).eq('user_id', profile.email);
-                if (!mbrCheck || mbrCheck.length === 0) {
-                    client.from('chat_room_members').insert([{ room_id: GLOBAL_ROOM_ID, user_id: profile.email, role: 'member' }]).then();
-                }
-            }
-
-            // Handle Messages
-            const msgs = msgsResult.data || [];
-            if (msgs) {
-                setAllMessages(msgs);
-                if (isGlobal) {
-                    if (user?.username) {
-                        localStorage.setItem(`${CACHED_MSGS_KEY}_${user.username}`, JSON.stringify(msgs.slice(-30)));
-                    }
-                }
-            }
-
-            // Handle Read Receipts
-            const receipts = {};
-            readsResult.data?.forEach(r => {
-                receipts[r.message_id] = [...(receipts[r.message_id] || []), r.user_id];
-            });
-            setReadReceipts(receipts);
-
-            // Handle Members
-            setMembers(membersResult.data || []);
-
-            // OPTIMIZATION: Fetch Avatars for all participants
-            const uniqueEmails = [...new Set([
-                ...(msgs || []).map(m => m.user_id),
-                ...(membersResult.data || []).map(m => m.user_id)
-            ])];
-
-            if (uniqueEmails.length > 0) {
-                const { data: userDetails } = await client.from('user_accounts').select('email, avatar').in('email', uniqueEmails);
-                const avatarMap = {};
-                userDetails?.forEach(u => {
-                    avatarMap[u.email] = u.avatar;
-                });
-                setMemberAvatars(prev => ({ ...prev, ...avatarMap }));
-            }
-
-            // Check Pinned Message
-            const currentRoom = roomsResult.data?.find(r => r.id === activeRoomId);
-            if (currentRoom?.pinned_message_id) {
-                const { data: pMsg } = await client.from('chat_messages').select('*').eq('id', currentRoom.pinned_message_id).single();
-                setPinnedMsg(pMsg);
-            } else {
-                setPinnedMsg(null);
-            }
-
-            setStatus('online');
-        } catch (err) { console.error("Load conn error", err); setStatus('error'); }
-    };
-
-    const handleIncomingMessage = (newMsg) => {
-        if (newMsg.room_id !== activeRoomId) return;
-        setAllMessages(prev => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-        });
-        if (newMsg.username !== profile.displayName) {
-            audioRef.current.play().catch(() => { });
-            setToast({ title: newMsg.username, msg: newMsg.message });
-            setTimeout(() => setToast(null), 3000);
-            markAsRead(newMsg.id);
-        }
-    };
-
-    const markAsRead = async (msgId) => {
-        if (!supabase || !profile.email) return;
-        await supabase.from('chat_reads').upsert([{ message_id: msgId, user_id: profile.email }], { onConflict: 'message_id, user_id' });
-    };
-
-    const isAdmin = members.some(m => m.user_id === profile.email && (m.role === 'admin' || m.role === 'moderator'));
-
-    const extractMentions = (text) => [...text.matchAll(/@(\w+)/g)].map(m => m[1]);
-
-    const handleSend = async (voiceBlob = null) => {
-        if (!inputMessage.trim() && !attachment && !voiceBlob) return;
-        const msgText = voiceBlob ? '🎤 Voice Message' : inputMessage.trim();
-        const tempId = `temp_${Date.now()}`;
-
-        const msgObj = {
-            id: tempId, room_id: activeRoomId, user_id: profile.email,
-            username: profile.displayName, message: msgText,
-            reply_to: replyTo?.id || null, created_at: new Date().toISOString(),
-            attachment: attachment || (voiceBlob && typeof voiceBlob === 'string' ? voiceBlob : null),
-            is_optimistic: true
+        const newMsgData = {
+            room_id: currentRoom,
+            user_id: profile.email,
+            username: profile.displayName,
+            avatar: profile.avatar, // Add this line
+            message: msgText,
+            attachment: currentAttachment,
+            reply_to: currentReplyTo?.id || null,
+            created_at: new Date().toISOString(),
         };
 
-        setAllMessages(prev => [...prev, msgObj]);
-        setInputMessage(''); setReplyTo(null); setAttachment(null);
-        setShowPicker(false); // Auto-close picker
+        setInputMessage('');
+        setAttachment(null);
+        setReplyTo(null);
+        setShowEmojiPicker(false);
 
-        if (supabase) {
-            // Check if attachment is large, if so, we should ideally use Storage 
-            // but for now we insert and ensure real-time is handled.
-            const { data, error } = await supabase.from('chat_messages').insert([{
-                room_id: activeRoomId, user_id: profile.email,
-                username: profile.displayName, message: msgText,
-                reply_to: msgObj.reply_to,
-                attachment: msgObj.attachment
-            }]).select();
-
-            if (error) {
-                console.error("Send failed:", error);
-                setAllMessages(prev => prev.filter(m => m.id !== tempId));
-                setToast({ title: 'Error', msg: 'Gagal mengirim pesan' });
-                return;
-            }
-
-            if (data?.[0]) {
-                const realMsg = data[0];
-                setAllMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
-
-                const mentions = extractMentions(msgText);
-                if (mentions.length > 0) {
-                    await supabase.from('chat_mentions').insert(
-                        mentions.map(u => ({ message_id: realMsg.id, mentioned_user: u }))
-                    );
-                }
-            }
-        }
-    };
-
-    const pinMessage = async (msgId) => {
-        if (!isAdmin) return;
-        await supabase.from('chat_rooms').update({ pinned_message_id: msgId }).eq('id', activeRoomId);
-        loadData(supabase);
-    };
-
-    const handleUnsendForEveryone = async (msgId) => {
-        if (!confirm("Tarik pesan ini untuk SEMUA orang?")) return;
-        if (supabase) {
-            await supabase.from('chat_messages').update({
-                message: '🚫 Pesan ini telah ditarik',
-                is_deleted: true
-            }).eq('id', msgId);
-            setOpenMenuId(null);
-        }
-    };
-
-    const handleUnsendForMe = (msgId) => {
-        const updatedHidden = [...hiddenMessageIds, msgId];
-        setHiddenMessageIds(updatedHidden);
-        if (user?.username) {
-            localStorage.setItem(`${HIDDEN_MSGS_KEY}_${user.username}`, JSON.stringify(updatedHidden));
-        }
-        setOpenMenuId(null);
-    };
-
-    const handleScroll = () => {
-        if (!scrollRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        setIsAtBottom(scrollHeight - scrollTop - clientHeight < 150);
-    };
-
-    // Auto-scroll logic
-    useEffect(() => {
-        // Instant scroll on room change (or initial load)
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            setIsAtBottom(true);
-        }
-    }, [activeRoomId]);
-
-    useEffect(() => {
-        // Smooth scroll for new messages if user was at bottom
-        if (isAtBottom && scrollRef.current) {
-            setTimeout(() => {
-                if (scrollRef.current) {
-                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-                }
-            }, 100);
-        }
-    }, [allMessages, hiddenMessageIds]);
-
-    // Create handleSaveProfile with Error Handling for Quota
-    // Create handleSaveProfile with Error Handling for Quota
-    const handleSaveProfile = async () => {
         try {
-            const profileStr = JSON.stringify(profile);
-            if (profileStr.length > 3500000) { // Safety buffer before 5MB
-                alert("Ukuran data profil terlalu besar. Coba ganti wallpaper dengan gambar yang lebih sederhana/kecil.");
-                return;
-            }
+            const messagesRef = ref(database, `messages/${currentRoom}`);
+            const newMessageRef = push(messagesRef);
+            await set(newMessageRef, newMsgData);
+        } catch (error) {
+            console.error('Error sending message to Firebase:', error);
+            showToast(`Gagal: ${error.message}`, 'error');
+        }
+    }, [inputMessage, attachment, replyTo, profile, activeRoom]);
 
-            if (user?.username) {
-                localStorage.setItem(`${PROFILE_KEY}_${user.username}`, profileStr);
-            }
-            setShowSettingsModal(false);
-            setToast({ title: 'Berhasil', msg: 'Profile & Background tersimpan!' });
-            setTimeout(() => setToast(null), 2000);
-
-            // Sync to Global Account if possible (Optional)
-            if (supabase && profile.email) {
-                await supabase.from('user_accounts').update({
-                    display_name: profile.displayName
-                }).eq('email', profile.email);
-            }
-
-        } catch (e) {
-            console.error("Save Profile Failed", e);
-            if (e.name === 'QuotaExceededError' || e.code === 22) {
-                alert("Penyimpanan Browser Penuh! Hapus cache atau gunakan gambar yang lebih kecil.");
+    // Delete Message (Firebase version)
+    const handleDeleteMessage = async (msgId, forEveryone = false) => {
+        if (!database) return;
+        try {
+            const msgRef = ref(database, `messages/${activeRoom}/${msgId}`);
+            if (forEveryone) {
+                await update(msgRef, { message: '🚫 Pesan telah dihapus', is_deleted: true, attachment: null });
+                showToast('Pesan dihapus untuk semua orang');
             } else {
-                alert("Gagal menyimpan profil: " + e.message);
+                // For "Just for me", we would need a different structure, 
+                // but usually for real-time DB we just remove it or ignore it locally
+                // Here we'll just filter it locally as before
+                setMessages(prev => prev.filter(m => m.id !== msgId));
+                showToast('Pesan disembunyikan');
             }
+        } catch (error) {
+            showToast('Gagal menghapus pesan', 'error');
+            console.error(error);
+        }
+        setActiveMessageMenu(null);
+    };
+
+    // Edit Message (Firebase version)
+    const handleEditMessage = async () => {
+        if (!editingMessage || !editText.trim() || !database) return;
+        try {
+            const msgRef = ref(database, `messages/${activeRoom}/${editingMessage.id}`);
+            await update(msgRef, { message: editText.trim(), is_edited: true });
+            showToast('Pesan berhasil diedit');
+            setEditingMessage(null); setEditText('');
+        } catch (error) {
+            showToast('Gagal mengedit pesan', 'error');
+            console.error(error);
         }
     };
 
-    const getAvatar = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'User'}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    // Copy Message
+    const handleCopyMessage = (text) => {
+        navigator.clipboard.writeText(text);
+        showToast('Pesan disalin ke clipboard');
+        setActiveMessageMenu(null);
+    };
+
+    // Reply to Message
+    const handleReplyMessage = (msg) => {
+        setReplyTo(msg);
+        setActiveMessageMenu(null);
+        inputRef.current?.focus();
+    };
+
+    // File Select
+    const handleFileSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.type.startsWith('image/')) {
+            const compressed = await compressImage(file);
+            if (compressed) setAttachment(compressed);
+        }
+    };
+
+    // Filter contacts
+    const filteredContacts = useMemo(() => {
+        if (!searchQuery) return contacts;
+        return contacts.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.email?.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [contacts, searchQuery]);
+
+    // Filtered messages for search
+    const filteredMessages = useMemo(() => {
+        if (!searchQuery) return messages;
+        return messages.filter(m => m.message?.toLowerCase().includes(searchQuery.toLowerCase()) || m.username?.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [messages, searchQuery]);
 
     return (
-        <div className="chat-sultan-v31 no-scrollbar" onClick={() => setOpenMenuId(null)} style={{
-            height: isMobile ? 'calc(100vh - 90px)' : 'calc(100vh - 100px)',
-            display: 'flex',
-            width: '100%',
-            maxWidth: '1400px',
-            margin: '0 auto',
-            backgroundImage: profile.bg_image ? `url(${profile.bg_image})` : 'none',
-            backgroundColor: '#0f172a',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            borderRadius: isMobile ? '0' : '24px',
-            overflow: 'hidden',
-            border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.05)',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-            position: 'relative',
-            zIndex: 10
-        }}>
+        <div style={{
+            height: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 100px)',
+            display: 'flex', width: '100%', maxWidth: '1600px', margin: '0 auto',
+            background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
+            backdropFilter: 'blur(20px)', borderRadius: isMobile ? '0' : '24px', overflow: 'hidden',
+            border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)', position: 'relative',
+        }} onClick={() => setActiveMessageMenu(null)}>
+            <style>{`
+                .chat-sidebar::-webkit-scrollbar { width: 4px; }
+                .chat-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+                .contact-item { transition: all 0.2s ease; cursor: pointer; }
+                .contact-item:hover { background: rgba(255,255,255,0.05); }
+                .contact-item.active { background: rgba(99, 102, 241, 0.15); border-left: 3px solid #6366f1; }
+                .msg-bubble:hover .msg-actions { opacity: 1; }
+                .msg-actions { opacity: 0; transition: opacity 0.15s ease; }
+                .action-btn { transition: all 0.2s ease; cursor: pointer; }
+                .action-btn:hover { background: rgba(99, 102, 241, 0.2); color: #6366f1; transform: scale(1.05); }
+                .action-btn:active { transform: scale(0.95); }
+                .online-dot { animation: pulse-online 2s ease-in-out infinite; }
+                @keyframes pulse-online { 0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); } }
+                .media-item { transition: all 0.2s ease; cursor: pointer; }
+                .media-item:hover { transform: scale(1.05); filter: brightness(1.1); }
+                .unread-badge {
+                    position: absolute; top: -5px; right: -5px;
+                    background: linear-gradient(135deg, #ef4444, #f87171);
+                    color: white; font-size: 10px; font-weight: 700;
+                    min-width: 18px; height: 18px; border-radius: 10px;
+                    display: flex; alignItems: center; justifyContent: center;
+                    border: 2px solid #0a081e; box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+                }
+                .pulse-unread { animation: pulse-red 2s infinite; }
+                @keyframes pulse-red {
+                    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+                    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+                    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                }
+            `}</style>
 
-            {/* SIDEBAR */}
-            <div style={{
-                width: isMobile ? '100%' : '340px',
-                background: '#111827',
-                borderRight: '1px solid rgba(255,255,255,0.05)',
-                display: (isMobile && !showSidebarOnMobile) ? 'none' : 'flex',
-                flexDirection: 'column',
-                height: '100%'
-            }}>
-                <div style={{ padding: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                        <h2 style={{ color: 'white', fontWeight: '800', fontSize: '22px' }}>Chat</h2>
-                        <Settings size={20} color="#64748b" style={{ cursor: 'pointer' }} onClick={() => setShowSettingsModal(true)} />
-                    </div>
-                    {/* PROFILE CARD */}
-                    <div onClick={() => setShowSettingsModal(true)} style={{ background: 'rgba(30,41,59,0.5)', padding: '14px', borderRadius: '18px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '16px' }}>
-                        <img src={profile.avatar || getAvatar(profile.displayName)} style={{ width: '48px', height: '48px', borderRadius: '14px', objectFit: 'cover' }} />
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{ color: 'white', fontWeight: '700', fontSize: '15px' }}>{profile.displayName}</div>
-                            <div style={{ color: '#64748b', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{profile.email}</div>
+            {/* Toast Notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
+                        style={{
+                            position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+                            background: toast.type === 'error' ? '#ef4444' : '#22c55e', color: 'white',
+                            padding: '12px 24px', borderRadius: '12px', fontWeight: '600', fontSize: '14px',
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                        }}>
+                        {toast.message}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Image Preview Modal */}
+            <AnimatePresence>
+                {imagePreview && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setImagePreview(null)}
+                        style={{
+                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+                        }}>
+                        <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }}>
+                            <img src={imagePreview} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '12px' }} />
+                        </motion.div>
+                        <button onClick={() => setImagePreview(null)} style={{
+                            position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.1)',
+                            border: 'none', borderRadius: '50%', width: 48, height: 48, color: 'white', cursor: 'pointer',
+                        }}><X size={24} /></button>
+                        <a href={imagePreview} download style={{
+                            position: 'absolute', bottom: 20, right: 20, background: '#6366f1',
+                            border: 'none', borderRadius: '12px', padding: '12px 24px', color: 'white',
+                            textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px',
+                        }}><Download size={18} /> Download</a>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Edit Message Modal */}
+            <AnimatePresence>
+                {editingMessage && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px',
+                        }}>
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            style={{
+                                background: '#1e1b4b', borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '500px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                            }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h3 style={{ color: 'white', margin: 0, fontSize: '18px', fontWeight: '700' }}>Edit Pesan</h3>
+                                <button onClick={() => { setEditingMessage(null); setEditText(''); }}
+                                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={24} /></button>
+                            </div>
+                            <textarea value={editText} onChange={(e) => setEditText(e.target.value)}
+                                style={{
+                                    width: '100%', minHeight: '120px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '12px', padding: '16px', color: 'white', fontSize: '14px', outline: 'none', resize: 'none',
+                                }} placeholder="Edit pesan..." />
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '20px', justifyContent: 'flex-end' }}>
+                                <button onClick={() => { setEditingMessage(null); setEditText(''); }}
+                                    style={{
+                                        padding: '12px 24px', background: 'rgba(255,255,255,0.05)', border: 'none',
+                                        borderRadius: '12px', color: 'white', fontWeight: '600', cursor: 'pointer',
+                                    }}>Batal</button>
+                                <button onClick={handleEditMessage}
+                                    style={{
+                                        padding: '12px 24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        border: 'none', borderRadius: '12px', color: 'white', fontWeight: '600', cursor: 'pointer',
+                                    }}>Simpan</button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Settings Modal */}
+            <AnimatePresence>
+                {showSettings && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        onClick={() => setShowSettings(false)}
+                        style={{
+                            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px'
+                        }}>
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: 'linear-gradient(135deg, #1e1b4b, #0f172a)', borderRadius: '24px',
+                                width: '100%', maxWidth: '480px', maxHeight: '80vh', overflow: 'hidden',
+                                border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)'
+                            }}>
+                            <div style={{
+                                padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+                                background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <Settings size={22} color="white" />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ color: 'white', margin: 0, fontSize: '18px', fontWeight: '700' }}>Chat Settings</h3>
+                                        <p style={{ color: '#94a3b8', margin: 0, fontSize: '12px' }}>Customize your experience</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowSettings(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '10px', width: '36px', height: '36px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+                            </div>
+                            <div style={{ padding: '20px', overflowY: 'auto', maxHeight: 'calc(80vh - 100px)' }}>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <h4 style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>🔔 Notifications</h4>
+                                    {[{ key: 'notifications', label: 'Enable Notifications', desc: 'Receive chat notifications' },
+                                    { key: 'notificationSound', label: 'Notification Sound', desc: 'Play sound for new messages' }].map(item => (
+                                        <label key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '14px 16px', borderRadius: '12px', cursor: 'pointer', marginBottom: '8px' }}>
+                                            <div><span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>{item.label}</span><p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{item.desc}</p></div>
+                                            <input type="checkbox" checked={chatSettings[item.key]} onChange={(e) => updateChatSettings(item.key, e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#6366f1' }} />
+                                        </label>
+                                    ))}
+                                </div>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <h4 style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>🎨 Display</h4>
+                                    {[{ key: 'showTimestamp', label: 'Show Timestamps', desc: 'Display time on messages' },
+                                    { key: 'showAvatars', label: 'Show Avatars', desc: 'Display user avatars' },
+                                    { key: 'showReadReceipts', label: 'Show Read Receipts', desc: 'Show blue checkmarks' },
+                                    { key: 'compactMode', label: 'Compact Mode', desc: 'Reduce message spacing' }].map(item => (
+                                        <label key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '14px 16px', borderRadius: '12px', cursor: 'pointer', marginBottom: '8px' }}>
+                                            <div><span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>{item.label}</span><p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{item.desc}</p></div>
+                                            <input type="checkbox" checked={chatSettings[item.key]} onChange={(e) => updateChatSettings(item.key, e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#6366f1' }} />
+                                        </label>
+                                    ))}
+                                </div>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <h4 style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>📝 Font Size</h4>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        {['small', 'medium', 'large'].map((size) => (
+                                            <button key={size} onClick={() => updateChatSettings('fontSize', size)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: chatSettings.fontSize === size ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)', color: 'white', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', fontSize: size === 'small' ? '12px' : size === 'large' ? '16px' : '14px' }}>{size}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <h4 style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>⚙️ Behavior</h4>
+                                    {[{ key: 'autoScroll', label: 'Auto Scroll', desc: 'Scroll to new messages' },
+                                    { key: 'enterToSend', label: 'Enter to Send', desc: 'Press Enter to send' }].map(item => (
+                                        <label key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.03)', padding: '14px 16px', borderRadius: '12px', cursor: 'pointer', marginBottom: '8px' }}>
+                                            <div><span style={{ color: 'white', fontSize: '14px', fontWeight: '500' }}>{item.label}</span><p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{item.desc}</p></div>
+                                            <input type="checkbox" checked={chatSettings[item.key]} onChange={(e) => updateChatSettings(item.key, e.target.checked)} style={{ width: '20px', height: '20px', accentColor: '#6366f1' }} />
+                                        </label>
+                                    ))}
+                                </div>
+                                <div>
+                                    <h4 style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>⚠️ Danger Zone</h4>
+                                    <button onClick={handleClearChatHistory} style={{ width: '100%', padding: '14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Trash2 size={18} /> Clear Chat History</button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* LEFT SIDEBAR */}
+            {(!isMobile || showContactList) && (
+                <div style={{
+                    width: isMobile ? '100%' : '320px', background: 'rgba(10, 8, 30, 0.95)',
+                    borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', flexShrink: 0,
+                }}>
+                    {/* Header */}
+                    <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <div>
+                                <h2 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: 0 }}>Global Chat</h2>
+                                <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>{profile.email}</p>
+                            </div>
+                            <button onClick={loadMessages} className="action-btn"
+                                style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '8px', color: '#94a3b8' }}>
+                                <RefreshCw size={18} />
+                            </button>
+                        </div>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)',
+                            borderRadius: '12px', padding: '10px 14px', border: '1px solid rgba(255,255,255,0.06)',
+                        }}>
+                            <Search size={18} color="#64748b" />
+                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..."
+                                style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none' }} />
+                            {searchQuery && <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={16} /></button>}
                         </div>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); setShowNewChatModal(true); }} style={{ width: '100%', padding: '16px', background: '#3b82f6', borderRadius: '16px', color: 'white', border: 'none', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                        <PlusCircle size={20} /> New Conversation
-                    </button>
-                    <div style={{ display: 'flex', background: 'rgba(30,41,59,0.5)', marginTop: '20px', borderRadius: '12px', padding: '4px' }}>
-                        {['All', 'Friends', 'Groups'].map(t => (
-                            <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', background: activeTab === t ? '#3b82f6' : 'transparent', color: 'white', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>{t}</button>
+
+                    {/* Channels & Users */}
+                    <div className="chat-sidebar" style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+                        {/* Channels */}
+                        <div style={{ padding: '16px 12px 8px' }}>
+                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px' }}>CHANNELS</span>
+                        </div>
+                        <div className={`contact-item ${activeRoom === GLOBAL_ROOM_ID ? 'active' : ''}`}
+                            onClick={() => { setActiveRoom(GLOBAL_ROOM_ID); setSelectedContact(null); if (isMobile) setShowContactList(false); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', marginBottom: '4px' }}>
+                            <div style={{ position: 'relative' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Hash size={20} color="#6366f1" />
+                                </div>
+                                {unreadCounts[GLOBAL_ROOM_ID] > 0 && (
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="unread-badge pulse-unread">
+                                        {unreadCounts[GLOBAL_ROOM_ID]}
+                                    </motion.div>
+                                )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>global-chat</div>
+                                    {lastMessages[GLOBAL_ROOM_ID] && <span style={{ color: '#64748b', fontSize: '10px' }}>{formatTime(lastMessages[GLOBAL_ROOM_ID].created_at)}</span>}
+                                </div>
+                                <div style={{ color: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '#94a3b8' : '#64748b', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: unreadCounts[GLOBAL_ROOM_ID] > 0 ? '600' : '400' }}>
+                                    {lastMessages[GLOBAL_ROOM_ID] ? `${lastMessages[GLOBAL_ROOM_ID].username}: ${lastMessages[GLOBAL_ROOM_ID].message}` : 'Global communication'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '16px 12px 8px', marginTop: '8px' }}>
+                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px' }}>USERS ({contacts.length})</span>
+                        </div>
+                        {filteredContacts.map((contact) => (
+                            <div key={contact.id}
+                                className={`contact-item ${selectedContact?.id === contact.id ? 'active' : ''}`}
+                                onClick={() => {
+                                    const roomId = getPrivateRoomId(profile.email, contact.email);
+                                    setActiveRoom(roomId);
+                                    setSelectedContact(contact);
+                                    if (isMobile) setShowContactList(false);
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', marginBottom: '4px' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <img src={contact.avatar || getAvatar(contact.name)} alt={contact.name}
+                                        style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
+                                    {contact.online && <div className="online-dot" style={{
+                                        position: 'absolute', bottom: '2px', right: '2px', width: '12px', height: '12px',
+                                        background: '#22c55e', borderRadius: '50%', border: '2px solid rgba(10, 8, 30, 0.95)',
+                                    }} />}
+                                    {unreadCounts[getPrivateRoomId(profile.email, contact.email)] > 0 && (
+                                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="unread-badge pulse-unread">
+                                            {unreadCounts[getPrivateRoomId(profile.email, contact.email)]}
+                                        </motion.div>
+                                    )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>{contact.name}</div>
+                                        {lastMessages[getPrivateRoomId(profile.email, contact.email)] && (
+                                            <span style={{ color: '#64748b', fontSize: '10px' }}>{formatTime(lastMessages[getPrivateRoomId(profile.email, contact.email)].created_at)}</span>
+                                        )}
+                                    </div>
+                                    <p style={{
+                                        color: unreadCounts[getPrivateRoomId(profile.email, contact.email)] > 0 ? '#94a3b8' : '#64748b',
+                                        fontSize: '12px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                        fontWeight: unreadCounts[getPrivateRoomId(profile.email, contact.email)] > 0 ? '600' : '400'
+                                    }}>
+                                        {lastMessages[getPrivateRoomId(profile.email, contact.email)]?.message || contact.email}
+                                    </p>
+                                </div>
+                            </div>
                         ))}
                     </div>
-                </div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
-                    <div style={{ color: '#64748b', fontSize: '10px', fontWeight: '800', margin: '20px 0 10px 10px', letterSpacing: '1px' }}>GLOBAL COMMUNITY</div>
-                    <div onClick={() => {
-                        setActiveRoomId(GLOBAL_ROOM_ID);
-                        if (isMobile) setShowSidebarOnMobile(false);
-                    }} style={{
-                        padding: '16px', borderRadius: '20px', cursor: 'pointer', display: 'flex', gap: '14px', marginBottom: '16px',
-                        background: activeRoomId === GLOBAL_ROOM_ID ? 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2))' : 'rgba(30,41,59,0.3)',
-                        border: activeRoomId === GLOBAL_ROOM_ID ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.03)',
-                        transition: 'all 0.3s',
-                        boxShadow: activeRoomId === GLOBAL_ROOM_ID ? '0 10px 20px rgba(0,0,0,0.2)' : 'none'
-                    }}>
-                        <div style={{ width: '52px', height: '52px', borderRadius: '16px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(59,130,246,0.4)', position: 'relative' }}>
-                            <Globe color="#fff" size={26} />
-                            <div style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, background: '#22c55e', borderRadius: '50%', border: '3px solid #111827' }}></div>
+
+                    {/* User Footer */}
+                    <div style={{ background: '#0b0918', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ position: 'relative' }}>
+                            <img src={profile.avatar || getAvatar(profile.displayName)} alt={profile.displayName}
+                                style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #22c55e' }} />
+                            <div style={{ position: 'absolute', bottom: '0', right: '0', width: '12px', height: '12px', background: '#22c55e', borderRadius: '50%', border: '2px solid #0b0918' }} />
                         </div>
-                        <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                            <div style={{ color: 'white', fontWeight: '800', fontSize: '16px', letterSpacing: '0.2px' }}>Global Community</div>
-                            <div style={{ color: '#60a5fa', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Zap size={10} fill="#60a5fa" /> SERVER AKTIF
-                            </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: 'white', fontSize: '13px', fontWeight: '700' }}>{profile.displayName}</div>
+                            <div style={{ color: '#22c55e', fontSize: '11px' }}>Online</div>
                         </div>
-                    </div>
-
-                    <div style={{ color: '#64748b', fontSize: '10px', fontWeight: '800', margin: '20px 0 10px 10px', letterSpacing: '1px' }}>PESAN ANDA</div>
-                    {chatRooms.filter(r => r.id !== GLOBAL_ROOM_ID && (activeTab === 'All' || (activeTab === 'Friends' && r.type === 'private') || (activeTab === 'Groups' && r.type === 'group'))).length === 0 && (
-                        <div style={{ padding: '20px', textAlign: 'center', color: '#475569', fontSize: '13px', border: '1px dashed rgba(255,255,255,0.05)', borderRadius: '16px' }}>Belum ada obrolan {activeTab !== 'All' ? activeTab : ''}</div>
-                    )}
-                    {chatRooms.filter(r => r.id !== GLOBAL_ROOM_ID && (activeTab === 'All' || (activeTab === 'Friends' && r.type === 'private') || (activeTab === 'Groups' && r.type === 'group'))).map(room => (
-                        <div key={room.id} onClick={() => {
-                            setActiveRoomId(room.id);
-                            if (isMobile) setShowSidebarOnMobile(false);
-                        }} style={{ padding: '14px', borderRadius: '16px', cursor: 'pointer', display: 'flex', gap: '12px', marginBottom: '8px', background: activeRoomId === room.id ? 'rgba(59,130,246,0.1)' : 'transparent', border: activeRoomId === room.id ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent', transition: 'all 0.2s' }}>
-                            <img src={getAvatar(room.name)} style={{ width: '48px', height: '48px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)' }} />
-                            <div style={{ overflow: 'hidden' }}><div style={{ color: 'white', fontWeight: '700', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{room.name}</div><div style={{ color: '#64748b', fontSize: '12px' }}>{room.type === 'private' ? 'Personal' : 'Group'} Chat</div></div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* CHAT AREA */}
-            <div style={{ flex: 1, display: (isMobile && showSidebarOnMobile) ? 'none' : 'flex', flexDirection: 'column', background: '#0f172a', height: '100%' }}>
-                <AnimatePresence>
-                    {toast && (
-                        <motion.div initial={{ opacity: 0, y: -20, x: '-50%' }} animate={{ opacity: 1, y: 20, x: '-50%' }} exit={{ opacity: 0, y: -20, x: '-50%' }} style={{ position: 'absolute', top: 60, left: '50%', background: '#1e293b', padding: '10px 20px', borderRadius: '20px', zIndex: 100, border: '1px solid #3b82f6' }}>
-                            <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>{toast.title}:</span> <span style={{ color: 'white' }}>{toast.msg}</span>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                <div style={{ padding: isMobile ? '14px 16px' : '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(10px)' }}>
-                    {isMobile && (
-                        <button onClick={() => setShowSidebarOnMobile(true)} style={{ background: 'none', border: 'none', color: 'white', marginRight: '4px', cursor: 'pointer' }}>
-                            <ChevronLeft size={24} />
-                        </button>
-                    )}
-                    <div style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px', borderRadius: '10px', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {activeRoomId === GLOBAL_ROOM_ID ? <Globe color="#fff" size={isMobile ? 16 : 20} /> : <Users color="#fff" size={isMobile ? 16 : 20} />}
-                    </div>
-                    <div style={{ color: 'white', fontWeight: '800', fontSize: isMobile ? '16px' : '18px', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {activeRoomId === GLOBAL_ROOM_ID ? 'Global Community' : chatRooms.find(r => r.id === activeRoomId)?.name}
-                    </div>
-                </div>
-
-                {pinnedMsg && (
-                    <div style={{ background: '#1e293b', padding: '10px 24px', borderBottom: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ color: '#3b82f6' }}><Info size={16} /></div>
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Pinned Message</div>
-                            <div style={{ fontSize: '13px', color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                <b>@{pinnedMsg.username}:</b> {pinnedMsg.message}
-                            </div>
-                        </div>
-                        {isAdmin && <button onClick={() => pinMessage(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={14} /></button>}
-                    </div>
-                )}
-
-                <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px' : '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* LOADING SKELETON */}
-                    {status === 'connecting' && allMessages.length === 0 && (
-                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', animate: 'pulse' }}>
-                            {[1, 2, 3, 4].map(i => (
-                                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: i % 2 === 0 ? 'flex-end' : 'flex-start' }}>
-                                    <div style={{ width: '100px', height: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}></div>
-                                    <div style={{ width: '250px', height: '60px', background: 'rgba(255,255,255,0.05)', borderRadius: '22px' }}></div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {allMessages.filter(m => m.room_id === activeRoomId && !hiddenMessageIds.includes(m.id)).map((msg) => {
-                        const isMe = msg.username === profile.displayName;
-                        const replyMsg = msg.reply_to ? allMessages.find(m => m.id === msg.reply_to) : null;
-                        return (
-                            <div key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    <b>{msg.username}</b> <span style={{ opacity: 0.5 }}>{msg.user_id}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: isMe ? 'row-reverse' : 'row' }}>
-                                    {!isMe && <img src={memberAvatars[msg.user_id] || getAvatar(msg.username)} style={{ width: '32px', height: '32px', borderRadius: '10px', marginBottom: '4px', objectFit: 'cover' }} />}
-                                    <div style={{
-                                        position: 'relative', padding: '12px 18px',
-                                        background: msg.is_deleted ? 'rgba(30,41,59,0.3)' : (isMe ? '#3b82f6' : '#1e293b'),
-                                        borderRadius: '22px', borderBottomRightRadius: isMe ? '4px' : '22px',
-                                        borderBottomLeftRadius: isMe ? '22px' : '4px',
-                                        color: msg.is_deleted ? '#64748b' : 'white',
-                                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                                        fontStyle: msg.is_deleted ? 'italic' : 'normal',
-                                        border: msg.is_deleted ? '1px dashed rgba(255,255,255,0.1)' : 'none'
-                                    }}>
-                                        {replyMsg && !msg.is_deleted && <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '10px', marginBottom: '8px', borderLeft: '3px solid #60a5fa', fontSize: '11px' }}>{replyMsg.message}</div>}
-
-                                        {msg.attachment && !msg.is_deleted && (
-                                            msg.attachment.startsWith('data:audio') ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.1)', padding: '8px 12px', borderRadius: '12px', marginBottom: '8px', minWidth: '180px' }}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const audio = new Audio(msg.attachment);
-                                                            audio.play().catch(() => alert("Gagal memutar suara!"));
-                                                        }}
-                                                        style={{ background: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                                    >
-                                                        <Play size={16} color="#3b82f6" fill="#3b82f6" />
-                                                    </button>
-                                                    <div style={{ height: '4px', flex: 1, background: 'rgba(255,255,255,0.2)', borderRadius: '2px', position: 'relative' }}>
-                                                        <motion.div animate={{ width: ['0%', '100%'] }} transition={{ duration: 3, repeat: Infinity }} style={{ height: '100%', background: '#fff', borderRadius: '2px' }}></motion.div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <img src={msg.attachment} style={{ maxWidth: '250px', borderRadius: '12px', marginBottom: '8px', display: 'block' }} />
-                                            )
-                                        )}
-
-                                        <div style={{ fontSize: msg.is_deleted ? '13px' : '15px' }}>{msg.message}</div>
-                                        <div style={{ textAlign: 'right', fontSize: '9px', opacity: 0.5, marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            {isMe && !msg.is_deleted && (
-                                                <div style={{ display: 'flex', marginLeft: '4px' }}>
-                                                    <CheckCheck size={12} color={readReceipts[msg.id]?.length > 0 ? "#3b82f6" : "#64748b"} />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <AnimatePresence>
-                                            {openMenuId === msg.id && (
-                                                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ position: 'absolute', top: -110, right: isMe ? 0 : 'auto', left: isMe ? 'auto' : 0, background: '#1e293b', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', zIndex: 100, boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-                                                    <button onClick={() => handleUnsendForMe(msg.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}><EyeOff size={14} /> Hapus untuk Saya</button>
-                                                    {(isMe || isAdmin) && <button onClick={() => handleUnsendForEveryone(msg.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: '#ef4444', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}><Trash2 size={14} /> Tarik untuk Semua</button>}
-                                                    {isAdmin && <button onClick={() => pinMessage(msg.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: '#3b82f6', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}><PlusCircle size={14} /> Pin Pesan</button>}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <button onClick={(e) => { e.stopPropagation(); setReplyTo(msg); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><ReplyIcon size={14} /></button>
-                                        <button onClick={(e) => { e.stopPropagation(); setOpenMenuId(msg.id === openMenuId ? null : msg.id); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><MoreVertical size={14} /></button>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {typingUsers.filter(u => u.room_id === activeRoomId).length > 0 && (
-                    <div style={{ padding: '0 24px 8px', color: '#64748b', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ display: 'flex', gap: '3px' }}>
-                            <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1 }} style={{ width: 4, height: 4, borderRadius: '50%', background: '#3b82f6' }} />
-                            <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} style={{ width: 4, height: 4, borderRadius: '50%', background: '#3b82f6' }} />
-                            <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} style={{ width: 4, height: 4, borderRadius: '50%', background: '#3b82f6' }} />
-                        </div>
-                        {typingUsers.filter(u => u.room_id === activeRoomId).map(u => u.username).join(', ')} sedang mengetik...
-                    </div>
-                )}
-
-                {/* INPUT AREA */}
-                <div style={{
-                    padding: isMobile ? '10px 12px' : '20px 24px',
-                    background: '#111827',
-                    borderTop: '1px solid rgba(255,255,255,0.05)',
-                    paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 10px)' : '20px'
-                }}>
-                    <AnimatePresence>
-                        {attachment && (
-                            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ position: 'relative', width: '80px', height: '80px', marginBottom: '12px' }}>
-                                <img src={attachment} style={{ width: '100%', height: '100%', borderRadius: '12px', objectFit: 'cover', border: '2px solid #3b82f6' }} />
-                                <button onClick={() => setAttachment(null)} style={{ position: 'absolute', top: -8, right: -8, background: '#ef4444', border: 'none', borderRadius: '50%', padding: '4px', cursor: 'pointer' }}><X size={12} color="white" /></button>
-                            </motion.div>
-                        )}
-                        {replyTo && (
-                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} style={{ background: 'rgba(59,130,246,0.05)', padding: '12px 20px', borderRadius: '20px 20px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(59,130,246,0.2)', borderBottom: 'none', backdropFilter: 'blur(10px)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: 3, height: 16, background: '#3b82f6', borderRadius: 2 }}></div>
-                                    <div style={{ fontSize: '13px', color: '#3b82f6' }}>Membalas kepada <b style={{ color: '#fff' }}>{replyTo.username}</b></div>
-                                </div>
-                                <X size={16} color="#64748b" onClick={() => setReplyTo(null)} style={{ cursor: 'pointer' }} />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                    <div style={{ background: '#1e293b', padding: '8px 16px', borderRadius: replyTo ? '0 0 24px 24px' : '24px', display: 'flex', gap: '12px', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', position: 'relative' }}>
-                        {/* EMOJI/STICKER PICKER POPOVER */}
-                        <AnimatePresence>
-                            {showPicker && (
-                                <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} style={{ position: 'absolute', bottom: '60px', left: isMobile ? '-10px' : 0, background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '10px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', width: isMobile ? 'calc(100vw - 40px)' : '320px', maxWidth: '400px', zIndex: 50 }}>
-                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>
-                                        <button onClick={() => setPickerTab('emoji')} style={{ flex: 1, padding: '8px', background: pickerTab === 'emoji' ? '#3b82f6' : 'transparent', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Smile size={14} /> Emoji</button>
-                                        <button onClick={() => setPickerTab('sticker')} style={{ flex: 1, padding: '8px', background: pickerTab === 'sticker' ? '#3b82f6' : 'transparent', border: 'none', borderRadius: '8px', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Sticker size={14} /> Sticker</button>
-                                    </div>
-
-                                    {pickerTab === 'emoji' ? (
-                                        <div style={{ height: '350px' }}>
-                                            <Suspense fallback={<EmojiPickerFallback />}>
-                                                <EmojiPicker
-                                                    theme="dark"
-                                                    lazyLoadEmojis={true}
-                                                    width="100%"
-                                                    height="100%"
-                                                    searchDisabled={true}
-                                                    skinTonesDisabled={true}
-                                                    previewConfig={{ showPreview: false }}
-                                                    onEmojiClick={(e) => {
-                                                        setInputMessage(prev => prev + e.emoji);
-                                                        updateTypingStatus(true);
-                                                    }}
-                                                />
-                                            </Suspense>
-                                        </div>
-                                    ) : (
-                                        <div style={{ height: '350px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '4px' }}>
-                                            {SULTAN_STICKERS.map((url, idx) => (
-                                                <img
-                                                    key={idx}
-                                                    src={url}
-                                                    onClick={() => {
-                                                        const confirmSend = window.confirm("Kirim sticker ini?");
-                                                        if (confirmSend) {
-                                                            setAttachment(url);
-                                                            handleSend(); // Send immediately logic needs to verify handleSend handles attachment state correctly which it does
-                                                            setShowPicker(false);
-                                                        }
-                                                    }}
-                                                    style={{ width: '100%', borderRadius: '8px', cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.2s' }}
-                                                    onMouseOver={e => e.currentTarget.style.borderColor = '#3b82f6'}
-                                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
-                                                />
-                                            ))}
-                                            <div style={{ gridColumn: '1 / -1', padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>More stickers coming soon!</div>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        <button onClick={() => setShowPicker(!showPicker)} style={{ background: 'none', border: 'none', color: showPicker ? '#3b82f6' : '#64748b', cursor: 'pointer', padding: '8px', transition: 'all 0.2s' }}>
-                            <Smile size={20} />
-                        </button>
-
-                        <label style={{ color: '#64748b', cursor: 'pointer', padding: '8px' }}><Paperclip size={20} /><input type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setAttachment(ev.target.result); r.readAsDataURL(f); } }} /></label>
-                        <textarea
-                            placeholder="Ketik pesan sultan..."
-                            value={inputMessage}
-                            onChange={e => {
-                                setInputMessage(e.target.value);
-                                updateTypingStatus(e.target.value.length > 0);
-                            }}
-                            onBlur={() => updateTypingStatus(false)}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend();
-                                    updateTypingStatus(false);
-                                }
-                            }}
-                            style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', outline: 'none', resize: 'none', height: '40px', fontSize: '15px', padding: '10px 0' }}
-                        />
-                        <button onClick={() => handleSend()} style={{ width: '42px', height: '42px', background: '#3b82f6', border: 'none', borderRadius: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Send size={18} color="#fff" /></button>
-                    </div>
-                </div>
-            </div>
-
-            {/* MODALS */}
-            {showSettingsModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-                    <div style={{ background: '#1e293b', width: isMobile ? '90%' : '380px', borderRadius: '28px', padding: '30px', textAlign: 'center', position: 'relative', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <button onClick={() => setShowSettingsModal(false)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.05)', border: 'none', color: '#64748b', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={20} /></button>
-                        <h3 style={{ color: 'white', marginBottom: '10px' }}>Profile Settings</h3>
-
-                        <div style={{ position: 'relative', width: '80px', height: '80px', margin: '20px auto' }}>
-                            <img src={profile.avatar || getAvatar(profile.displayName)} style={{ width: '80px', height: '80px', borderRadius: '20px', objectFit: 'cover', border: '2px solid #3b82f6' }} />
-                            <label style={{ position: 'absolute', bottom: -5, right: -5, background: '#3b82f6', padding: '6px', borderRadius: '50%', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}><Camera size={14} color="white" /><input type="file" hidden accept="image/*" onChange={(e) => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = (ev) => setProfile({ ...profile, avatar: ev.target.result }); r.readAsDataURL(f); } }} /></label>
-                        </div>
-
-                        <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-                            <label style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>DISPLAY NAME</label>
-                            <input value={profile.displayName} onChange={e => setProfile({ ...profile, displayName: e.target.value })} style={{ width: '100%', padding: '12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', color: 'white', marginTop: '5px', outline: 'none' }} />
-                        </div>
-
-                        <div style={{ textAlign: 'left', marginBottom: '15px' }}>
-                            <label style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>EMAIL ACCOUNT</label>
-                            <input value={profile.email} disabled style={{ width: '100%', padding: '12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', color: '#64748b', marginTop: '5px', cursor: 'not-allowed' }} />
-                        </div>
-
-
-                        <button onClick={handleSaveProfile} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', borderRadius: '14px', color: 'white', border: 'none', marginTop: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(59,130,246,0.3)' }}>Save Profile</button>
+                        <button onClick={() => setShowSettings(!showSettings)} className="action-btn"
+                            style={{ background: 'none', border: 'none', color: '#64748b', padding: '4px' }}><Settings size={18} /></button>
                     </div>
                 </div>
             )}
 
-            {showNewChatModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-                    <div style={{ background: '#1e293b', width: '420px', borderRadius: '28px', padding: '30px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 25 }}>
-                            <h3 style={{ color: 'white', fontWeight: '800' }}>Start New Chat</h3>
-                            <button onClick={() => setShowNewChatModal(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={24} /></button>
-                        </div>
-
-                        <div style={{ marginBottom: '25px' }}>
-                            <label style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>FIND USER BY EMAIL</label>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <input id="friend-email-input" placeholder="user@email.com..." style={{ flex: 1, padding: '12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', color: 'white', outline: 'none' }} />
-                                <button onClick={async () => {
-                                    const email = document.getElementById('friend-email-input').value;
-                                    if (!email) return;
-                                    // Search user
-                                    const { data } = await supabase.from('user_accounts').select('*').eq('email', email).limit(1);
-                                    if (data && data.length > 0) {
-                                        const otherUser = data[0];
-                                        // Create private room logic
-                                        const roomName = `Chat: ${profile.displayName} & ${otherUser.display_name || otherUser.username}`;
-                                        const { data: newRoom } = await supabase.from('chat_rooms').insert([{ name: roomName, type: 'private', created_by: profile.email }]).select();
-                                        if (newRoom) {
-                                            await supabase.from('chat_room_members').insert([
-                                                { room_id: newRoom[0].id, user_id: profile.email, role: 'member' },
-                                                { room_id: newRoom[0].id, user_id: otherUser.email, role: 'member' }
-                                            ]);
-                                            setActiveRoomId(newRoom[0].id);
-                                            setShowNewChatModal(false);
-                                            loadData(supabase);
-                                        }
-                                    } else {
-                                        alert("User tidak ditemukan, min!");
-                                    }
-                                }} style={{ padding: '0 20px', background: '#3b82f6', borderRadius: '12px', color: 'white', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>Add</button>
+            {/* MAIN CHAT AREA */}
+            {(!isMobile || !showContactList) && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                    {/* Header */}
+                    <div style={{
+                        padding: '16px 24px', background: 'rgba(15, 12, 45, 0.8)', backdropFilter: 'blur(10px)',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '16px'
+                    }}>
+                        {isMobile && <button onClick={() => setShowContactList(true)} style={{ background: 'none', border: 'none', color: 'white', padding: '8px' }}>
+                            <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>}
+                        {selectedContact ? (
+                            <div style={{ position: 'relative' }}>
+                                <img src={selectedContact.avatar || getAvatar(selectedContact.name)} alt={selectedContact.name}
+                                    style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                                {selectedContact.online && <div style={{ position: 'absolute', bottom: '0', right: '0', width: '10px', height: '10px', background: '#22c55e', borderRadius: '50%', border: '2px solid #0f0c2d' }} />}
                             </div>
+                        ) : (
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Hash size={24} color="#6366f1" />
+                            </div>
+                        )}
+                        <div style={{ flex: 1 }}>
+                            <h3 style={{ color: 'white', fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                                {selectedContact ? selectedContact.name : 'Global Chat'}
+                            </h3>
+                            <span style={{ color: selectedContact?.online ? '#22c55e' : '#64748b', fontSize: '13px' }}>
+                                {selectedContact ? (selectedContact.online ? 'Online' : 'Offline') : `${contacts.filter(c => c.online).length} online • ${messages.length} pesan`}
+                            </span>
                         </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => updateChatSettings('notificationSound', !chatSettings.notificationSound)} className="action-btn" title={!chatSettings.notificationSound ? 'Unmute' : 'Mute'}
+                                style={{ background: !chatSettings.notificationSound ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: !chatSettings.notificationSound ? '#ef4444' : '#94a3b8' }}>
+                                {!chatSettings.notificationSound ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                            <button onClick={() => setIsStarred(!isStarred)} className="action-btn" title={isStarred ? 'Unstar' : 'Star'}
+                                style={{ background: isStarred ? 'rgba(234,179,8,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: isStarred ? '#eab308' : '#94a3b8' }}>
+                                <Star size={18} fill={isStarred ? '#eab308' : 'none'} />
+                            </button>
+                            <button onClick={() => setShowRightPanel(!showRightPanel)} className="action-btn"
+                                style={{ background: showRightPanel ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: showRightPanel ? '#6366f1' : '#94a3b8' }}>
+                                <Info size={18} />
+                            </button>
+                        </div>
+                    </div>
 
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                            <label style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>CREATE GROUP</label>
-                            <button onClick={async () => {
-                                const name = prompt("Nama Grup Sultan:");
-                                if (name) {
-                                    const { data: nRoom } = await supabase.from('chat_rooms').insert([{ name, type: 'group', created_by: profile.email }]).select();
-                                    if (nRoom) {
-                                        await supabase.from('chat_room_members').insert([{ room_id: nRoom[0].id, user_id: profile.email, role: 'admin' }]);
-                                        setShowNewChatModal(false);
-                                        setActiveRoomId(nRoom[0].id);
-                                        loadData(supabase);
-                                    }
-                                }
-                            }} style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', color: 'white', border: '1px solid rgba(255,255,255,0.1)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'all 0.3s' }}>
-                                <Users size={20} color="#6366f1" /> Create Group Sultan
+                    {/* Messages */}
+                    <div ref={scrollRef} style={{
+                        flex: 1, overflowY: 'auto', padding: chatSettings.compactMode ? '12px 24px' : '24px',
+                        display: 'flex', flexDirection: 'column', gap: chatSettings.compactMode ? '8px' : '16px'
+                    }}>
+                        {isLoading && messages.length === 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
+                                <RefreshCw size={48} className="animate-spin" style={{ marginBottom: '16px', opacity: 0.5 }} />
+                                <p>Loading messages...</p>
+                            </div>
+                        ) : filteredMessages.length === 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                                <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+                                    <MessageSquare size={36} color="#6366f1" />
+                                </div>
+                                <h3 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: '0 0 8px' }}>{searchQuery ? 'Tidak ada hasil' : 'Belum ada pesan'}</h3>
+                                <p style={{ color: '#64748b', fontSize: '14px' }}>{searchQuery ? 'Coba kata kunci lain' : 'Mulai percakapan!'}</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                                    <span style={{ background: 'rgba(255,255,255,0.05)', color: '#64748b', fontSize: '12px', padding: '6px 16px', borderRadius: '20px' }}>Today</span>
+                                </div>
+                                {filteredMessages.map((msg) => {
+                                    const isMe = msg.user_id === profile.email;
+                                    const replyMsg = msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null;
+                                    return (
+                                        <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="msg-bubble"
+                                            style={{ display: 'flex', gap: '12px', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-start', maxWidth: '85%', alignSelf: isMe ? 'flex-end' : 'flex-start', position: 'relative' }}>
+                                            {chatSettings.showAvatars && (
+                                                <img src={msg.avatar || getAvatar(msg.username)} alt=""
+                                                    style={{ width: chatSettings.compactMode ? '32px' : '36px', height: chatSettings.compactMode ? '32px' : '36px', borderRadius: '50%', objectFit: 'cover', border: isMe ? '2px solid #6366f1' : 'none' }} />
+                                            )}
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                                                {!isMe && <span style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>{msg.username}</span>}
+
+                                                {/* Reply Preview */}
+                                                {replyMsg && (
+                                                    <div style={{ background: 'rgba(99,102,241,0.1)', padding: '8px 12px', borderRadius: '8px', marginBottom: '4px', borderLeft: '3px solid #6366f1', fontSize: '12px', color: '#94a3b8', maxWidth: '200px' }}>
+                                                        <span style={{ color: '#6366f1', fontWeight: '600' }}>{replyMsg.username}</span>
+                                                        <p style={{ margin: '4px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{replyMsg.message}</p>
+                                                    </div>
+                                                )}
+
+                                                <div style={{
+                                                    background: msg.is_deleted ? 'rgba(100,100,100,0.3)' : (isMe ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(30, 25, 60, 0.9)'),
+                                                    color: 'white', padding: msg.attachment ? '8px' : (chatSettings.compactMode ? '8px 12px' : '12px 16px'), borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                                                    border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)', boxShadow: isMe && !msg.is_deleted ? '0 4px 15px rgba(99, 102, 241, 0.3)' : 'none',
+                                                    fontStyle: msg.is_deleted ? 'italic' : 'normal', opacity: msg.is_deleted ? 0.7 : 1,
+                                                }}>
+                                                    {msg.attachment && !msg.is_deleted && (
+                                                        <img src={msg.attachment} alt="" onClick={() => setImagePreview(msg.attachment)}
+                                                            style={{ maxWidth: chatSettings.compactMode ? '220px' : '280px', borderRadius: '12px', display: 'block', marginBottom: msg.message ? '8px' : 0, cursor: 'pointer' }} />
+                                                    )}
+                                                    {msg.message && <p style={{
+                                                        margin: 0,
+                                                        fontSize: chatSettings.fontSize === 'small' ? '12px' : chatSettings.fontSize === 'large' ? '16px' : '14px',
+                                                        lineHeight: '1.5'
+                                                    }}>{msg.message}</p>}
+                                                    {msg.is_edited && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '8px' }}>(edited)</span>}
+                                                </div>
+
+                                                {(chatSettings.showTimestamp || isMe) && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                        {chatSettings.showTimestamp && <span style={{ color: '#64748b', fontSize: '10px' }}>{formatTime(msg.created_at)}</span>}
+                                                        {isMe && chatSettings.showReadReceipts && <CheckCheck size={14} color={msg.is_optimistic ? '#64748b' : '#6366f1'} />}
+                                                    </div>
+                                                )}
+
+                                                {/* Message Actions */}
+                                                {!msg.is_deleted && (
+                                                    <div className="msg-actions" style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleReplyMessage(msg); }} className="action-btn"
+                                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Reply size={14} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleCopyMessage(msg.message); }} className="action-btn"
+                                                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Copy size={14} /></button>
+                                                        {isMe && (
+                                                            <>
+                                                                <button onClick={(e) => { e.stopPropagation(); setEditingMessage(msg); setEditText(msg.message); }} className="action-btn"
+                                                                    style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '6px', padding: '6px', color: '#94a3b8' }}><Edit3 size={14} /></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id, true); }} className="action-btn"
+                                                                    style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: '6px', padding: '6px', color: '#ef4444' }}><Trash2 size={14} /></button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </>
+                        )}
+                    </div>
+
+                    {/* Input Area */}
+                    <div style={{ padding: '16px 24px', background: 'rgba(15, 12, 45, 0.6)' }}>
+                        {replyTo && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.1)',
+                                padding: '10px 16px', borderRadius: '12px 12px 0 0', borderLeft: '3px solid #6366f1', marginBottom: '-8px'
+                            }}>
+                                <div>
+                                    <span style={{ color: '#6366f1', fontSize: '12px', fontWeight: '600' }}>Replying to {replyTo.username}</span>
+                                    <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>{replyTo.message?.substring(0, 50)}...</p>
+                                </div>
+                                <button onClick={() => setReplyTo(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={18} /></button>
+                            </div>
+                        )}
+                        {attachment && (
+                            <div style={{ marginBottom: '8px', position: 'relative', display: 'inline-block' }}>
+                                <img src={attachment} alt="" style={{ height: '60px', borderRadius: '8px' }} />
+                                <button onClick={() => setAttachment(null)} style={{
+                                    position: 'absolute', top: '-8px', right: '-8px', width: '20px', height: '20px', borderRadius: '50%',
+                                    background: '#ef4444', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                }}><X size={12} /></button>
+                            </div>
+                        )}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(30, 25, 60, 0.8)',
+                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: '12px 16px', border: '1px solid rgba(255,255,255,0.06)'
+                        }}>
+                            <label style={{ cursor: 'pointer', color: '#64748b', padding: '4px' }}>
+                                <Paperclip size={20} />
+                                <input type="file" accept="image/*" hidden onChange={handleFileSelect} />
+                            </label>
+                            <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
+                                placeholder="Type a message..." style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none' }} />
+                            <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="action-btn"
+                                style={{ background: 'none', border: 'none', color: showEmojiPicker ? '#6366f1' : '#64748b', padding: '4px' }}><Smile size={20} /></button>
+                            <button onClick={handleSend} disabled={!inputMessage.trim() && !attachment}
+                                style={{
+                                    background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)',
+                                    border: 'none', borderRadius: '12px', padding: '10px 20px', color: 'white', fontWeight: '600', fontSize: '14px',
+                                    display: 'flex', alignItems: 'center', gap: '6px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default'
+                                }}>
+                                Send <Send size={16} />
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* RIGHT PANEL */}
+            {showRightPanel && !isMobile && (
+                <div style={{
+                    width: '300px', background: 'rgba(10, 8, 30, 0.95)', borderLeft: '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0
+                }}>
+                    <div style={{ textAlign: 'center', padding: '32px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{
+                            width: '100px', height: '100px', borderRadius: '24px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px'
+                        }}><Hash size={48} color="white" /></div>
+                        <h3 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: '0 0 4px' }}>Global Chat</h3>
+                        <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Public channel for everyone</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '20px' }}>
+                            {[{ icon: Flag, action: () => showToast('Reported') }, { icon: Bell, action: () => setIsMuted(!isMuted) }, { icon: Info, action: () => showToast('Info channel') }, { icon: Star, action: () => setIsStarred(!isStarred) }].map((item, i) => (
+                                <button key={i} onClick={item.action} className="action-btn" style={{
+                                    width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.06)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}><item.icon size={18} /></button>
+                            ))}
+                        </div>
+                    </div>
+                    <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>Statistics</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px' }}>
+                            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                                <div style={{ color: '#6366f1', fontSize: '24px', fontWeight: '700' }}>{messages.length}</div>
+                                <div style={{ color: '#64748b', fontSize: '11px' }}>Messages</div>
+                            </div>
+                            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                                <div style={{ color: '#22c55e', fontSize: '24px', fontWeight: '700' }}>{contacts.filter(c => c.online).length}</div>
+                                <div style={{ color: '#64748b', fontSize: '11px' }}>Online</div>
+                            </div>
+                        </div>
+                    </div>
+                    {sharedMedia.length > 0 && (
+                        <div style={{ padding: '20px 24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <span style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>Shared Media ({sharedMedia.length})</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                {sharedMedia.slice(0, 9).map((item, i) => (
+                                    <div key={i} className="media-item" onClick={() => setImagePreview(item.url)}
+                                        style={{ aspectRatio: '1', borderRadius: '10px', overflow: 'hidden' }}>
+                                        <img src={item.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Emoji Picker */}
+            <AnimatePresence>
+                {showEmojiPicker && (
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+                        style={{ position: 'absolute', bottom: '100px', right: showRightPanel ? '340px' : '40px', zIndex: 100 }}>
+                        <Suspense fallback={<div style={{ width: 320, height: 350, background: '#1e293b', borderRadius: 12 }} />}>
+                            <EmojiPicker theme="dark" width={320} height={350} onEmojiClick={(e) => setInputMessage(prev => prev + e.emoji)} />
+                        </Suspense>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
