@@ -5,7 +5,7 @@ import {
     Check, CheckCheck, Star, Trash2, Reply, Settings, Bell, Hash,
     ChevronRight, ChevronDown, MessageSquare, RefreshCw, Copy, Edit3,
     Flag, Bookmark, Heart, Eye, EyeOff, Pin, ZoomIn, Download, Volume2, VolumeX,
-    Mic, Square, Play, Pause, Plus, Users, Globe, Headset
+    Mic, Square, Play, Pause, Plus, Users, Globe, Headset, Eraser
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -272,6 +272,7 @@ const GlobalChat = () => {
         };
 
         window.visualViewport.addEventListener('resize', handleResize);
+        handleResize(); // Initialize on mount
         return () => window.visualViewport.removeEventListener('resize', handleResize);
     }, [isAtBottom]);
 
@@ -507,7 +508,6 @@ const GlobalChat = () => {
         if (!database) return;
 
         const isGlobal = roomId === GLOBAL_ROOM_ID;
-        // Check admin privilege for Global Chat
         const isAdminAccount = ['taufikhidayaat56@gmail.com', 'afwanf388@gmail.com'].includes(profile.email);
 
         if (isGlobal && !isAdminAccount) {
@@ -515,36 +515,47 @@ const GlobalChat = () => {
             return;
         }
 
-        // Get Room Title
         let roomTitle = 'Percakapan';
+        let isGroup = false;
+
         if (isGlobal) {
             roomTitle = 'Global Chat';
         } else {
             const group = customGroups.find(g => g.id === roomId);
             if (group) {
-                roomTitle = `Grup: ${group.name}`;
+                roomTitle = group.name;
+                isGroup = true;
             } else {
                 const contact = contacts.find(c => getPrivateRoomId(profile.email, c.email) === roomId);
-                if (contact) roomTitle = `Chat: ${contact.name}`;
+                if (contact) roomTitle = contact.name;
             }
         }
 
-        setDeleteRoomModal({ id: roomId, title: roomTitle, isGlobal });
+        setDeleteRoomModal({ id: roomId, title: roomTitle, isGlobal, isGroup });
     };
 
     const confirmDeleteRoom = async () => {
         if (!deleteRoomModal || !database) return;
-        const { id } = deleteRoomModal;
+        const { id, isGroup } = deleteRoomModal;
 
-        // Add loading indicator would be nice here, but for now we rely on toast
         const btn = document.getElementById('confirm-delete-btn');
-        if (btn) { btn.disabled = true; btn.innerText = 'Deleting...'; }
+        if (btn) { btn.disabled = true; btn.innerText = 'Processing...'; }
 
         try {
-            await remove(ref(database, `messages/${id}`));
-            showToast('Percakapan telah dibersihkan secara permanen');
+            const promises = [remove(ref(database, `messages/${id}`))];
 
-            // If current room is deleted, reset to Global
+            if (isGroup) {
+                promises.push(remove(ref(database, `group_metadata/${id}`)));
+            }
+
+            await Promise.all(promises);
+
+            if (isGroup) {
+                showToast(`Grup "${deleteRoomModal.title}" berhasil dihapus permanen`);
+            } else {
+                showToast('Percakapan telah dibersihkan');
+            }
+
             if (activeRoom === id) {
                 setMessages([]);
                 setActiveRoom(GLOBAL_ROOM_ID);
@@ -554,7 +565,7 @@ const GlobalChat = () => {
             setDeleteRoomModal(null);
         } catch (error) {
             console.error('Delete error:', error);
-            showToast('Gagal menghapus percakapan', 'error');
+            showToast('Gagal menghapus', 'error');
             if (btn) { btn.disabled = false; btn.innerText = 'Ya, Hapus!'; }
         }
     };
@@ -643,15 +654,21 @@ const GlobalChat = () => {
 
     return (
         <div style={{
-            height: isMobile ? 'calc(100dvh - 120px)' : 'calc(100vh - 100px)',
-            display: 'flex', width: '100%', maxWidth: '1600px', margin: '0 auto',
+            height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
+            display: 'flex', width: '100%', maxWidth: '1600px',
+            margin: isMobile ? '0' : '0 auto',
             background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
-            backdropFilter: 'blur(20px)', borderRadius: isMobile ? '12px' : '24px', overflow: 'hidden',
-            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: isMobile ? '0' : '24px',
+            overflow: 'hidden',
+            border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
-            position: 'relative',
+            position: isMobile ? 'fixed' : 'relative',
+            top: isMobile ? 0 : 'auto',
+            left: isMobile ? 0 : 'auto',
+            zIndex: isMobile ? 9999 : 1, // Ensure it sits on top of everything on mobile
             // Mobile Height Fix
-            height: isMobile ? `${visualViewportHeight - 96}px` : 'calc(100vh - 100px)',
+            height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
         }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
@@ -974,9 +991,15 @@ const GlobalChat = () => {
                                                 <div style={{ color: 'white', fontSize: '14px', fontWeight: '700' }}>{group.name}</div>
                                                 <div style={{ color: '#4b5563', fontSize: '11px' }}>Custom Channel</div>
                                             </div>
-                                            <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(group.id, e)} title="Delete Group Room">
-                                                <Trash2 size={14} />
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(group.id, e, 'clear')} title="Bersihkan Chat"
+                                                    style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8' }}>
+                                                    <Eraser size={14} />
+                                                </button>
+                                                <button className="delete-conv-btn" onClick={(e) => handleDeleteRoom(group.id, e, 'delete')} title="Hapus Grup">
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -1236,10 +1259,17 @@ const GlobalChat = () => {
                                                         <motion.img whileHover={{ scale: 1.02 }}
                                                             src={msg.attachment} alt="" onClick={() => setImagePreview(msg.attachment)}
                                                             style={{
-                                                                maxWidth: chatSettings.compactMode ? '260px' : '340px',
-                                                                borderRadius: '18px', display: 'block',
-                                                                marginBottom: msg.message && !msg.voice ? '10px' : 0, cursor: 'pointer',
-                                                                boxShadow: '0 10px 30px rgba(0,0,0,0.4)'
+                                                                width: 'auto',
+                                                                maxWidth: isMobile ? '85vw' : '450px',
+                                                                height: 'auto',
+                                                                maxHeight: '60vh', // Limit vertical height to prevent taking up full screen
+                                                                borderRadius: '16px',
+                                                                display: 'block',
+                                                                marginBottom: msg.message && !msg.voice ? '10px' : 0,
+                                                                cursor: 'pointer',
+                                                                boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
+                                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                                transition: 'all 0.3s ease'
                                                             }} />
                                                     )}
                                                     {msg.voice && !msg.is_deleted && (
@@ -1554,25 +1584,87 @@ const GlobalChat = () => {
                 {deleteRoomModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         onClick={() => setDeleteRoomModal(null)}
-                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '20px' }}>
-                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+                        style={{
+                            position: 'fixed', inset: 0,
+                            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            zIndex: 10001, padding: '20px'
+                        }}>
+                        <motion.div initial={{ scale: 0.9, y: 20, rotateX: 10 }} animate={{ scale: 1, y: 0, rotateX: 0 }} exit={{ scale: 0.9, y: 20 }}
                             onClick={(e) => e.stopPropagation()}
-                            style={{ background: '#1e1b4b', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)', textAlign: 'center' }}>
-                            <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                                <Trash2 size={40} />
+                            style={{
+                                background: 'linear-gradient(145deg, #1e1b4b, #0f172a)',
+                                borderRadius: '28px', padding: '32px', width: '100%', maxWidth: '420px',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                boxShadow: '0 25px 80px rgba(220, 38, 38, 0.2), 0 0 0 1px rgba(239, 68, 68, 0.1)',
+                                textAlign: 'center', position: 'relative', overflow: 'hidden'
+                            }}>
+
+                            {/* Background Effect */}
+                            <div style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%', background: 'radial-gradient(circle, rgba(239,68,68,0.05) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+                            <div style={{
+                                width: '88px', height: '88px', borderRadius: '24px',
+                                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 24px', position: 'relative',
+                                boxShadow: '0 0 30px rgba(239, 68, 68, 0.2)'
+                            }}>
+                                <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ repeat: Infinity, duration: 2, repeatDelay: 1 }}>
+                                    {deleteRoomModal.isGroup ? <Users size={44} /> : <Trash2 size={44} />}
+                                </motion.div>
+                                <div style={{ position: 'absolute', bottom: -5, right: -5, background: '#1e1b4b', borderRadius: '50%', padding: '4px' }}>
+                                    <div style={{ width: '24px', height: '24px', background: '#ef4444', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                        <X size={14} strokeWidth={4} />
+                                    </div>
+                                </div>
                             </div>
-                            <h3 style={{ color: 'white', fontSize: '22px', fontWeight: '800', margin: '0 0 12px' }}>Hapus Percakapan?</h3>
+
+                            <h3 style={{ color: 'white', fontSize: '24px', fontWeight: '900', margin: '0 0 12px', letterSpacing: '-0.5px' }}>
+                                {deleteRoomModal.isGroup && deleteRoomModal.action === 'delete' ? 'Hapus Grup?' : 'Bersihkan Chat?'}
+                            </h3>
+
                             <p style={{ color: '#94a3b8', fontSize: '15px', lineHeight: '1.6', margin: '0 0 32px' }}>
-                                Apakah Anda yakin ingin menghapus semua pesan di <span style={{ color: 'white', fontWeight: '700' }}>{deleteRoomModal.title}</span>? Tindakan ini bersifat permanen dan tidak bisa dibatalkan.
+                                {deleteRoomModal.isGroup && deleteRoomModal.action === 'delete' ? (
+                                    <>
+                                        Anda akan menghapus grup <span style={{ color: 'white', fontWeight: '800' }}>"{deleteRoomModal.title}"</span> beserta seluruh isinya secara permanen. Tindakan ini tidak dapat dibatalkan.
+                                    </>
+                                ) : (
+                                    <>
+                                        Apakah Anda yakin ingin {deleteRoomModal.action === 'clear' ? 'membersihkan' : 'menghapus'} semua pesan di <span style={{ color: 'white', fontWeight: '800' }}>{deleteRoomModal.title}</span>?
+                                        {deleteRoomModal.isGroup ? ' Grup tidak akan terhapus.' : ' Chat akan menjadi kosong.'}
+                                    </>
+                                )}
                             </p>
+
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button onClick={() => setDeleteRoomModal(null)}
-                                    style={{ flex: 1, padding: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-                                    Batal
+                                    style={{
+                                        flex: 1, padding: '16px', background: 'rgba(255,255,255,0.03)',
+                                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px',
+                                        color: '#cbd5e1', fontWeight: '700', cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.08)'}
+                                    onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.03)'}
+                                >
+                                    Batalkan
                                 </button>
                                 <button id="confirm-delete-btn" onClick={confirmDeleteRoom}
-                                    style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '800', cursor: 'pointer', boxShadow: '0 10px 20px rgba(239, 68, 68, 0.3)' }}>
-                                    Ya, Hapus!
+                                    style={{
+                                        flex: 1, padding: '16px',
+                                        background: deleteRoomModal.action === 'clear' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                                        border: deleteRoomModal.action === 'clear' ? '1px solid #f59e0b' : '1px solid #ef4444',
+                                        borderRadius: '16px',
+                                        color: 'white', fontWeight: '800', cursor: 'pointer',
+                                        boxShadow: deleteRoomModal.action === 'clear' ? '0 8px 20px -4px rgba(245, 158, 11, 0.5)' : '0 8px 20px -4px rgba(239, 68, 68, 0.5)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                        position: 'relative', overflow: 'hidden'
+                                    }}
+                                >
+                                    <span style={{ position: 'relative', zIndex: 1 }}>
+                                        {deleteRoomModal.isGroup && deleteRoomModal.action === 'delete' ? 'Hapus Grup' : 'Bersihkan'}
+                                    </span>
                                 </button>
                             </div>
                         </motion.div>
