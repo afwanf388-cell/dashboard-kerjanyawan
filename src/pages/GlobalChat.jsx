@@ -651,20 +651,33 @@ const GlobalChat = () => {
             boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
             position: 'relative',
             // Mobile Height Fix
-            height: isMobile ? `${visualViewportHeight - 120}px` : 'calc(100vh - 100px)',
+            height: isMobile ? `${visualViewportHeight - 96}px` : 'calc(100vh - 100px)',
         }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
                 .chat-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
                 .contact-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden; }
-                .contact-item:hover { background: rgba(99, 102, 241, 0.08); transform: translateX(5px); }
+                .contact-item:hover { background: rgba(99, 102, 241, 0.08); }
                 .contact-item.active { background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), transparent); border-left: 4px solid #6366f1; }
-                .contact-item:hover .delete-conv-btn { opacity: 1; transform: scale(1); }
+                
+                /* Desktop Hover Effects */
+                @media (min-width: 1024px) {
+                    .contact-item:hover { transform: translateX(5px); }
+                    .delete-conv-btn { opacity: 0; transform: scale(0.8); }
+                    .contact-item:hover .delete-conv-btn { opacity: 1; transform: scale(1); }
+                }
+
                 .delete-conv-btn { 
-                    opacity: 0; transform: scale(0.8); transition: all 0.2s ease;
+                    transition: all 0.2s ease;
                     background: rgba(239, 68, 68, 0.1); border: none; color: #ef4444; 
                     padding: 8px; borderRadius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
                 }
+
+                /* Mobile delete button always visible */
+                @media (max-width: 1023px) {
+                    .delete-conv-btn { opacity: 1; transform: scale(1); margin-left: 8px; }
+                }
+
                 .delete-conv-btn:hover { background: #ef4444; color: white; }
                 .msg-bubble:hover .msg-actions { opacity: 1; transform: translateY(0); }
                 .msg-actions { opacity: 0; transition: all 0.2s ease; transform: translateY(10px); }
@@ -725,8 +738,6 @@ const GlobalChat = () => {
                     0%, 100% { height: 5px; }
                     50% { height: 20px; }
                 }
-                .delete-conv-btn { opacity: 0; transition: all 0.2s ease; border: none; background: rgba(239, 68, 68, 0.1); color: #ef4444; border-radius: 6px; padding: 4px; display: flex; align-items: center; justify-content: center; }
-                .contact-item:hover .delete-conv-btn { opacity: 1; }
                 .delete-conv-btn:hover { background: #ef4444 !important; color: white !important; transform: scale(1.1); }
             `}</style>
 
@@ -1332,7 +1343,7 @@ const GlobalChat = () => {
                     </AnimatePresence>
 
                     {/* Input Area */}
-                    <div style={{ padding: isMobile ? '12px 6px 30px' : '16px 24px', background: 'rgba(15, 12, 45, 0.6)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ padding: isMobile ? '12px 12px 12px' : '16px 24px', background: 'rgba(15, 12, 45, 0.6)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         {replyTo && (
                             <div style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.1)',
@@ -1355,8 +1366,9 @@ const GlobalChat = () => {
                             </div>
                         )}
                         <div style={{
-                            display: 'flex', alignItems: 'center', gap: isMobile ? '6px' : '12px', background: 'rgba(30, 25, 60, 0.8)',
-                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: isMobile ? '4px 8px' : '10px 16px', border: '1px solid rgba(255,255,255,0.06)'
+                            display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px', background: 'rgba(30, 25, 60, 0.8)',
+                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: isMobile ? '8px 12px' : '10px 16px', border: '1px solid rgba(255,255,255,0.06)',
+                            minHeight: isMobile ? '50px' : 'auto'
                         }}>
                             {isRecording ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', color: '#ef4444' }}>
@@ -1379,7 +1391,7 @@ const GlobalChat = () => {
                                     </label>
                                     <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
-                                        placeholder="Type a message..." style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none', padding: '8px 0' }} />
+                                        placeholder="Type a message..." style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'white', fontSize: '15px', outline: 'none', padding: '8px 0', height: '100%' }} />
 
                                     <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                                         style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: isMobile ? '8px' : '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
