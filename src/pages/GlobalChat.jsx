@@ -97,6 +97,9 @@ const GlobalChat = () => {
     const [newGroupName, setNewGroupName] = useState('');
     const [customGroups, setCustomGroups] = useState([]);
     const [deleteRoomModal, setDeleteRoomModal] = useState(null); // { id, title, isGlobal }
+    const [showScrollButton, setShowScrollButton] = useState(false);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [visualViewportHeight, setVisualViewportHeight] = useState(window.innerHeight);
 
     // Chat Settings (persisted)
     const [chatSettings, setChatSettings] = useState(() => {
@@ -129,7 +132,7 @@ const GlobalChat = () => {
         avatar: user?.avatar || null,
     }), [user]);
 
-    const isAdmin = useMemo(() => profile.email === 'taufikhidayaat56@gmail.com', [profile.email]);
+    const isAdmin = useMemo(() => ['taufikhidayaat56@gmail.com', 'afwanf388@gmail.com'].includes(profile.email), [profile.email]);
 
     const getAvatar = (name) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${name || 'User'}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
@@ -147,16 +150,26 @@ const GlobalChat = () => {
         showToast(`${key} updated`);
     };
 
-    // Clear all messages (local only)
-    const handleClearChatHistory = () => {
-        if (confirm('Hapus semua riwayat chat dari tampilan ini? (Data di server tidak terhapus)')) {
-            setMessages([]);
-            if (user?.username) {
-                localStorage.removeItem(`${CACHED_MSGS_KEY}_${user.username}`);
-            }
-            showToast('Chat history cleared');
-            setShowSettings(false);
+    // Clear all messages (Server Side for Admin, Hidden for others)
+    const handleClearChatHistory = async () => {
+        if (!isAdmin) {
+            showToast('Akses ditolak: Hanya Admin yang bisa membersihkan riwayat ini', 'error');
+            return;
         }
+
+        let roomTitle = 'Percakapan ini';
+        if (activeRoom === GLOBAL_ROOM_ID) roomTitle = 'Global Chat';
+        else {
+            const group = customGroups.find(g => g.id === activeRoom);
+            if (group) roomTitle = `Grup: ${group.name}`;
+            else {
+                const contact = contacts.find(c => getPrivateRoomId(profile.email, c.email) === activeRoom);
+                if (contact) roomTitle = `Chat: ${contact.name}`;
+            }
+        }
+
+        setDeleteRoomModal({ id: activeRoom, title: roomTitle, isGlobal: activeRoom === GLOBAL_ROOM_ID });
+        setShowSettings(false);
     };
 
     // Load Messages (Firebase version)
@@ -212,6 +225,56 @@ const GlobalChat = () => {
         };
     }, [activeRoom, user, profile.email, chatSettings.notificationSound]);
 
+    // --- ADVANCED AUTO-SCROLL LOGIC ---
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = (behavior = 'smooth') => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior });
+        }
+    };
+
+    // Auto-scroll when messages update
+    useEffect(() => {
+        if (chatSettings.autoScroll && isAtBottom) {
+            scrollToBottom('smooth');
+        } else if (!isAtBottom) {
+            setShowScrollButton(true);
+        }
+    }, [messages, chatSettings.autoScroll]);
+
+    // Handle initial load scroll
+    useEffect(() => {
+        if (messages.length > 0) {
+            scrollToBottom('auto');
+        }
+    }, [activeRoom]);
+
+    // Detect if user is at bottom
+    const handleScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        const offset = 100; // tolerance
+        const bottom = scrollHeight - scrollTop <= clientHeight + offset;
+        setIsAtBottom(bottom);
+        if (bottom) setShowScrollButton(false);
+    };
+
+    // --- MOBILE KEYBOARD BUG FIX ---
+    useEffect(() => {
+        if (!window.visualViewport) return;
+
+        const handleResize = () => {
+            setVisualViewportHeight(window.visualViewport.height);
+            // If focused on input and keyboard appears, scroll to bottom
+            if (document.activeElement === inputRef.current && isAtBottom) {
+                setTimeout(() => scrollToBottom('smooth'), 100);
+            }
+        };
+
+        window.visualViewport.addEventListener('resize', handleResize);
+        return () => window.visualViewport.removeEventListener('resize', handleResize);
+    }, [isAtBottom]);
+
     // Track Unread Messages for ALL rooms
     useEffect(() => {
         if (!database || !user || !contacts.length) return;
@@ -238,12 +301,19 @@ const GlobalChat = () => {
                             ...prev,
                             [roomId]: (prev[roomId] || 0) + 1
                         }));
-
-                        // Show sophisticated toast for background messages
-                        if (chatSettings.notifications) {
-                            // Non-blocking notification logic can go here
-                        }
                     }
+                } else {
+                    // Room empty or deleted
+                    setLastMessages(prev => {
+                        const next = { ...prev };
+                        delete next[roomId];
+                        return next;
+                    });
+                    setUnreadCounts(prev => {
+                        const next = { ...prev };
+                        delete next[roomId];
+                        return next;
+                    });
                 }
             });
             unsubscribes.push({ ref: roomRef, unsub });
@@ -438,7 +508,7 @@ const GlobalChat = () => {
 
         const isGlobal = roomId === GLOBAL_ROOM_ID;
         // Check admin privilege for Global Chat
-        const isAdminAccount = profile.email === 'taufikhidayaat56@gmail.com';
+        const isAdminAccount = ['taufikhidayaat56@gmail.com', 'afwanf388@gmail.com'].includes(profile.email);
 
         if (isGlobal && !isAdminAccount) {
             showToast('Akses ditolak: Hanya Admin yang bisa menghapus Global Chat', 'error');
@@ -466,14 +536,26 @@ const GlobalChat = () => {
         if (!deleteRoomModal || !database) return;
         const { id } = deleteRoomModal;
 
+        // Add loading indicator would be nice here, but for now we rely on toast
+        const btn = document.getElementById('confirm-delete-btn');
+        if (btn) { btn.disabled = true; btn.innerText = 'Deleting...'; }
+
         try {
             await remove(ref(database, `messages/${id}`));
             showToast('Percakapan telah dibersihkan secara permanen');
-            if (activeRoom === id) setMessages([]);
+
+            // If current room is deleted, reset to Global
+            if (activeRoom === id) {
+                setMessages([]);
+                setActiveRoom(GLOBAL_ROOM_ID);
+                setSelectedContact(null);
+            }
+
             setDeleteRoomModal(null);
         } catch (error) {
             console.error('Delete error:', error);
             showToast('Gagal menghapus percakapan', 'error');
+            if (btn) { btn.disabled = false; btn.innerText = 'Ya, Hapus!'; }
         }
     };
 
@@ -538,10 +620,20 @@ const GlobalChat = () => {
     };
 
     // Filter contacts
+    // Filter contacts based on active conversations or search
     const filteredContacts = useMemo(() => {
-        if (!searchQuery) return contacts;
-        return contacts.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.email?.toLowerCase().includes(searchQuery.toLowerCase()));
-    }, [contacts, searchQuery]);
+        if (searchQuery) {
+            return contacts.filter(c =>
+                c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.email?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
+        // When not searching, only show contacts who have an active conversation OR are currently selected
+        return contacts.filter(c => {
+            const roomId = getPrivateRoomId(profile.email, c.email);
+            return lastMessages[roomId] !== undefined || selectedContact?.id === c.id;
+        });
+    }, [contacts, searchQuery, lastMessages, profile.email, selectedContact]);
 
     // Filtered messages for search
     const filteredMessages = useMemo(() => {
@@ -556,7 +648,10 @@ const GlobalChat = () => {
             background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
             backdropFilter: 'blur(20px)', borderRadius: isMobile ? '12px' : '24px', overflow: 'hidden',
             border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)', position: 'relative',
+            boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
+            position: 'relative',
+            // Mobile Height Fix
+            height: isMobile ? `${visualViewportHeight - 120}px` : 'calc(100vh - 100px)',
         }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
@@ -564,6 +659,13 @@ const GlobalChat = () => {
                 .contact-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; overflow: hidden; }
                 .contact-item:hover { background: rgba(99, 102, 241, 0.08); transform: translateX(5px); }
                 .contact-item.active { background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), transparent); border-left: 4px solid #6366f1; }
+                .contact-item:hover .delete-conv-btn { opacity: 1; transform: scale(1); }
+                .delete-conv-btn { 
+                    opacity: 0; transform: scale(0.8); transition: all 0.2s ease;
+                    background: rgba(239, 68, 68, 0.1); border: none; color: #ef4444; 
+                    padding: 8px; borderRadius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                }
+                .delete-conv-btn:hover { background: #ef4444; color: white; }
                 .msg-bubble:hover .msg-actions { opacity: 1; transform: translateY(0); }
                 .msg-actions { opacity: 0; transition: all 0.2s ease; transform: translateY(10px); }
                 .action-btn { transition: all 0.2s ease; cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -578,6 +680,15 @@ const GlobalChat = () => {
                 .msg-glow { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
                 .msg-bubble:hover .msg-glow { opacity: 1; }
                 .media-item:hover { transform: scale(1.05); filter: brightness(1.1); }
+                .new-msg-btn {
+                    animation: bounce 2s infinite;
+                    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.5);
+                }
+                @keyframes bounce {
+                    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+                    40% {transform: translateY(-10px);}
+                    60% {transform: translateY(-5px);}
+                }
                 .unread-badge {
                     position: absolute; top: -5px; right: -5px;
                     background: linear-gradient(135deg, #ef4444, #f87171);
@@ -774,10 +885,24 @@ const GlobalChat = () => {
                                         </label>
                                     ))}
                                 </div>
-                                <div>
-                                    <h4 style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>⚠️ Danger Zone</h4>
-                                    <button onClick={handleClearChatHistory} style={{ width: '100%', padding: '14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Trash2 size={18} /> Clear Chat History</button>
-                                </div>
+                                {isAdmin && (
+                                    <div>
+                                        <h4 style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>⚠️ Danger Zone (Admin Only)</h4>
+                                        <button onClick={handleClearChatHistory} style={{
+                                            width: '100%', padding: '16px', background: 'rgba(239, 68, 68, 0.1)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px',
+                                            color: '#ef4444', fontWeight: '800', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                            transition: 'all 0.3s ease',
+                                            boxShadow: '0 4px 15px rgba(239, 68, 68, 0.1)'
+                                        }}
+                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                        >
+                                            <Trash2 size={20} /> Clear This Chat for Everyone
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>
@@ -882,7 +1007,9 @@ const GlobalChat = () => {
                         </div>
 
                         <div style={{ padding: '16px 12px 8px', marginTop: '8px' }}>
-                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px' }}>USERS ({contacts.length})</span>
+                            <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>
+                                {searchQuery ? 'SEARCH RESULTS' : 'RECENT CONVERSATIONS'} ({filteredContacts.length})
+                            </span>
                         </div>
                         {filteredContacts.map((contact) => (
                             <div key={contact.id}
@@ -994,10 +1121,14 @@ const GlobalChat = () => {
                     </div>
 
                     {/* Messages */}
-                    <div ref={scrollRef} style={{
-                        flex: 1, overflowY: 'auto', padding: isMobile ? '12px 16px' : (chatSettings.compactMode ? '12px 24px' : '24px'),
-                        display: 'flex', flexDirection: 'column', gap: chatSettings.compactMode ? '8px' : '16px'
-                    }}>
+                    <div ref={scrollRef}
+                        onScroll={handleScroll}
+                        style={{
+                            flex: 1, overflowY: 'auto', padding: isMobile ? '12px 16px' : (chatSettings.compactMode ? '12px 24px' : '24px'),
+                            display: 'flex', flexDirection: 'column', gap: chatSettings.compactMode ? '8px' : '16px',
+                            scrollBehavior: 'smooth'
+                        }}
+                    >
                         {isLoading && messages.length === 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b' }}>
                                 <RefreshCw size={48} className="animate-spin" style={{ marginBottom: '16px', opacity: 0.5 }} />
@@ -1161,9 +1292,44 @@ const GlobalChat = () => {
                                         </motion.div>
                                     );
                                 })}
+                                <div ref={messagesEndRef} style={{ height: '1px' }} />
                             </>
                         )}
                     </div>
+
+                    {/* New Message Floating Button */}
+                    <AnimatePresence>
+                        {showScrollButton && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.5, y: 20 }}
+                                onClick={() => { scrollToBottom(); setShowScrollButton(false); }}
+                                className="new-msg-btn"
+                                style={{
+                                    position: 'absolute',
+                                    bottom: isMobile ? '100px' : '110px',
+                                    right: isMobile ? '20px' : (showRightPanel ? '320px' : '40px'),
+                                    background: 'linear-gradient(135deg, #6366f1, #d946ef)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '10px 20px',
+                                    borderRadius: '100px',
+                                    fontSize: '13px',
+                                    fontWeight: '800',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    cursor: 'pointer',
+                                    zIndex: 100,
+                                    boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+                                }}
+                            >
+                                <ChevronDown size={18} />
+                                Pesan Baru
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
 
                     {/* Input Area */}
                     <div style={{ padding: isMobile ? '12px 6px 30px' : '16px 24px', background: 'rgba(15, 12, 45, 0.6)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
@@ -1392,7 +1558,7 @@ const GlobalChat = () => {
                                     style={{ flex: 1, padding: '16px', background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
                                     Batal
                                 </button>
-                                <button onClick={confirmDeleteRoom}
+                                <button id="confirm-delete-btn" onClick={confirmDeleteRoom}
                                     style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', border: 'none', borderRadius: '16px', color: 'white', fontWeight: '800', cursor: 'pointer', boxShadow: '0 10px 20px rgba(239, 68, 68, 0.3)' }}>
                                     Ya, Hapus!
                                 </button>

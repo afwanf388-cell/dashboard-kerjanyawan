@@ -252,13 +252,13 @@ const Dashboard = () => {
             if (!user) return;
             try {
                 if (!user?.username) return;
-                const suffix = `_${user.username} `;
+                const suffix = `_${user.username}`;
 
-                const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix} `) || '[]');
-                const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix} `) || '[]');
-                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix} `) || '[]').filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
-                const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix} `) || '[]');
-                let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix} `) || '[]');
+                const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix}`) || '[]');
+                const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
+                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]').filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
+                const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix}`) || '[]');
+                let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix}`) || '[]');
 
                 // Fetch Gold Price for accurate balance (same logic as Keuangan.jsx)
                 let currentGoldPrice = 1360000;
