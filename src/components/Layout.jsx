@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import SettingsModal from './SettingsModal';
 import { useAuth } from '../context/AuthContext';
 import { Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +11,21 @@ const Layout = () => {
     const { user } = useAuth();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const location = useLocation();
+
+    const [dashboardSettings, setDashboardSettings] = useState({
+        fontFamily: "'Inter', sans-serif",
+        sidebarColor: '59, 130, 246',
+        showNotes: true,
+        showLogins: true,
+        showMistakes: true,
+        showBalance: true,
+        showBank: true,
+        showActivity: true,
+        showFinance: true,
+        showChat: true,
+    });
 
     // Detect mobile screen
     useEffect(() => {
@@ -22,40 +37,33 @@ const Layout = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Lock scroll when sidebar open (mobile)
+    // Load and Save Settings
     useEffect(() => {
-        document.body.style.overflow = isMobileOpen ? 'hidden' : 'auto';
-        return () => {
-            document.body.style.overflow = 'auto';
-        };
-    }, [isMobileOpen]);
-
-    const [fontFamily, setFontFamily] = useState("'Inter', sans-serif");
-    const [themeColor, setThemeColor] = useState('59, 130, 246'); // Default Blue RGB
+        if (user?.username) {
+            const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
+            if (saved) {
+                try {
+                    setDashboardSettings(JSON.parse(saved));
+                } catch (e) {
+                    console.error("Failed to parse settings", e);
+                }
+            }
+        }
+    }, [user?.username]);
 
     useEffect(() => {
         if (user?.username) {
-            const updateSettings = () => {
-                const saved = localStorage.getItem(`dashboard_settings_${user.username}`);
-                if (saved) {
-                    const settings = JSON.parse(saved);
-                    if (settings.fontFamily) {
-                        setFontFamily(settings.fontFamily);
-                    }
-                    if (settings.sidebarColor) {
-                        setThemeColor(settings.sidebarColor);
-                    }
-                }
-            };
-            updateSettings();
-            window.addEventListener('storage', updateSettings);
-            const interval = setInterval(updateSettings, 1000);
-            return () => {
-                window.removeEventListener('storage', updateSettings);
-                clearInterval(interval);
-            };
+            localStorage.setItem(`dashboard_settings_${user.username}`, JSON.stringify(dashboardSettings));
         }
-    }, [user?.username]);
+    }, [dashboardSettings, user?.username]);
+
+    // Lock scroll when sidebar or modal open
+    useEffect(() => {
+        document.body.style.overflow = (isMobileOpen || isSettingsOpen) ? 'hidden' : 'auto';
+        return () => {
+            document.body.style.overflow = 'auto';
+        };
+    }, [isMobileOpen, isSettingsOpen]);
 
     if (!user) {
         return <Navigate to="/login" replace />;
@@ -71,7 +79,7 @@ const Layout = () => {
             style={{
                 display: 'flex',
                 minHeight: '100vh',
-                fontFamily: fontFamily,
+                fontFamily: dashboardSettings.fontFamily,
                 backgroundColor: '#020617',
                 backgroundImage: user?.bgImage
                     ? `linear-gradient(rgba(2, 6, 23, 0.35), rgba(2, 6, 23, 0.35)), url(${user.bgImage})`
@@ -82,7 +90,6 @@ const Layout = () => {
                 boxShadow: 'inset 0 0 100px rgba(0,0,0,0.3)',
                 position: 'relative',
                 overflow: 'hidden',
-                fontFamily: fontFamily
             }}
         >
             {/* MOBILE TOGGLE BUTTON */}
@@ -98,11 +105,11 @@ const Layout = () => {
                         height: '56px',
                         background: isMobileOpen
                             ? 'rgba(15, 23, 42, 0.6)'
-                            : `linear-gradient(135deg, rgb(${themeColor}), rgba(${themeColor}, 0.8))`,
+                            : `linear-gradient(135deg, rgb(${dashboardSettings.sidebarColor}), rgba(${dashboardSettings.sidebarColor}, 0.8))`,
                         backdropFilter: 'blur(10px)',
                         border: isMobileOpen
                             ? '1px solid rgba(255,255,255,0.1)'
-                            : `1px solid rgba(${themeColor}, 0.3)`,
+                            : `1px solid rgba(${dashboardSettings.sidebarColor}, 0.3)`,
                         borderRadius: '18px',
                         color: 'white',
                         display: 'flex',
@@ -110,20 +117,19 @@ const Layout = () => {
                         justifyContent: 'center',
                         boxShadow: isMobileOpen
                             ? '0 10px 25px rgba(0,0,0,0.3)'
-                            : `0 10px 30px rgba(${themeColor}, 0.4), inset 0 0 15px rgba(255,255,255,0.2)`,
+                            : `0 10px 30px rgba(${dashboardSettings.sidebarColor}, 0.4), inset 0 0 15px rgba(255,255,255,0.2)`,
                         cursor: 'pointer',
                         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                         transform: isMobileOpen ? 'rotate(180deg)' : 'rotate(0deg)'
                     }}
                 >
                     {isMobileOpen ? <X size={26} strokeWidth={2.5} /> : <Menu size={26} strokeWidth={2.5} />}
-                    {/* Pulsing Aura for Hamburger */}
                     {!isMobileOpen && (
                         <div style={{
                             position: 'absolute',
                             inset: '-4px',
                             borderRadius: '22px',
-                            border: `2px solid rgba(${themeColor}, 0.4)`,
+                            border: `2px solid rgba(${dashboardSettings.sidebarColor}, 0.4)`,
                             filter: 'blur(4px)',
                             animation: 'pulse 2s infinite'
                         }} />
@@ -131,7 +137,7 @@ const Layout = () => {
                 </button>
             )}
 
-            {/* MOBILE OVERLAY (DI BAWAH MAIN CONTENT) */}
+            {/* MOBILE OVERLAY */}
             {isMobile && isMobileOpen && (
                 <div
                     onClick={handleCloseSidebar}
@@ -141,7 +147,7 @@ const Layout = () => {
                         background: 'rgba(0,0,0,0.6)',
                         backdropFilter: 'blur(4px)',
                         WebkitBackdropFilter: 'blur(4px)',
-                        zIndex: 1000 // Between Main and Sidebar
+                        zIndex: 1000
                     }}
                 />
             )}
@@ -151,14 +157,15 @@ const Layout = () => {
                 isOpen={isMobileOpen}
                 onClose={handleCloseSidebar}
                 isMobile={isMobile}
+                onOpenSettings={() => setIsSettingsOpen(true)}
             />
 
-            {/* MAIN CONTENT (FIXED: DI ATAS OVERLAY) */}
+            {/* MAIN CONTENT */}
             <main
                 style={{
                     flex: 1,
                     padding: isMobile ? '12px' : '32px',
-                    paddingTop: isMobile ? '70px' : '32px',
+                    paddingTop: isMobile ? '80px' : '32px',
                     marginLeft: isMobile ? 0 : '280px',
                     width: isMobile ? '100%' : 'calc(100% - 280px)',
                     minHeight: '100vh',
@@ -178,14 +185,26 @@ const Layout = () => {
                             exit={{ opacity: 0, y: -10, scale: 0.99 }}
                             transition={{
                                 duration: 0.3,
-                                ease: [0.23, 1, 0.32, 1] // Custom cubic-bezier for premium feel
+                                ease: [0.23, 1, 0.32, 1]
                             }}
                         >
-                            <Outlet />
+                            <Outlet context={{ dashboardSettings, setDashboardSettings, onOpenSettings: () => setIsSettingsOpen(true) }} />
                         </motion.div>
                     </AnimatePresence>
                 </div>
             </main>
+
+            {/* SETTINGS MODAL */}
+            <AnimatePresence>
+                {isSettingsOpen && (
+                    <SettingsModal
+                        isOpen={isSettingsOpen}
+                        onClose={() => setIsSettingsOpen(false)}
+                        settings={dashboardSettings}
+                        setSettings={setDashboardSettings}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };

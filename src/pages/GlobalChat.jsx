@@ -551,11 +551,11 @@ const GlobalChat = () => {
 
     return (
         <div style={{
-            height: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 100px)',
+            height: isMobile ? 'calc(100dvh - 120px)' : 'calc(100vh - 100px)',
             display: 'flex', width: '100%', maxWidth: '1600px', margin: '0 auto',
             background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
-            backdropFilter: 'blur(20px)', borderRadius: isMobile ? '0' : '24px', overflow: 'hidden',
-            border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(20px)', borderRadius: isMobile ? '12px' : '24px', overflow: 'hidden',
+            border: '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)', position: 'relative',
         }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
@@ -951,8 +951,8 @@ const GlobalChat = () => {
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                     {/* Header */}
                     <div style={{
-                        padding: '16px 24px', background: 'rgba(15, 12, 45, 0.8)', backdropFilter: 'blur(10px)',
-                        borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '16px'
+                        padding: isMobile ? '12px 16px' : '16px 24px', background: 'rgba(15, 12, 45, 0.8)', backdropFilter: 'blur(10px)',
+                        borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '16px'
                     }}>
                         {isMobile && <button onClick={() => setShowContactList(true)} style={{ background: 'none', border: 'none', color: 'white', padding: '8px' }}>
                             <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>}
@@ -975,25 +975,27 @@ const GlobalChat = () => {
                                 {selectedContact ? (selectedContact.online ? 'Online' : 'Offline') : `${contacts.filter(c => c.online).length} online • ${messages.length} pesan`}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
                             <button onClick={() => updateChatSettings('notificationSound', !chatSettings.notificationSound)} className="action-btn" title={!chatSettings.notificationSound ? 'Unmute' : 'Mute'}
-                                style={{ background: !chatSettings.notificationSound ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: !chatSettings.notificationSound ? '#ef4444' : '#94a3b8' }}>
+                                style={{ background: !chatSettings.notificationSound ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: isMobile ? '8px' : '10px', color: !chatSettings.notificationSound ? '#ef4444' : '#94a3b8' }}>
                                 {!chatSettings.notificationSound ? <VolumeX size={18} /> : <Volume2 size={18} />}
                             </button>
                             <button onClick={() => setIsStarred(!isStarred)} className="action-btn" title={isStarred ? 'Unstar' : 'Star'}
-                                style={{ background: isStarred ? 'rgba(234,179,8,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: isStarred ? '#eab308' : '#94a3b8' }}>
+                                style={{ background: isStarred ? 'rgba(234,179,8,0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: isMobile ? '8px' : '10px', color: isStarred ? '#eab308' : '#94a3b8' }}>
                                 <Star size={18} fill={isStarred ? '#eab308' : 'none'} />
                             </button>
-                            <button onClick={() => setShowRightPanel(!showRightPanel)} className="action-btn"
-                                style={{ background: showRightPanel ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: showRightPanel ? '#6366f1' : '#94a3b8' }}>
-                                <Info size={18} />
-                            </button>
+                            {!isMobile && (
+                                <button onClick={() => setShowRightPanel(!showRightPanel)} className="action-btn"
+                                    style={{ background: showRightPanel ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '10px', padding: '10px', color: showRightPanel ? '#6366f1' : '#94a3b8' }}>
+                                    <Info size={18} />
+                                </button>
+                            )}
                         </div>
                     </div>
 
                     {/* Messages */}
                     <div ref={scrollRef} style={{
-                        flex: 1, overflowY: 'auto', padding: chatSettings.compactMode ? '12px 24px' : '24px',
+                        flex: 1, overflowY: 'auto', padding: isMobile ? '12px 16px' : (chatSettings.compactMode ? '12px 24px' : '24px'),
                         display: 'flex', flexDirection: 'column', gap: chatSettings.compactMode ? '8px' : '16px'
                     }}>
                         {isLoading && messages.length === 0 ? (
@@ -1164,7 +1166,7 @@ const GlobalChat = () => {
                     </div>
 
                     {/* Input Area */}
-                    <div style={{ padding: '16px 24px', background: 'rgba(15, 12, 45, 0.6)' }}>
+                    <div style={{ padding: isMobile ? '12px 6px 30px' : '16px 24px', background: 'rgba(15, 12, 45, 0.6)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         {replyTo && (
                             <div style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.1)',
@@ -1187,8 +1189,8 @@ const GlobalChat = () => {
                             </div>
                         )}
                         <div style={{
-                            display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(30, 25, 60, 0.8)',
-                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: '10px 16px', border: '1px solid rgba(255,255,255,0.06)'
+                            display: 'flex', alignItems: 'center', gap: isMobile ? '6px' : '12px', background: 'rgba(30, 25, 60, 0.8)',
+                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: isMobile ? '4px 8px' : '10px 16px', border: '1px solid rgba(255,255,255,0.06)'
                         }}>
                             {isRecording ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', color: '#ef4444' }}>
@@ -1211,23 +1213,40 @@ const GlobalChat = () => {
                                     </label>
                                     <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
-                                        placeholder="Type a message..." style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none', padding: '8px 0' }} />
+                                        placeholder="Type a message..." style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'white', fontSize: '14px', outline: 'none', padding: '8px 0' }} />
 
-                                    <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="action-btn"
-                                        style={{ background: 'none', border: 'none', color: showEmojiPicker ? '#6366f1' : '#64748b', padding: '4px' }}><Smile size={20} /></button>
-
-                                    <button onClick={startRecording} className="action-btn"
-                                        style={{ background: 'none', border: 'none', color: '#64748b', padding: '4px' }}><Mic size={20} /></button>
-
-                                    <button onClick={handleSend} disabled={!inputMessage.trim() && !attachment}
-                                        style={{
-                                            background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.05)',
-                                            border: 'none', borderRadius: '12px', padding: '10px 20px', color: 'white', fontWeight: '800', fontSize: '14px',
-                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default',
-                                            boxShadow: inputMessage.trim() || attachment ? '0 10px 20px -5px rgba(99, 102, 241, 0.4)' : 'none'
-                                        }}>
-                                        Send <Send size={16} />
+                                    <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: isMobile ? '8px' : '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Smile size={isMobile ? 22 : 20} />
                                     </button>
+                                    {isMobile ? null : (
+                                        <button onClick={isRecording ? stopRecording : startRecording}
+                                            style={{ background: 'none', border: 'none', color: isRecording ? '#ef4444' : '#94a3b8', cursor: 'pointer', padding: '10px' }}>
+                                            {isRecording ? <Square size={20} /> : <Mic size={20} />}
+                                        </button>
+                                    )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        {isMobile && (
+                                            <button onClick={isRecording ? stopRecording : startRecording}
+                                                style={{ background: 'none', border: 'none', color: isRecording ? '#ef4444' : '#94a3b8', cursor: 'pointer', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {isRecording ? <Square size={22} /> : <Mic size={22} />}
+                                            </button>
+                                        )}
+                                        <button onClick={handleSend} disabled={!inputMessage.trim() && !attachment}
+                                            style={{
+                                                background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.08)',
+                                                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px',
+                                                width: isMobile ? '42px' : 'auto',
+                                                height: isMobile ? '42px' : 'auto',
+                                                padding: isMobile ? '0' : '10px 20px',
+                                                color: 'white', fontWeight: '800', fontSize: '14px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default',
+                                                boxShadow: inputMessage.trim() || attachment ? '0 10px 20px -5px rgba(99, 102, 241, 0.4)' : 'none',
+                                                flexShrink: 0
+                                            }}>
+                                            {!isMobile && 'Send'} <Send size={isMobile ? 20 : 16} />
+                                        </button>
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -1250,11 +1269,11 @@ const GlobalChat = () => {
                         <h3 style={{ color: 'white', fontSize: '20px', fontWeight: '800', margin: '0 0 6px', letterSpacing: '0.5px' }}>Global Space</h3>
                         <p style={{ color: '#4b5563', fontSize: '13px', margin: 0, fontWeight: '600' }}>Public channel for everyone</p>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '20px' }}>
-                            {[{ icon: Flag, action: () => showToast('Reported') }, { icon: Bell, action: () => setIsMuted(!isMuted) }, { icon: Info, action: () => showToast('Info channel') }, { icon: Star, action: () => setIsStarred(!isStarred) }].map((item, i) => (
+                            {[{ icon: Flag, action: () => showToast('Reported') }, { icon: Bell, action: () => updateChatSettings('notificationSound', !chatSettings.notificationSound) }, { icon: Info, action: () => showToast('Info channel') }, { icon: Star, action: () => setIsStarred(!isStarred) }].map((item, i) => (
                                 <button key={i} onClick={item.action} className="action-btn" style={{
                                     width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.06)', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}><item.icon size={18} /></button>
+                                    border: '1px solid rgba(255,255,255,0.06)', color: (item.icon === Bell && !chatSettings.notificationSound) ? '#ef4444' : (item.icon === Star && isStarred) ? '#eab308' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}><item.icon size={18} fill={(item.icon === Star && isStarred) ? '#eab308' : 'none'} /></button>
                             ))}
                         </div>
                     </div>
@@ -1292,10 +1311,29 @@ const GlobalChat = () => {
             {/* Emoji Picker */}
             <AnimatePresence>
                 {showEmojiPicker && (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
-                        style={{ position: 'absolute', bottom: '100px', right: showRightPanel ? '340px' : '40px', zIndex: 100 }}>
-                        <Suspense fallback={<div style={{ width: 320, height: 350, background: '#1e293b', borderRadius: 12 }} />}>
-                            <EmojiPicker theme="dark" width={320} height={350} onEmojiClick={(e) => setInputMessage(prev => prev + e.emoji)} />
+                    <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        style={{
+                            position: 'absolute',
+                            bottom: isMobile ? '80px' : '100px',
+                            right: isMobile ? '12px' : (showRightPanel ? '340px' : '40px'),
+                            left: isMobile ? '12px' : 'auto',
+                            zIndex: 1000,
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                            borderRadius: '24px',
+                            overflow: 'hidden'
+                        }}>
+                        <Suspense fallback={<div style={{ width: isMobile ? '100%' : 350, height: 350, background: '#1e293b', borderRadius: 24 }} />}>
+                            <EmojiPicker
+                                theme="dark"
+                                width="100%"
+                                height={isMobile ? 350 : 400}
+                                onEmojiClick={(e) => {
+                                    setInputMessage(prev => prev + e.emoji);
+                                    if (isMobile) setShowEmojiPicker(false);
+                                }}
+                                searchDisabled={isMobile}
+                                skinTonesDisabled
+                            />
                         </Suspense>
                     </motion.div>
                 )}

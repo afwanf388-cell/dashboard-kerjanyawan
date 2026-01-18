@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutGrid, CheckSquare, Clock, Users, TrendingUp, TrendingDown,
@@ -13,30 +13,31 @@ import { supabase } from '../lib/supabase';
 
 // --- PREMIUM COMPONENTS ---
 
-const GlassCard = ({ children, style, className, onClick }) => (
-    <motion.div
-        whileHover={onClick ? { y: -5, scale: 1.005 } : {}}
-        onClick={onClick}
-        style={{
-            background: 'rgba(11, 15, 25, 0.7)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.04)',
-            borderRadius: '28px',
-            padding: '28px',
-            boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.4)',
-            cursor: onClick ? 'pointer' : 'default',
-            position: 'relative',
-            overflow: 'hidden',
-            ...style
-        }}
-        className={className}
-    >
-        {/* Subtle inner glow */}
-        <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', border: '1px solid rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
-        {children}
-    </motion.div>
-);
+const GlassCard = ({ children, style, className, onClick }) => {
+    return (
+        <motion.div
+            whileHover={onClick ? { y: -5, scale: 1.005 } : {}}
+            onClick={onClick}
+            style={{
+                background: 'rgba(11, 15, 25, 0.7)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.04)',
+                borderRadius: '28px',
+                padding: '28px',
+                boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.4)',
+                cursor: onClick ? 'pointer' : 'default',
+                position: 'relative',
+                overflow: 'hidden',
+                ...style
+            }}
+            className={`glass-card ${className || ''}`}
+        >
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 'inherit', border: '1px solid rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+            {children}
+        </motion.div>
+    );
+};
 
 const MetricCard = ({ title, value, badge, badgeColor, icon: Icon, color, onClick }) => {
     const isNegative = typeof value === 'string' && value.includes('-');
@@ -115,7 +116,7 @@ const ActivityItem = ({ type, title, subtitle, date, icon: Icon, color, onClick 
             justifyContent: 'center',
             flexShrink: 0,
             border: `1px solid rgba(${color}, 0.2)`,
-            boxShadow: `0 8px 16px -4px rgba(${color}, 0.1)`
+            boxShadow: `0 8px 16px - 4px rgba(${color}, 0.1)`
         }}>
             <Icon size={18} color={`rgb(${color})`} />
         </div>
@@ -135,237 +136,7 @@ const ActivityItem = ({ type, title, subtitle, date, icon: Icon, color, onClick 
 );
 
 // --- SWITCH COMPONENT ---
-const Switch = ({ checked, onChange }) => (
-    <div
-        onClick={() => onChange(!checked)}
-        style={{
-            width: '42px',
-            height: '24px',
-            background: checked ? 'linear-gradient(135deg, #3b82f6, #6366f1)' : 'rgba(255,255,255,0.1)',
-            borderRadius: '20px',
-            position: 'relative',
-            cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            border: checked ? 'none' : '1px solid rgba(255,255,255,0.1)'
-        }}
-    >
-        <motion.div
-            animate={{ x: checked ? 20 : 2 }}
-            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            style={{
-                position: 'absolute',
-                top: '2px',
-                left: 0,
-                width: '18px',
-                height: '18px',
-                background: 'white',
-                borderRadius: '50%',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-            }}
-        />
-    </div>
-);
-
-// --- MODAL SETTINGS ---
-const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
-    if (!isOpen) return null;
-
-    const toggleSetting = (key) => {
-        setSettings(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
-    const fonts = [
-        { name: 'Fun Style', id: "'DynaPuff', system-ui" },
-        { name: 'Modern Sans', id: "'Plus Jakarta Sans', sans-serif" },
-        { name: 'Futuristic', id: "'Syncopate', sans-serif" },
-        { name: 'High-Tech', id: "'Orbitron', sans-serif" },
-        { name: 'System Pro', id: "'Inter', sans-serif" },
-        { name: 'Neo-Sharp', id: "'Space Grotesk', sans-serif" },
-        { name: 'Clean Geometric', id: "'Outfit', sans-serif" },
-        { name: 'Ultra Bold', id: "'Unbounded', sans-serif" }
-    ];
-
-    const colors = [
-        { name: 'Blue', color: '59, 130, 246' },
-        { name: 'Purple', color: '139, 92, 246' },
-        { name: 'Pink', color: '236, 72, 153' },
-        { name: 'Emerald', color: '16, 185, 129' },
-        { name: 'Orange', color: '249, 115, 22' },
-        { name: 'Gold', color: '234, 179, 8' },
-        { name: 'Crimson', color: '225, 29, 72' },
-        { name: 'Indigo', color: '99, 102, 241' },
-        { name: 'Cyan', color: '6, 182, 212' },
-        { name: 'Rose', color: '244, 63, 94' },
-    ];
-
-    return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 2000,
-                background: 'rgba(2, 6, 23, 0.85)',
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'flex-start', // Force to top
-                justifyContent: 'center',
-                padding: '60px 16px 40px 16px', // Balanced padding for top alignment
-                overflowY: 'auto'
-            }}
-        >
-            <motion.div
-                initial={{ scale: 0.9, y: -20, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                style={{
-                    width: '100%',
-                    maxWidth: '480px',
-                    background: '#0f172a',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '28px',
-                    overflow: 'hidden',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-                }}
-            >
-                <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to right, rgba(59, 130, 246, 0.05), transparent)' }}>
-                    <div>
-                        <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'white', margin: 0 }}>Preferensi Dashboard</h3>
-                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Sesuaikan fitur dan gaya tampilan</p>
-                    </div>
-                    <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '8px', borderRadius: '12px' }}><Plus size={20} style={{ transform: 'rotate(45deg)' }} /></button>
-                </div>
-
-                <div style={{ padding: '24px', maxHeight: '60vh', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                        <div>
-                            <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Aksen & Sidebar (Theme)</p>
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(5, 1fr)',
-                                gap: '10px',
-                                marginBottom: '20px',
-                                maxHeight: '100px',
-                                overflowY: 'auto',
-                                padding: '4px'
-                            }} className="custom-scrollbar">
-                                {colors.map(c => (
-                                    <button
-                                        key={c.color}
-                                        onClick={() => setSettings(prev => ({ ...prev, sidebarColor: c.color }))}
-                                        style={{
-                                            height: '40px',
-                                            borderRadius: '10px',
-                                            background: `rgb(${c.color})`,
-                                            border: settings.sidebarColor === c.color ? '3px solid white' : 'none',
-                                            cursor: 'pointer',
-                                            boxShadow: settings.sidebarColor === c.color ? `0 0 15px rgba(${c.color}, 0.5)` : 'none',
-                                            transition: 'all 0.2s',
-                                            position: 'relative'
-                                        }}
-                                        title={c.name}
-                                    >
-                                        {settings.sidebarColor === c.color && (
-                                            <div style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'white', borderRadius: '50%', width: '14px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: `rgb(${c.color})` }} />
-                                            </div>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div>
-                            <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Gaya Desain (Fonts)</p>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px' }}>
-                                {fonts.map(font => (
-                                    <button
-                                        key={font.id}
-                                        onClick={() => setSettings(prev => ({ ...prev, fontFamily: font.id }))}
-                                        style={{
-                                            padding: '12px',
-                                            borderRadius: '12px',
-                                            background: settings.fontFamily === font.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.03)',
-                                            border: settings.fontFamily === font.id ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.05)',
-                                            color: settings.fontFamily === font.id ? 'white' : '#94a3b8',
-                                            fontSize: '12px',
-                                            fontWeight: '700',
-                                            cursor: 'pointer',
-                                            fontFamily: font.id,
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        {font.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Kartu Statistik</p>
-
-                        {[
-                            { key: 'showNotes', label: 'Catatan Kerja', icon: NotebookPen, color: '59, 130, 246' },
-                            { key: 'showLogins', label: 'Data Login', icon: Key, color: '139, 92, 246' },
-                            { key: 'showMistakes', label: 'Kesalahan Staf', icon: UserX, color: '239, 68, 68' },
-                            { key: 'showBalance', label: 'Saldo Keuangan', icon: Wallet, color: '16, 185, 129' },
-                            { key: 'showBank', label: 'Jadwal Bank', icon: Landmark, color: '59, 130, 246' },
-                        ].map((item) => (
-                            <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: `rgba(${item.color}, 0.1)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <item.icon size={16} color={`rgb(${item.color})`} />
-                                    </div>
-                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>{item.label}</span>
-                                </div>
-                                <Switch checked={settings[item.key]} onChange={() => toggleSetting(item.key)} />
-                            </div>
-                        ))}
-
-                        <p style={{ fontSize: '11px', color: '#64748b', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', marginTop: '8px' }}>Widget Dashboard</p>
-
-                        {[
-                            { key: 'showActivity', label: 'Aktivitas Terbaru', icon: Activity, color: '245, 158, 11' },
-                            { key: 'showFinance', label: 'Ringkasan Keuangan', icon: TrendingUp, color: '16, 185, 129' },
-                            { key: 'showChat', label: 'Panel Chat Global', icon: MessageSquare, color: '59, 130, 246' },
-                        ].map((item) => (
-                            <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: `rgba(${item.color}, 0.1)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <item.icon size={16} color={`rgb(${item.color})`} />
-                                    </div>
-                                    <span style={{ fontSize: '14px', fontWeight: '600' }}>{item.label}</span>
-                                </div>
-                                <Switch checked={settings[item.key]} onChange={() => toggleSetting(item.key)} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div style={{ padding: '24px', background: 'rgba(2, 6, 23, 0.4)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            width: '100%',
-                            padding: '16px',
-                            background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '16px',
-                            fontWeight: '800',
-                            cursor: 'pointer',
-                            fontSize: '15px',
-                            boxShadow: '0 10px 20px rgba(59, 130, 246, 0.3)'
-                        }}
-                    >
-                        Terapkan Perubahan
-                    </button>
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-};
+// --- ADVANCED CLOCK ---
 
 // --- ADVANCED CLOCK ---
 const AdvancedClock = ({ fontFamily }) => {
@@ -452,6 +223,7 @@ const getDashboardBankStatus = (bank) => {
 const Dashboard = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { dashboardSettings, setDashboardSettings, onOpenSettings } = useOutletContext();
     const [stats, setStats] = useState({
         notes: 0,
         mistakes: 0,
@@ -464,45 +236,29 @@ const Dashboard = () => {
         recentActivities: [],
         bankStats: { online: 0, trouble: 0, offline: 0 }
     });
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [activitySearch, setActivitySearch] = useState('');
     const [activityCategory, setActivityCategory] = useState('all');
-
-    // Feature Toggle Settings
-    const [dashboardSettings, setDashboardSettings] = useState(() => {
-        const defaults = {
-            showNotes: true,
-            showLogins: true,
-            showMistakes: true,
-            showBalance: true,
-            showActivity: true,
-            showFinance: true,
-            showChat: true,
-            showBank: true,
-            fontFamily: "'DynaPuff', system-ui",
-            sidebarColor: '59, 130, 246'
-        };
-        const saved = localStorage.getItem(`dashboard_settings_${user?.username}`);
-        return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
-    });
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
     useEffect(() => {
-        if (user?.username) {
-            localStorage.setItem(`dashboard_settings_${user.username}`, JSON.stringify(dashboardSettings));
-        }
-    }, [dashboardSettings, user]);
+        const handleResize = () => setIsMobile(window.innerWidth <= 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
+    // Load dynamic statistics
     useEffect(() => {
         const loadStats = async () => {
+            if (!user) return;
             try {
                 if (!user?.username) return;
-                const suffix = `_${user.username}`;
+                const suffix = `_${user.username} `;
 
-                const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix}`) || '[]');
-                const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix}`) || '[]');
-                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix}`) || '[]').filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
-                const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix}`) || '[]');
-                let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix}`) || '[]');
+                const localNotes = JSON.parse(localStorage.getItem(`app_catatan_kerja${suffix} `) || '[]');
+                const localLogins = JSON.parse(localStorage.getItem(`app_login_data${suffix} `) || '[]');
+                const localMistakes = JSON.parse(localStorage.getItem(`app_mistakes${suffix} `) || '[]').filter(m => m.id !== 888888888 && m.staff_name !== 'CONFIG_HIDDEN');
+                const localSchedules = JSON.parse(localStorage.getItem(`app_schedules${suffix} `) || '[]');
+                let localFinance = JSON.parse(localStorage.getItem(`finance_trx${suffix} `) || '[]');
 
                 // Fetch Gold Price for accurate balance (same logic as Keuangan.jsx)
                 let currentGoldPrice = 1360000;
@@ -644,33 +400,34 @@ const Dashboard = () => {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '40px',
+                marginBottom: '32px',
                 flexWrap: 'wrap',
                 gap: '16px'
             }}>
-                <div style={{ flex: '1 1 300px' }}>
+                <div style={{ flex: '1 1 300px', minWidth: isMobile ? '100%' : '300px' }}>
                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-                        <h1 style={{ fontSize: 'clamp(24px, 5vw, 36px)', fontWeight: '900', margin: 0, color: 'white', letterSpacing: '-1.5px' }}>
+                        <h1 style={{ fontSize: isMobile ? '24px' : 'clamp(24px, 5vw, 36px)', fontWeight: '900', margin: 0, color: 'white', letterSpacing: '-1px' }}>
                             Welcome back, <span style={{ background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{user?.displayName || user?.username}</span>! 👋
                         </h1>
-                        <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px', fontWeight: '600' }}>Sistem Dashboard Keamanan Data v2.0</p>
+                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: '600' }}>Sistem Dashboard Keamanan Data v2.0</p>
                     </motion.div>
                 </div>
                 <div style={{
                     display: 'flex',
-                    gap: '16px',
+                    gap: isMobile ? '8px' : '16px',
                     alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    flexWrap: 'nowrap'
+                    justifyContent: isMobile ? 'space-between' : 'flex-end',
+                    flexWrap: 'nowrap',
+                    width: isMobile ? '100%' : 'auto'
                 }}>
                     <AdvancedClock fontFamily={dashboardSettings.fontFamily} />
                     <button
-                        onClick={() => setIsSettingsOpen(true)}
+                        onClick={onOpenSettings}
                         style={{
                             background: 'rgba(59, 130, 246, 0.15)',
                             border: '1px solid rgba(59, 130, 246, 0.3)',
-                            padding: '12px',
-                            borderRadius: '16px',
+                            padding: '10px',
+                            borderRadius: '14px',
                             color: 'white',
                             cursor: 'pointer',
                             transition: 'all 0.3s ease',
@@ -679,10 +436,8 @@ const Dashboard = () => {
                             justifyContent: 'center',
                             boxShadow: '0 4px 15px rgba(59, 130, 246, 0.2)'
                         }}
-                        onMouseEnter={e => e.currentTarget.style.transform = 'rotate(30deg)'}
-                        onMouseLeave={e => e.currentTarget.style.transform = 'rotate(0deg)'}
                     >
-                        <Settings size={22} color="#60a5fa" />
+                        <Settings size={20} color="#60a5fa" />
                     </button>
                 </div>
             </div>
@@ -925,11 +680,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            <AnimatePresence>
-                {isSettingsOpen && (
-                    <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={dashboardSettings} setSettings={setDashboardSettings} />
-                )}
-            </AnimatePresence>
+
 
             <style>{`
                 .dashboard-grid {

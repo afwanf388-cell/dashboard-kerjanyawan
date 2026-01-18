@@ -701,3 +701,11 @@ html {
     display: none !important;
   }
 }
+
+/* Glass Card Responsive Padding */
+@media (max-width: 768px) {
+  .glass-card {
+    padding: 16px !important;
+    border-radius: 20px !important;
+  }
+}
