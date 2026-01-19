@@ -276,8 +276,18 @@ const GlobalChat = () => {
 
             if (container) {
                 // Direct DOM update for instant responsiveness
-                container.style.height = `${vv.height}px`;
-                container.style.top = `${vv.offsetTop}px`;
+                // container.style.height = `${vv.height}px`;
+                // container.style.top = `${vv.offsetTop}px`;
+
+                // Only apply if height is significantly smaller (keyboard likely open)
+                if (vv.height < window.innerHeight * 0.85) {
+                    container.style.height = `${vv.height}px`;
+                    container.style.top = `${vv.offsetTop}px`;
+                } else {
+                    // Reset to CSS control when keyboard is closed to avoid "sinking" issues
+                    container.style.height = '100dvh';
+                    container.style.top = '0';
+                }
 
                 // Keep react state in sync eventually, but DOM is first priority
                 setVisualViewportHeight(vv.height);
@@ -705,8 +715,8 @@ const GlobalChat = () => {
             ref={chatContainerRef}
             style={{
                 // Dynamic Height & Position for Mobile
-                height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
-                top: isMobile ? `${visualViewportTop}px` : 'auto',
+                height: isMobile ? 'calc(100dvh - env(safe-area-inset-bottom))' : 'calc(100vh - 100px)',
+                top: isMobile ? '0' : 'auto',
 
                 display: 'flex', width: '100%', maxWidth: '1600px',
                 margin: isMobile ? '0' : '0 auto',
@@ -1441,7 +1451,7 @@ const GlobalChat = () => {
                         borderTop: '1px solid rgba(255,255,255,0.05)',
                         flexShrink: 0,
                         zIndex: 20,
-                        position: isMobile ? 'absolute' : 'static',
+                        position: isMobile ? 'fixed' : 'static',
                         bottom: 0,
                         left: 0,
                         right: 0,
