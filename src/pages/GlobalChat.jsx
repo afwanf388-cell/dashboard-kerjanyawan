@@ -1169,7 +1169,7 @@ const GlobalChat = () => {
 
             {/* MAIN CHAT AREA */}
             {(!isMobile || !showContactList) && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%', overflow: 'hidden' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%', overflow: 'hidden', position: 'relative' }}>
                     {/* Header */}
                     <div style={{
                         padding: isMobile ? '12px 16px' : '16px 24px', background: 'rgba(15, 12, 45, 0.8)', backdropFilter: 'blur(10px)',
@@ -1218,7 +1218,8 @@ const GlobalChat = () => {
                     <div ref={scrollRef}
                         onScroll={handleScroll}
                         style={{
-                            flex: 1, overflowY: 'auto', padding: isMobile ? '12px 16px' : (chatSettings.compactMode ? '12px 24px' : '24px'),
+                            flex: 1, overflowY: 'auto',
+                            padding: isMobile ? '12px 16px 80px 16px' : (chatSettings.compactMode ? '12px 24px' : '24px'), // Extra bottom padding for mobile
                             display: 'flex', flexDirection: 'column', gap: chatSettings.compactMode ? '8px' : '16px',
                             scrollBehavior: 'smooth'
                         }}
@@ -1439,7 +1440,12 @@ const GlobalChat = () => {
                         backdropFilter: 'blur(20px)',
                         borderTop: '1px solid rgba(255,255,255,0.05)',
                         flexShrink: 0,
-                        zIndex: 20
+                        zIndex: 20,
+                        position: isMobile ? 'absolute' : 'static',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        width: '100%'
                     }}>
                         {replyTo && (
                             <div style={{
