@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, lazy, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy, useCallback, useMemo, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Send, Search, X, Paperclip, MoreVertical, Phone, Video, Info, Smile,
@@ -14,7 +14,64 @@ import { ref, push, set, onValue, off, update, remove, query, orderByChild, equa
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
-// Deterministic UUID generator for PM (MD5-like)
+// ... existing code ...
+
+// --- ULTIMATE MOBILE VIEWPORT & KEYBOARD HANDLING (SUPER SOPHISTICATED) ---
+const [viewportStyle, setViewportStyle] = useState({
+    height: window.visualViewport ? window.visualViewport.height : window.innerHeight,
+    top: 0
+});
+
+// 1. Lock Body Scroll on Mobile to prevent "Rubber Banding"
+useLayoutEffect(() => {
+    if (isMobile) {
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.style.height = '100%';
+    }
+    return () => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.height = '';
+    };
+}, [isMobile]);
+
+// 2. Track Visual Viewport for precise Keyboard adjustments
+useEffect(() => {
+    if (!window.visualViewport) return;
+
+    const handleViewportChange = () => {
+        const { height, offsetTop, pageTop } = window.visualViewport;
+
+        // On recent iOS versions, visualViewport height behaves better now,
+        // but we ensure we are anchoring to the bottom if needed.
+        setViewportStyle({
+            height: height,
+            top: offsetTop
+        });
+
+        setVisualViewportHeight(height);
+
+        // "Super Canggih": Auto-scroll key adjustment
+        if (inputRef && document.activeElement === inputRef.current) {
+            // Force scroll to bottom immediately and with slight delay for animation
+            window.scrollTo(0, 0); // Reset window scroll if any
+            setTimeout(() => scrollToBottom('auto'), 50);
+        }
+    };
+
+    window.visualViewport.addEventListener('resize', handleViewportChange);
+    window.visualViewport.addEventListener('scroll', handleViewportChange);
+
+    handleViewportChange(); // Init
+
+    return () => {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+    };
+}, []);
 const generateChatId = (id1, id2) => {
     const combined = [id1, id2].sort().join(':');
     let hash = 0;
@@ -259,21 +316,53 @@ const GlobalChat = () => {
         if (bottom) setShowScrollButton(false);
     };
 
-    // --- MOBILE KEYBOARD BUG FIX ---
+    // --- ULTIMATE MOBILE VIEWPORT & KEYBOARD HANDLING (SUPER SOPHISTICATED) ---
+    const [viewportStyle, setViewportStyle] = useState({
+        height: window.visualViewport ? window.visualViewport.height : window.innerHeight,
+        top: 0
+    });
+
+    // 1. Lock Body Scroll on Mobile to prevent "Rubber Banding"
+    useLayoutEffect(() => {
+        if (isMobile) {
+            // Store original values
+            const originalStyle = window.getComputedStyle(document.body).overflow;
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = originalStyle;
+            };
+        }
+    }, [isMobile]);
+
+    // 2. Track Visual Viewport for precise Keyboard adjustments
     useEffect(() => {
         if (!window.visualViewport) return;
 
-        const handleResize = () => {
-            setVisualViewportHeight(window.visualViewport.height);
-            // If focused on input and keyboard appears, scroll to bottom
+        const handleViewportChange = () => {
+            const { height, offsetTop } = window.visualViewport;
+
+            setViewportStyle({
+                height: height,
+                top: offsetTop
+            });
+            setVisualViewportHeight(height);
+
+            // "Super Canggih": Auto-scroll key adjustment
             if (document.activeElement === inputRef.current && isAtBottom) {
-                setTimeout(() => scrollToBottom('smooth'), 100);
+                setTimeout(() => scrollToBottom('auto'), 0); // Instant correction
+                setTimeout(() => scrollToBottom('smooth'), 100); // Smooth follow-up
             }
         };
 
-        window.visualViewport.addEventListener('resize', handleResize);
-        handleResize(); // Initialize on mount
-        return () => window.visualViewport.removeEventListener('resize', handleResize);
+        window.visualViewport.addEventListener('resize', handleViewportChange);
+        window.visualViewport.addEventListener('scroll', handleViewportChange);
+
+        handleViewportChange(); // Init
+
+        return () => {
+            window.visualViewport.removeEventListener('resize', handleViewportChange);
+            window.visualViewport.removeEventListener('scroll', handleViewportChange);
+        };
     }, [isAtBottom]);
 
     // Track Unread Messages for ALL rooms
@@ -654,7 +743,12 @@ const GlobalChat = () => {
 
     return (
         <div style={{
-            height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
+            // Dynamic Height & Position for Mobile
+            // Using viewportStyle.height ensures we fit in the visible area (above keyboard)
+            height: isMobile ? `${viewportStyle.height}px` : 'calc(100vh - 100px)',
+            // anchor to top 0 is safer than dynamic top for fullscreen apps
+            top: isMobile ? '0px' : 'auto',
+
             display: 'flex', width: '100%', maxWidth: '1600px',
             margin: isMobile ? '0' : '0 auto',
             background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
@@ -664,11 +758,9 @@ const GlobalChat = () => {
             border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
             position: isMobile ? 'fixed' : 'relative',
-            top: isMobile ? 0 : 'auto',
             left: isMobile ? 0 : 'auto',
-            zIndex: isMobile ? 9999 : 1, // Ensure it sits on top of everything on mobile
-            // Mobile Height Fix
-            height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
+            right: isMobile ? 0 : 'auto',
+            zIndex: isMobile ? 50 : 1, // Reduced z-index slightly to avoid conflict with modals but keep above standard
         }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
@@ -756,6 +848,15 @@ const GlobalChat = () => {
                     50% { height: 20px; }
                 }
                 .delete-conv-btn:hover { background: #ef4444 !important; color: white !important; transform: scale(1.1); }
+                
+                /* Input Area Polish */
+                .chat-input-container { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255,255,255,0.06); }
+                .chat-input-container:focus-within { 
+                    border-color: #6366f1 !important; 
+                    box-shadow: 0 0 25px rgba(99, 102, 241, 0.25); 
+                    background: rgba(30, 25, 60, 1) !important; 
+                    transform: translateY(-1px);
+                }
             `}</style>
 
             {/* Toast Notification */}
@@ -1395,10 +1496,13 @@ const GlobalChat = () => {
                                 }}><X size={12} /></button>
                             </div>
                         )}
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px', background: 'rgba(30, 25, 60, 0.8)',
-                            borderRadius: replyTo ? '0 0 16px 16px' : '16px', padding: isMobile ? '8px 12px' : '10px 16px', border: '1px solid rgba(255,255,255,0.06)',
-                            minHeight: isMobile ? '50px' : 'auto'
+                        <div className="chat-input-container" style={{
+                            display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px',
+                            background: 'rgba(30, 25, 60, 0.8)',
+                            borderRadius: replyTo ? '0 0 16px 16px' : '16px',
+                            padding: isMobile ? '8px 12px' : '10px 16px',
+                            minHeight: isMobile ? '50px' : 'auto',
+                            flexShrink: 0 // Prevent collapse
                         }}>
                             {isRecording ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', color: '#ef4444' }}>
@@ -1415,24 +1519,27 @@ const GlobalChat = () => {
                                 </div>
                             ) : (
                                 <>
-                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px', transition: 'transform 0.2s' }} className="action-btn">
                                         <Paperclip size={20} color="#64748b" />
                                         <input type="file" accept="image/*" hidden onChange={handleFileSelect} />
                                     </label>
                                     <input ref={inputRef} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && chatSettings.enterToSend && handleSend()}
-                                        placeholder="Type a message..." style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'white', fontSize: '15px', outline: 'none', padding: '8px 0', height: '100%' }} />
+                                        placeholder="Ketik pesan..."
+                                        style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'white', fontSize: '15px', outline: 'none', padding: '8px 0', height: '100%' }} />
 
                                     <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: isMobile ? '8px' : '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Smile size={isMobile ? 22 : 20} />
+                                        style={{ background: 'none', border: 'none', color: showEmojiPicker ? '#fbbf24' : '#94a3b8', cursor: 'pointer', padding: isMobile ? '8px' : '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+                                        <Smile size={isMobile ? 22 : 20} fill={showEmojiPicker ? '#fbbf24' : 'none'} />
                                     </button>
+
                                     {isMobile ? null : (
                                         <button onClick={isRecording ? stopRecording : startRecording}
-                                            style={{ background: 'none', border: 'none', color: isRecording ? '#ef4444' : '#94a3b8', cursor: 'pointer', padding: '10px' }}>
+                                            style={{ background: 'none', border: 'none', color: isRecording ? '#ef4444' : '#94a3b8', cursor: 'pointer', padding: '10px', transition: 'all 0.2s' }}>
                                             {isRecording ? <Square size={20} /> : <Mic size={20} />}
                                         </button>
                                     )}
+
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         {isMobile && (
                                             <button onClick={isRecording ? stopRecording : startRecording}
@@ -1444,15 +1551,18 @@ const GlobalChat = () => {
                                             style={{
                                                 background: inputMessage.trim() || attachment ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.08)',
                                                 border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px',
-                                                width: isMobile ? '42px' : 'auto',
-                                                height: isMobile ? '42px' : 'auto',
+                                                width: isMobile ? '44px' : 'auto',
+                                                height: isMobile ? '44px' : 'auto',
                                                 padding: isMobile ? '0' : '10px 20px',
                                                 color: 'white', fontWeight: '800', fontSize: '14px',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: inputMessage.trim() || attachment ? 'pointer' : 'default',
                                                 boxShadow: inputMessage.trim() || attachment ? '0 10px 20px -5px rgba(99, 102, 241, 0.4)' : 'none',
-                                                flexShrink: 0
+                                                flexShrink: 0,
+                                                transform: inputMessage.trim() || attachment ? 'scale(1)' : 'scale(0.95)',
+                                                opacity: inputMessage.trim() || attachment ? 1 : 0.7,
+                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                                             }}>
-                                            {!isMobile && 'Send'} <Send size={isMobile ? 20 : 16} />
+                                            {!isMobile && 'Send'} <Send size={isMobile ? 20 : 16} fill="white" />
                                         </button>
                                     </div>
                                 </>
