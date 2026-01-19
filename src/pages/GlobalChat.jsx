@@ -126,6 +126,7 @@ const GlobalChat = () => {
     const audioRef = useRef(new Audio(NOTIFY_SOUND));
     const inputRef = useRef(null);
     const recordingTimerRef = useRef(null);
+    const chatContainerRef = useRef(null); // Added for direct DOM manipulation
 
     const profile = useMemo(() => ({
         id: user?.id,
@@ -261,54 +262,67 @@ const GlobalChat = () => {
         if (bottom) setShowScrollButton(false);
     };
 
-    // --- ULTIMATE MOBILE VIEWPORT & KEYBOARD HANDLING (SUPER SOPHISTICATED) ---
-    const [viewportStyle, setViewportStyle] = useState({
-        height: window.visualViewport ? window.visualViewport.height : window.innerHeight,
-        top: 0
-    });
+    // --- SUPER SOPHISTICATED MOBILE VIEWPORT & KEYBOARD HANDLING ---
+    // We use a ref for direct DOM updates to avoid React render lag during keyboard animations
 
-    // 1. Lock Body Scroll on Mobile to prevent "Rubber Banding"
+    const [visualViewportTop, setVisualViewportTop] = useState(0);
+
     useLayoutEffect(() => {
-        if (isMobile) {
-            // Store original values
-            const originalStyle = window.getComputedStyle(document.body).overflow;
-            document.body.style.overflow = 'hidden';
-            return () => {
-                document.body.style.overflow = originalStyle;
-            };
-        }
-    }, [isMobile]);
+        if (!isMobile || !window.visualViewport) return;
 
-    // 2. Track Visual Viewport for precise Keyboard adjustments
-    useEffect(() => {
-        if (!window.visualViewport) return;
+        const handleVisualViewportResize = () => {
+            const vv = window.visualViewport;
+            const container = chatContainerRef.current;
 
-        const handleViewportChange = () => {
-            const { height, offsetTop } = window.visualViewport;
+            if (container) {
+                // Direct DOM update for instant responsiveness
+                container.style.height = `${vv.height}px`;
+                container.style.top = `${vv.offsetTop}px`;
 
-            setViewportStyle({
-                height: height,
-                top: offsetTop
-            });
-            setVisualViewportHeight(height);
+                // Keep react state in sync eventually, but DOM is first priority
+                setVisualViewportHeight(vv.height);
+                setVisualViewportTop(vv.offsetTop);
 
-            // "Super Canggih": Auto-scroll key adjustment
-            if (document.activeElement === inputRef.current && isAtBottom) {
-                setTimeout(() => scrollToBottom('auto'), 0); // Instant correction
-                setTimeout(() => scrollToBottom('smooth'), 100); // Smooth follow-up
+                // Auto-scroll adjustment
+                if (document.activeElement === inputRef.current) {
+                    window.scrollTo(0, 0);
+                    setTimeout(() => scrollToBottom('auto'), 50);
+                }
             }
         };
 
-        window.visualViewport.addEventListener('resize', handleViewportChange);
-        window.visualViewport.addEventListener('scroll', handleViewportChange);
+        window.visualViewport.addEventListener('resize', handleVisualViewportResize);
+        window.visualViewport.addEventListener('scroll', handleVisualViewportResize);
 
-        handleViewportChange(); // Init
+        // Initial call
+        handleVisualViewportResize();
 
         return () => {
-            window.visualViewport.removeEventListener('resize', handleViewportChange);
-            window.visualViewport.removeEventListener('scroll', handleViewportChange);
+            window.visualViewport.removeEventListener('resize', handleVisualViewportResize);
+            window.visualViewport.removeEventListener('scroll', handleVisualViewportResize);
         };
-    }, [isAtBottom]);
+    }, [isMobile]);
+
+    // Cleanup body scroll lock
+    useLayoutEffect(() => {
+        if (isMobile) {
+            document.body.style.overflow = 'hidden';
+            document.body.style.width = '100%';
+            document.body.style.position = 'fixed';
+            document.body.style.top = '0';
+        } else {
+            document.body.style.overflow = '';
+            document.body.style.width = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+            document.body.style.width = '';
+            document.body.style.position = '';
+            document.body.style.top = '';
+        };
+    }, [isMobile]);
 
     // Track Unread Messages for ALL rooms
     useEffect(() => {
@@ -687,26 +701,26 @@ const GlobalChat = () => {
     }, [messages, searchQuery]);
 
     return (
-        <div style={{
-            // Dynamic Height & Position for Mobile
-            // Using viewportStyle.height ensures we fit in the visible area (above keyboard)
-            height: isMobile ? `${viewportStyle.height}px` : 'calc(100vh - 100px)',
-            // anchor to top 0 is safer than dynamic top for fullscreen apps
-            top: isMobile ? '0px' : 'auto',
+        <div
+            ref={chatContainerRef}
+            style={{
+                // Dynamic Height & Position for Mobile
+                height: isMobile ? `${visualViewportHeight}px` : 'calc(100vh - 100px)',
+                top: isMobile ? `${visualViewportTop}px` : 'auto',
 
-            display: 'flex', width: '100%', maxWidth: '1600px',
-            margin: isMobile ? '0' : '0 auto',
-            background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
-            backdropFilter: 'blur(20px)',
-            borderRadius: isMobile ? '0' : '24px',
-            overflow: 'hidden',
-            border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
-            position: isMobile ? 'fixed' : 'relative',
-            left: isMobile ? 0 : 'auto',
-            right: isMobile ? 0 : 'auto',
-            zIndex: isMobile ? 50 : 1, // Reduced z-index slightly to avoid conflict with modals but keep above standard
-        }} onClick={() => setActiveMessageMenu(null)}>
+                display: 'flex', width: '100%', maxWidth: '1600px',
+                margin: isMobile ? '0' : '0 auto',
+                background: 'linear-gradient(135deg, rgba(15, 10, 40, 0.95), rgba(20, 15, 50, 0.98))',
+                backdropFilter: 'blur(20px)',
+                borderRadius: isMobile ? '0' : '24px',
+                overflow: 'hidden',
+                border: isMobile ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                boxShadow: '0 25px 80px -12px rgba(0,0,0,0.6)',
+                position: isMobile ? 'fixed' : 'relative',
+                left: isMobile ? 0 : 'auto',
+                right: isMobile ? 0 : 'auto',
+                zIndex: isMobile ? 9999 : 1, // High z-index to overlay everything on mobile
+            }} onClick={() => setActiveMessageMenu(null)}>
             <style>{`
                 .chat-sidebar::-webkit-scrollbar { width: 4px; }
                 .chat-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
