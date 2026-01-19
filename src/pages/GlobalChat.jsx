@@ -16,62 +16,7 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 // ... existing code ...
 
-// --- ULTIMATE MOBILE VIEWPORT & KEYBOARD HANDLING (SUPER SOPHISTICATED) ---
-const [viewportStyle, setViewportStyle] = useState({
-    height: window.visualViewport ? window.visualViewport.height : window.innerHeight,
-    top: 0
-});
 
-// 1. Lock Body Scroll on Mobile to prevent "Rubber Banding"
-useLayoutEffect(() => {
-    if (isMobile) {
-        document.body.style.overflow = 'hidden';
-        document.body.style.position = 'fixed';
-        document.body.style.width = '100%';
-        document.body.style.height = '100%';
-    }
-    return () => {
-        document.body.style.overflow = '';
-        document.body.style.position = '';
-        document.body.style.width = '';
-        document.body.style.height = '';
-    };
-}, [isMobile]);
-
-// 2. Track Visual Viewport for precise Keyboard adjustments
-useEffect(() => {
-    if (!window.visualViewport) return;
-
-    const handleViewportChange = () => {
-        const { height, offsetTop, pageTop } = window.visualViewport;
-
-        // On recent iOS versions, visualViewport height behaves better now,
-        // but we ensure we are anchoring to the bottom if needed.
-        setViewportStyle({
-            height: height,
-            top: offsetTop
-        });
-
-        setVisualViewportHeight(height);
-
-        // "Super Canggih": Auto-scroll key adjustment
-        if (inputRef && document.activeElement === inputRef.current) {
-            // Force scroll to bottom immediately and with slight delay for animation
-            window.scrollTo(0, 0); // Reset window scroll if any
-            setTimeout(() => scrollToBottom('auto'), 50);
-        }
-    };
-
-    window.visualViewport.addEventListener('resize', handleViewportChange);
-    window.visualViewport.addEventListener('scroll', handleViewportChange);
-
-    handleViewportChange(); // Init
-
-    return () => {
-        window.visualViewport.removeEventListener('resize', handleViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleViewportChange);
-    };
-}, []);
 const generateChatId = (id1, id2) => {
     const combined = [id1, id2].sort().join(':');
     let hash = 0;
