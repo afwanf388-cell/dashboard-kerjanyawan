@@ -1169,7 +1169,7 @@ const GlobalChat = () => {
 
             {/* MAIN CHAT AREA */}
             {(!isMobile || !showContactList) && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%', overflow: 'hidden' }}>
                     {/* Header */}
                     <div style={{
                         padding: isMobile ? '12px 16px' : '16px 24px', background: 'rgba(15, 12, 45, 0.8)', backdropFilter: 'blur(10px)',
@@ -1433,7 +1433,14 @@ const GlobalChat = () => {
                     </AnimatePresence>
 
                     {/* Input Area */}
-                    <div style={{ padding: isMobile ? '12px 12px 12px' : '16px 24px', background: 'rgba(15, 12, 45, 0.6)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{
+                        padding: isMobile ? '12px 12px max(12px, env(safe-area-inset-bottom))' : '16px 24px',
+                        background: 'rgba(15, 12, 45, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        borderTop: '1px solid rgba(255,255,255,0.05)',
+                        flexShrink: 0,
+                        zIndex: 20
+                    }}>
                         {replyTo && (
                             <div style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(99, 102, 241, 0.1)',
